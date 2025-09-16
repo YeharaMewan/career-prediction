@@ -1,0 +1,1 @@
+# Future trends analyst
