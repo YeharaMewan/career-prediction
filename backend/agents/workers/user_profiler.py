@@ -65,7 +65,7 @@ class UserProfilerAgent(WorkerAgent):
 
         # Initialize conversation components
         self.conversation_manager = ConversationManager(
-            model=kwargs.get('model', 'gpt-4o-mini'),
+            model=kwargs.get('model', 'gpt-4o'),
             temperature=kwargs.get('temperature', 0.3)
         )
         self.state_machine = ConversationStateMachine()
@@ -175,11 +175,12 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
         if state.pending_user_response and not state.response_processed:
             return self._process_user_response(state, conversation_context)
 
-        # Generate next question if conversation should continue
-        if not self.state_machine.is_conversation_complete(conversation_context):
-            return self._generate_next_question(conversation_context)
-        else:
+        # Check completion: exactly 12 questions asked
+        if len(conversation_context.question_history) >= 12:
             return self._complete_profiling(conversation_context, state)
+
+        # Generate next question if conversation should continue
+        return self._generate_next_question(conversation_context)
 
     def _handle_batch_mode(self, state: AgentState, session_id: str) -> TaskResult:
         """Handle traditional batch processing mode for backward compatibility."""
@@ -250,51 +251,69 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
             context, last_question, user_response, analysis
         )
 
-        # Check if follow-up is needed
+        # Check if follow-up is needed (only if under question limit)
         if self.conversation_manager.should_ask_follow_up(context, analysis):
             return self._generate_follow_up_question(context, analysis)
 
-        # Try to transition to next state
+        # Try to transition to next state based on question count
         if self.state_machine.can_transition_to_next_state(context):
             self.state_machine.transition_to_next_state(context)
 
-        # Generate next question or complete if ready
-        if not self.state_machine.is_conversation_complete(context):
-            return self._generate_next_question(context)
-        else:
+        # Check for completion: exactly 12 questions
+        session_id = context.session_metadata.get("session_id", "unknown")
+        questions_asked = len(context.question_history)
+
+        # Log current conversation state for debugging
+        logging.info(f"Session {session_id}: Processing response #{questions_asked}, "
+                    f"state: {context.current_state.name}")
+
+        if questions_asked >= 12:
+            logging.info(f"Session {session_id}: Reached 12 questions - generating career predictions")
             return self._complete_profiling(context, state)
+        else:
+            logging.info(f"Session {session_id}: Generating next question - "
+                        f"{12 - questions_asked} questions remaining")
+            return self._generate_next_question(context)
 
     def _generate_next_question(self, context: ConversationContext) -> TaskResult:
         """Generate the next question in the conversation."""
 
-        question = self.conversation_manager.generate_question(context)
+        try:
+            question = self.conversation_manager.generate_question(context)
 
-        # Update context with new question
-        context.question_history.append(question.question_text)
+            # Store updated context (question will be added to history when response is processed)
+            session_id = context.session_metadata.get("session_id")
+            if session_id:
+                self.active_sessions[session_id] = context
 
-        # Store updated context
-        session_id = context.session_metadata.get("session_id")
-        if session_id:
-            self.active_sessions[session_id] = context
+            # Get simple progress information
+            progress_summary = self._create_progress_summary(context)
 
-        return self._create_task_result(
-            task_type="question_generation",
-            success=True,
-            result_data={
-                "question": question.question_text,
-                "conversation_state": context.current_state.name,
-                "confidence_scores": context.confidence_scores,
-                "riasec_scores": {cat.value: score for cat, score in context.riasec_scores.items()},
-                "awaiting_response": True,
-                "session_id": session_id,
-                "progress": {
-                    "current_state": context.current_state.name,
-                    "questions_asked": len(context.question_history),
-                    "overall_confidence": self.state_machine.get_overall_confidence(context),
-                    "completion_readiness": self.state_machine.get_completion_readiness(context)
+            return self._create_task_result(
+                task_type="question_generation",
+                success=True,
+                result_data={
+                    "question": question.question_text,
+                    "conversation_state": context.current_state.name,
+                    "riasec_scores": {cat.value: score for cat, score in context.riasec_scores.items()},
+                    "awaiting_response": True,
+                    "session_id": session_id,
+                    "progress": progress_summary
                 }
-            }
-        )
+            )
+
+        except ValueError as e:
+            # Question limit reached - force completion
+            if "Maximum question limit" in str(e):
+                # Create a mock state to trigger completion
+                mock_state = AgentState(
+                    session_id=context.session_metadata.get("session_id"),
+                    interaction_mode="interactive"
+                )
+                return self._complete_profiling(context, mock_state)
+            else:
+                # Re-raise other ValueError instances
+                raise e
 
     def _generate_follow_up_question(self, context: ConversationContext, analysis: ResponseAnalysis) -> TaskResult:
         """Generate a follow-up question based on response analysis."""
@@ -308,6 +327,9 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
         if session_id:
             self.active_sessions[session_id] = context
 
+        # Get simple progress information
+        progress_summary = self._create_progress_summary(context)
+
         return self._create_task_result(
             task_type="follow_up_question",
             success=True,
@@ -315,10 +337,10 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
                 "question": follow_up_question.question_text,
                 "question_type": "follow_up",
                 "conversation_state": context.current_state.name,
-                "confidence_scores": context.confidence_scores,
                 "awaiting_response": True,
                 "session_id": session_id,
-                "follow_up_reason": "Need more specific information"
+                "follow_up_reason": "Need more specific information",
+                "progress": progress_summary
             }
         )
 
@@ -362,6 +384,9 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
 
         self._log_task_completion("interactive_profiling", True, f"Profile completed for session {session_id}")
 
+        # Get final progress summary
+        final_progress = self._create_progress_summary(context)
+
         return self._create_task_result(
             task_type="profile_completion",
             success=True,
@@ -369,10 +394,15 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
                 "student_profile": student_profile.dict(),
                 "session_summary": session_summary,
                 "conversation_complete": True,
-                "profile_confidence": student_profile.profile_confidence_score,
                 "dominant_riasec": student_profile.dominant_riasec_type,
                 "total_questions": len(context.question_history),
-                "session_id": session_id
+                "session_id": session_id,
+                "final_progress": final_progress,
+                "conversation_context": {
+                    "question_history": context.question_history,
+                    "response_history": context.response_history,
+                    "collected_data": context.collected_data
+                }
             }
         )
 
@@ -387,8 +417,8 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
         if riasec_scores:
             dominant_riasec = max(riasec_scores.items(), key=lambda x: x[1])[0]
 
-        # Calculate overall confidence
-        overall_confidence = self.state_machine.get_overall_confidence(context)
+        # Calculate RIASEC assessment quality based on question distribution
+        riasec_quality = sum(1 for count in context.riasec_question_count.values() if count >= 2) / 6.0
 
         return StudentProfile(
             # Basic information from collected data
@@ -421,12 +451,10 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
             # RIASEC results
             riasec_scores=riasec_scores,
             dominant_riasec_type=dominant_riasec,
-            riasec_confidence=overall_confidence,
+            riasec_confidence=riasec_quality,
 
             # Metadata
-            profile_confidence_score=overall_confidence,
             conversation_session_id=context.session_metadata.get("session_id"),
-            profile_completeness=overall_confidence,
             areas_needing_clarification=context.follow_up_needed
         )
 
@@ -463,7 +491,6 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
             result_data={
                 "student_profile": student_profile.dict(),
                 "riasec_scores": {cat.value: score for cat, score in context.riasec_scores.items()},
-                "confidence_scores": context.confidence_scores,
                 "mode": "batch"
             }
         )
@@ -507,16 +534,17 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
 
         context = self.active_sessions[session_id]
 
+        progress_summary = self._create_progress_summary(context)
+
         return {
             "session_id": session_id,
             "current_state": context.current_state.name,
             "questions_asked": len(context.question_history),
+            "questions_remaining": 12 - len(context.question_history),
             "responses_received": len(context.response_history),
-            "confidence_scores": context.confidence_scores,
             "riasec_scores": {cat.value: score for cat, score in context.riasec_scores.items()},
-            "overall_confidence": self.state_machine.get_overall_confidence(context),
-            "completion_readiness": self.state_machine.get_completion_readiness(context),
-            "is_complete": self.state_machine.is_conversation_complete(context)
+            "is_complete": self.state_machine.is_conversation_complete(context),
+            "progress": progress_summary
         }
 
     def end_session(self, session_id: str) -> bool:
@@ -551,6 +579,46 @@ Remember: You are an AI career counselor. Your ultimate goal is to help users di
             # Return a minimal profile if analysis fails
             return StudentProfile(
                 current_education_level="Unknown",
-                career_interests=["General"],
-                profile_confidence_score=0.3  # Low confidence for failed analysis
+                career_interests=["General"]
             )
+
+    def _should_complete_conversation(self, context: ConversationContext) -> bool:
+        """
+        Determine if conversation should be completed.
+        Complete after exactly 12 questions.
+        """
+        questions_asked = len(context.question_history)
+
+        # DETERMINISTIC RULE: Complete after exactly 12 questions
+        if questions_asked >= 12:
+            session_id = context.session_metadata.get("session_id", "unknown")
+            logging.info(f"Session {session_id}: Reached 12 questions - generating career predictions")
+            return True
+
+        return False
+
+    def _create_progress_summary(self, context: ConversationContext) -> Dict[str, Any]:
+        """
+        Create simple progress summary for API responses.
+        """
+        questions_asked = len(context.question_history)
+        questions_remaining = 12 - questions_asked
+
+        # Determine progress stage based on question count
+        if questions_asked <= 3:
+            stage = "Academic Background"
+        elif questions_asked <= 6:
+            stage = "Interest Discovery"
+        elif questions_asked <= 9:
+            stage = "Skills Assessment"
+        else:
+            stage = "Personality & Final Questions"
+
+        return {
+            "questions_asked": questions_asked,
+            "questions_remaining": questions_remaining,
+            "total_questions": 12,
+            "progress_percentage": round((questions_asked / 12) * 100, 1),
+            "current_stage": stage,
+            "riasec_distribution": {cat.value: count for cat, count in context.riasec_question_count.items()}
+        }

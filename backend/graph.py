@@ -55,7 +55,7 @@ def generate_career_suggestions(state: AgentState) -> AgentState:
     log_agent_execution("career_graph", "generate_suggestions", "Starting career suggestion generation")
     
     # This would use the main supervisor and worker agents
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
     
     prompt = f"""
     Based on the user profile: {state.user_profile}

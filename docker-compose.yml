@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  # Backend service - Career Planning Multi-Agent System
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: career-planning-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONPATH=/app
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      # Mount output directories for logs and reports
+      - ./backend/outputs:/app/outputs
+      - ./backend/data:/app/data
+    networks:
+      - career-planning-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend service - React application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    container_name: career-planning-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "3000:80" # Alternative port
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - career-planning-network
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+
+networks:
+  career-planning-network:
+    driver: bridge
+    name: career-planning-network
+
+volumes:
+  backend-outputs:
+    name: career-planning-outputs
+  backend-data:
+    name: career-planning-data

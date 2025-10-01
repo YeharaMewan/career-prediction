@@ -38,10 +38,10 @@ class RIASECCategory(Enum):
 class ConversationSession(BaseModel):
     """
     Model for managing human-in-the-loop conversation sessions.
+    Simplified to track question count and progress.
     """
     session_id: str = Field(..., description="Unique session identifier")
     current_conversation_state: ConversationState = Field(default=ConversationState.GREETING, description="Current conversation state")
-    confidence_scores: Dict[str, float] = Field(default_factory=dict, description="Confidence scores for different areas")
     riasec_scores: Dict[str, float] = Field(default_factory=dict, description="RIASEC category scores (R,I,A,S,E,C)")
     question_history: List[str] = Field(default_factory=list, description="Questions asked during session")
     response_history: List[str] = Field(default_factory=list, description="User responses during session")
@@ -52,6 +52,7 @@ class ConversationSession(BaseModel):
     last_interaction: Optional[str] = Field(None, description="Timestamp of last interaction")
     awaiting_user_response: bool = Field(default=False, description="Whether waiting for user response")
     current_question: Optional[str] = Field(None, description="Current question awaiting response")
+    questions_remaining: int = Field(default=12, description="Questions remaining (out of 12 total)")
 
 
 class StudentProfile(BaseModel):
@@ -98,12 +99,10 @@ class StudentProfile(BaseModel):
     # RIASEC Assessment Results
     riasec_scores: Dict[str, float] = Field(default_factory=dict, description="RIASEC category scores")
     dominant_riasec_type: Optional[str] = Field(None, description="Dominant RIASEC category")
-    riasec_confidence: float = Field(default=0.0, description="Confidence in RIASEC assessment")
+    riasec_confidence: float = Field(default=0.0, description="Quality of RIASEC assessment (based on question distribution)")
 
     # Conversation-Derived Metadata
-    profile_confidence_score: float = Field(default=0.0, description="Overall confidence in profile accuracy")
     conversation_session_id: Optional[str] = Field(None, description="Session ID that created this profile")
-    profile_completeness: float = Field(default=0.0, description="How complete the profile is (0-1)")
     areas_needing_clarification: List[str] = Field(default_factory=list, description="Areas that need more information")
     
     def to_summary(self) -> str:

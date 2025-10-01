@@ -116,7 +116,7 @@ class LangSmithConfig:
         metadata = {
             "project": "career-planning-system",
             "version": "1.0.0",
-            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            "model": os.getenv("OPENAI_MODEL", "gpt-4o"),
             "temperature": float(os.getenv("OPENAI_TEMPERATURE", "0.1"))
         }
         

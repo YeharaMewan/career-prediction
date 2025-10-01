@@ -40,10 +40,11 @@ class RIASECCategory(Enum):
 class ConversationContext:
     """
     Context information for the current conversation state.
+    Simplified to track only question count and RIASEC assessment.
     """
     current_state: ConversationState
-    confidence_scores: Dict[str, float]  # Confidence in collected information
     riasec_scores: Dict[RIASECCategory, float]  # RIASEC category scores
+    riasec_question_count: Dict[RIASECCategory, int]  # Questions asked per RIASEC category
     collected_data: Dict[str, Any]  # Information gathered so far
     question_history: List[str]  # Questions already asked
     response_history: List[str]  # User responses
@@ -52,17 +53,12 @@ class ConversationContext:
 
     def __post_init__(self):
         """Initialize default values."""
-        if not self.confidence_scores:
-            self.confidence_scores = {
-                "academic_background": 0.0,
-                "career_interests": 0.0,
-                "skills": 0.0,
-                "personality": 0.0,
-                "goals": 0.0
-            }
-
         if not self.riasec_scores:
             self.riasec_scores = {category: 0.0 for category in RIASECCategory}
+
+        # Initialize RIASEC question tracking
+        if not hasattr(self, 'riasec_question_count') or not self.riasec_question_count:
+            self.riasec_question_count = {category: 0 for category in RIASECCategory}
 
         if not self.collected_data:
             self.collected_data = {}
@@ -96,36 +92,6 @@ class StateTransitionRule(ABC):
         pass
 
 
-class ConfidenceBasedTransition(StateTransitionRule):
-    """
-    Transition rule based on confidence thresholds.
-    """
-
-    def __init__(
-        self,
-        required_confidence: Dict[str, float],
-        target_state: ConversationState,
-        min_overall_confidence: float = 0.7
-    ):
-        self.required_confidence = required_confidence
-        self.target_state = target_state
-        self.min_overall_confidence = min_overall_confidence
-
-    def can_transition(self, context: ConversationContext) -> bool:
-        """Check if confidence thresholds are met."""
-        for area, min_confidence in self.required_confidence.items():
-            if context.confidence_scores.get(area, 0.0) < min_confidence:
-                return False
-
-        # Check overall confidence
-        overall = sum(context.confidence_scores.values()) / len(context.confidence_scores)
-        return overall >= self.min_overall_confidence
-
-    def get_next_state(self, context: ConversationContext) -> ConversationState:
-        """Return the target state."""
-        return self.target_state
-
-
 class QuestionCountTransition(StateTransitionRule):
     """
     Transition rule based on minimum number of questions in current state.
@@ -144,6 +110,25 @@ class QuestionCountTransition(StateTransitionRule):
         return self.target_state
 
 
+class QuestionLimitTransition(StateTransitionRule):
+    """
+    Transition rule that forces completion when approaching question limit.
+    """
+
+    def __init__(self, question_limit: int, target_state: ConversationState):
+        self.question_limit = question_limit
+        self.target_state = target_state
+
+    def can_transition(self, context: ConversationContext) -> bool:
+        """Check if we're approaching the question limit and should force completion."""
+        # Force transition when we have 2 or fewer questions remaining
+        return len(context.question_history) >= (self.question_limit - 2)
+
+    def get_next_state(self, context: ConversationContext) -> ConversationState:
+        """Return the target state."""
+        return self.target_state
+
+
 class ConversationStateMachine:
     """
     Finite State Machine for managing the User Profiler conversation flow.
@@ -151,74 +136,47 @@ class ConversationStateMachine:
 
     def __init__(self):
         self.transitions = self._setup_transitions()
-        self.confidence_thresholds = self._setup_confidence_thresholds()
         self.state_objectives = self._setup_state_objectives()
 
     def _setup_transitions(self) -> Dict[ConversationState, List[StateTransitionRule]]:
-        """Setup state transition rules."""
+        """Setup state transition rules - SIMPLIFIED: Based purely on question count, no confidence checks."""
+        question_limit = 12  # Exactly 12 questions: 2 per RIASEC category (R, I, A, S, E, C)
+
         return {
             ConversationState.GREETING: [
-                QuestionCountTransition(1, ConversationState.ACADEMIC_GATHERING)
+                QuestionCountTransition(1, ConversationState.ACADEMIC_GATHERING),
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.ACADEMIC_GATHERING: [
-                ConfidenceBasedTransition(
-                    {"academic_background": 0.8},
-                    ConversationState.INTEREST_DISCOVERY,
-                    min_overall_confidence=0.3
-                )
+                QuestionCountTransition(3, ConversationState.INTEREST_DISCOVERY),  # After 3 questions, move on
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.INTEREST_DISCOVERY: [
-                ConfidenceBasedTransition(
-                    {"career_interests": 0.7},
-                    ConversationState.SKILLS_ASSESSMENT,
-                    min_overall_confidence=0.4
-                )
+                QuestionCountTransition(6, ConversationState.SKILLS_ASSESSMENT),  # After 6 questions, move on
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.SKILLS_ASSESSMENT: [
-                ConfidenceBasedTransition(
-                    {"skills": 0.7},
-                    ConversationState.PERSONALITY_PROBE,
-                    min_overall_confidence=0.5
-                )
+                QuestionCountTransition(9, ConversationState.PERSONALITY_PROBE),  # After 9 questions, move on
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.PERSONALITY_PROBE: [
-                ConfidenceBasedTransition(
-                    {"personality": 0.7},
-                    ConversationState.SUMMARIZATION,
-                    min_overall_confidence=0.6
-                )
+                QuestionCountTransition(12, ConversationState.COMPLETED),  # After 12 questions, complete
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.SUMMARIZATION: [
-                ConfidenceBasedTransition(
-                    {"academic_background": 0.7, "career_interests": 0.7, "skills": 0.6, "personality": 0.6},
-                    ConversationState.CONFIRMATION,
-                    min_overall_confidence=0.7
-                )
+                QuestionCountTransition(1, ConversationState.COMPLETED),  # Should never reach here
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.CONFIRMATION: [
-                QuestionCountTransition(1, ConversationState.COMPLETED)
+                QuestionCountTransition(1, ConversationState.COMPLETED),
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ]
-        }
-
-    def _setup_confidence_thresholds(self) -> Dict[ConversationState, Dict[str, float]]:
-        """Setup minimum confidence thresholds for each state."""
-        return {
-            ConversationState.ACADEMIC_GATHERING: {"academic_background": 0.8},
-            ConversationState.INTEREST_DISCOVERY: {"career_interests": 0.7},
-            ConversationState.SKILLS_ASSESSMENT: {"skills": 0.7},
-            ConversationState.PERSONALITY_PROBE: {"personality": 0.7},
-            ConversationState.SUMMARIZATION: {
-                "academic_background": 0.7,
-                "career_interests": 0.7,
-                "skills": 0.6,
-                "personality": 0.6
-            }
         }
 
     def _setup_state_objectives(self) -> Dict[ConversationState, str]:
@@ -262,51 +220,44 @@ class ConversationStateMachine:
 
     def transition_to_next_state(self, context: ConversationContext) -> bool:
         """
-        Attempt to transition to the next state.
+        Attempt to transition to the next state - SIMPLIFIED: Based purely on question count.
         Returns True if transition was successful.
         """
         next_state = self.get_next_state(context)
         if next_state:
             context.current_state = next_state
             return True
+
+        # Simple fallback: Force completion at 12 questions
+        questions_asked = len(context.question_history)
+
+        if questions_asked >= 12:
+            context.current_state = ConversationState.COMPLETED
+            return True
+
         return False
 
     def get_state_objective(self, state: ConversationState) -> str:
         """Get the objective for a given state."""
         return self.state_objectives.get(state, "Continue conversation")
 
-    def get_required_confidence(self, state: ConversationState) -> Dict[str, float]:
-        """Get required confidence thresholds for a state."""
-        return self.confidence_thresholds.get(state, {})
-
     def is_conversation_complete(self, context: ConversationContext) -> bool:
-        """Check if the conversation has reached completion."""
-        return context.current_state == ConversationState.COMPLETED
-
-    def get_overall_confidence(self, context: ConversationContext) -> float:
-        """Calculate overall confidence score."""
-        scores = list(context.confidence_scores.values())
-        return sum(scores) / len(scores) if scores else 0.0
-
-    def get_completion_readiness(self, context: ConversationContext) -> Dict[str, Any]:
         """
-        Assess how ready the conversation is for completion.
+        Check if the conversation has reached completion - SIMPLIFIED: Based purely on question count.
         """
-        overall_confidence = self.get_overall_confidence(context)
-        required_confidence = self.get_required_confidence(ConversationState.SUMMARIZATION)
+        # Standard completion check
+        if context.current_state == ConversationState.COMPLETED:
+            return True
 
-        missing_areas = []
-        for area, min_confidence in required_confidence.items():
-            if context.confidence_scores.get(area, 0.0) < min_confidence:
-                missing_areas.append(area)
+        # Simple rule: Complete after exactly 12 questions
+        questions_asked = len(context.question_history)
 
-        return {
-            "overall_confidence": overall_confidence,
-            "completion_ready": len(missing_areas) == 0 and overall_confidence >= 0.7,
-            "missing_areas": missing_areas,
-            "next_recommended_state": self.get_next_state(context) or context.current_state
-        }
+        if questions_asked >= 12:
+            # Force transition to completed state
+            context.current_state = ConversationState.COMPLETED
+            return True
 
+        return False
 
 def create_initial_conversation_context() -> ConversationContext:
     """
@@ -314,8 +265,8 @@ def create_initial_conversation_context() -> ConversationContext:
     """
     return ConversationContext(
         current_state=ConversationState.GREETING,
-        confidence_scores={},
         riasec_scores={},
+        riasec_question_count={},
         collected_data={},
         question_history=[],
         response_history=[],
