@@ -36,7 +36,7 @@ class BaseAgent(ABC):
         self, 
         name: str, 
         description: str,
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-4o",
         temperature: float = 0.1
     ):
         self.name = name

@@ -310,7 +310,6 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                             "conversation_state": result_data.get("conversation_state"),
                             "awaiting_user_response": True,
                             "progress": result_data.get("progress", {}),
-                            "confidence_scores": result_data.get("confidence_scores", {}),
                             "riasec_scores": result_data.get("riasec_scores", {})
                         }
                     )
@@ -348,19 +347,49 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         session_state.current_step = "career_prediction"
         session_state.awaiting_user_response = False
 
-        # Extract student profile
+        # Extract student profile with fallback handling
+        student_profile = None
         if "student_profile" in profiler_data:
-            session_state.student_profile = StudentProfile(**profiler_data["student_profile"])
+            try:
+                student_profile = StudentProfile(**profiler_data["student_profile"])
+            except Exception as e:
+                self._log_task_completion("profile_extraction_error", False,
+                                        f"Session {session_id}: Student profile extraction failed: {str(e)}")
         elif "profile" in profiler_data:
-            session_state.student_profile = StudentProfile(**profiler_data["profile"])
+            try:
+                student_profile = StudentProfile(**profiler_data["profile"])
+            except Exception as e:
+                self._log_task_completion("profile_extraction_error", False,
+                                        f"Session {session_id}: Profile extraction failed: {str(e)}")
 
-        # Generate 5 career predictions
-        career_predictions = self._generate_career_predictions(session_state.student_profile, profiler_data)
+        # Fallback profile creation if extraction failed
+        if student_profile is None:
+            self._log_task_completion("fallback_profile_creation", True,
+                                    f"Session {session_id}: Creating fallback profile for career predictions")
+            student_profile = self._create_fallback_student_profile(profiler_data, session_id)
+
+        session_state.student_profile = student_profile
+
+        # Generate 5 career predictions with enhanced error handling
+        try:
+            career_predictions = self._generate_career_predictions(student_profile, profiler_data)
+            self._log_task_completion("career_predictions_generated", True,
+                                    f"Session {session_id}: Generated {len(career_predictions)} career predictions")
+        except Exception as e:
+            self._log_task_completion("career_prediction_error", False,
+                                    f"Session {session_id}: Career prediction generation failed: {str(e)}")
+            # Generate fallback predictions to ensure we always deliver something
+            career_predictions = self._generate_fallback_career_predictions(student_profile, profiler_data)
 
         # Clean up profiler session
         self.user_profiler.end_session(session_id)
 
         self._log_task_completion("profiling_stage", True, f"Session {session_id} profiling completed with career predictions")
+
+        # Create comprehensive confidence report for final results
+        final_confidence_report = self._create_final_confidence_report(
+            student_profile, profiler_data, session_state, session_info
+        )
 
         return self._create_task_result(
             task_type="career_prediction_completion",
@@ -374,7 +403,9 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 "total_questions": profiler_data.get("total_questions", 0),
                 "career_predictions": career_predictions,
                 "completed": True,
-                "message": f"Perfect! Based on our conversation, I've identified some great career matches for you. Here are my recommendations:"
+                "message": f"Perfect! Based on our conversation, I've identified some great career matches for you. Here are my recommendations:",
+                "final_confidence_report": final_confidence_report,
+                "prediction_reliability": self._assess_prediction_reliability(profiler_data.get("profile_confidence", 0.0))
             }
         )
 
@@ -526,155 +557,554 @@ Your goal is to deliver exceptional career guidance through both efficient batch
 
     def _generate_career_predictions(self, student_profile: StudentProfile, profiler_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Generate 5 career predictions based on student profile and RIASEC scores.
+        Generate 5 personalized career predictions using AI analysis of the complete conversation.
+        Analyzes all 12 user responses to create truly customized recommendations.
         """
-        # Career database mapped to RIASEC categories
-        career_database = {
-            "R": [  # Realistic
-                {"title": "Software Engineer", "description": "Design and develop software applications", "growth_outlook": "High", "median_salary": "$95,000"},
-                {"title": "Mechanical Engineer", "description": "Design and build mechanical systems", "growth_outlook": "Medium", "median_salary": "$88,000"},
-                {"title": "Civil Engineer", "description": "Design infrastructure and construction projects", "growth_outlook": "Medium", "median_salary": "$85,000"},
-                {"title": "Electrical Engineer", "description": "Design electrical systems and components", "growth_outlook": "Medium", "median_salary": "$92,000"},
-                {"title": "Industrial Designer", "description": "Create functional and aesthetic product designs", "growth_outlook": "Medium", "median_salary": "$68,000"}
-            ],
-            "I": [  # Investigative
-                {"title": "Data Scientist", "description": "Analyze complex data to derive insights", "growth_outlook": "Very High", "median_salary": "$110,000"},
-                {"title": "Research Scientist", "description": "Conduct scientific research and experiments", "growth_outlook": "Medium", "median_salary": "$85,000"},
-                {"title": "Cybersecurity Analyst", "description": "Protect systems from security threats", "growth_outlook": "Very High", "median_salary": "$98,000"},
-                {"title": "Biomedical Engineer", "description": "Apply engineering to medical and biological problems", "growth_outlook": "High", "median_salary": "$95,000"},
-                {"title": "Market Research Analyst", "description": "Study market conditions and consumer behavior", "growth_outlook": "High", "median_salary": "$65,000"}
-            ],
-            "A": [  # Artistic
-                {"title": "UX/UI Designer", "description": "Design user interfaces and experiences", "growth_outlook": "High", "median_salary": "$75,000"},
-                {"title": "Creative Director", "description": "Lead creative teams and campaigns", "growth_outlook": "Medium", "median_salary": "$95,000"},
-                {"title": "Game Developer", "description": "Create video games and interactive media", "growth_outlook": "High", "median_salary": "$72,000"},
-                {"title": "Digital Marketing Specialist", "description": "Create and manage digital marketing campaigns", "growth_outlook": "High", "median_salary": "$58,000"},
-                {"title": "Graphic Designer", "description": "Create visual concepts and designs", "growth_outlook": "Medium", "median_salary": "$52,000"}
-            ],
-            "S": [  # Social
-                {"title": "Product Manager", "description": "Lead product development and strategy", "growth_outlook": "High", "median_salary": "$115,000"},
-                {"title": "Human Resources Manager", "description": "Manage employee relations and policies", "growth_outlook": "Medium", "median_salary": "$78,000"},
-                {"title": "Training and Development Specialist", "description": "Design and implement training programs", "growth_outlook": "High", "median_salary": "$62,000"},
-                {"title": "Social Media Manager", "description": "Manage social media presence and engagement", "growth_outlook": "High", "median_salary": "$55,000"},
-                {"title": "Customer Success Manager", "description": "Ensure customer satisfaction and retention", "growth_outlook": "High", "median_salary": "$72,000"}
-            ],
-            "E": [  # Enterprising
-                {"title": "Business Analyst", "description": "Analyze business processes and requirements", "growth_outlook": "High", "median_salary": "$82,000"},
-                {"title": "Sales Manager", "description": "Lead sales teams and strategies", "growth_outlook": "Medium", "median_salary": "$85,000"},
-                {"title": "Project Manager", "description": "Plan and execute project deliverables", "growth_outlook": "High", "median_salary": "$88,000"},
-                {"title": "Startup Founder", "description": "Create and lead new business ventures", "growth_outlook": "Variable", "median_salary": "Variable"},
-                {"title": "Business Development Manager", "description": "Identify and develop new business opportunities", "growth_outlook": "Medium", "median_salary": "$78,000"}
-            ],
-            "C": [  # Conventional
-                {"title": "Financial Analyst", "description": "Analyze financial data and investment opportunities", "growth_outlook": "Medium", "median_salary": "$78,000"},
-                {"title": "Operations Manager", "description": "Oversee daily business operations", "growth_outlook": "Medium", "median_salary": "$82,000"},
-                {"title": "Quality Assurance Specialist", "description": "Ensure products meet quality standards", "growth_outlook": "Medium", "median_salary": "$65,000"},
-                {"title": "Database Administrator", "description": "Manage and maintain database systems", "growth_outlook": "Medium", "median_salary": "$92,000"},
-                {"title": "Systems Analyst", "description": "Analyze and improve IT systems", "growth_outlook": "Medium", "median_salary": "$88,000"}
-            ]
+        try:
+            # Extract conversation history
+            conversation_context = profiler_data.get("conversation_context", {})
+            qa_pairs = self._extract_qa_pairs(conversation_context)
+
+            # Build comprehensive AI prompt with full conversation
+            prompt = f"""You are an expert career counselor with deep knowledge of various industries and career paths. Analyze this complete conversation with a student who answered 12 career assessment questions.
+
+STUDENT PROFILE SUMMARY:
+- Education Level: {student_profile.current_education_level or 'Not specified'}
+- Major/Field: {student_profile.major_field or 'Not specified'}
+- Technical Skills: {', '.join(student_profile.technical_skills[:8]) if student_profile.technical_skills else 'Not specified'}
+- Interests: {', '.join(student_profile.career_interests[:8]) if student_profile.career_interests else 'Not specified'}
+- RIASEC Personality Profile: {dict(student_profile.riasec_scores) if student_profile.riasec_scores else 'Not specified'}
+
+COMPLETE CONVERSATION (12 Questions & Detailed Answers):
+{self._format_qa_history(qa_pairs)}
+
+TASK: Generate 5 highly personalized career recommendations for THIS specific student.
+
+REQUIREMENTS:
+1. Reference specific answers from the conversation (e.g., "You mentioned loving marine biology in Q1...")
+2. Suggest diverse careers across different industries
+3. Consider their unique combination of interests, skills, and personality
+4. Include both traditional and emerging career paths
+5. Be specific - avoid generic titles like "Engineer" (use "Biomedical Device Engineer" instead)
+
+For EACH of the 5 careers, provide:
+- title: Specific career title (not generic)
+- description: What this career actually involves (2-3 sentences)
+- why_good_fit: Personalized explanation referencing their specific responses (3-4 sentences)
+- required_education: Educational requirements
+- required_skills: List of 3-5 key skills needed
+- growth_outlook: "High", "Medium", or "Low"
+- median_salary: Realistic salary range (e.g., "$75,000-$95,000")
+- confidence_score: Match confidence 0.7-0.95 based on how well it fits
+- riasec_alignment: Which RIASEC traits this career matches
+- career_path: Brief progression path (e.g., "Junior → Senior → Lead")
+
+Return ONLY a valid JSON array (no markdown, no extra text):
+[
+  {{
+    "title": "Specific Career Title",
+    "description": "What this career involves...",
+    "why_good_fit": "You mentioned X in Q3 and Y in Q7, which directly align with...",
+    "required_education": "Bachelor's in X or related field",
+    "required_skills": ["skill1", "skill2", "skill3"],
+    "growth_outlook": "High",
+    "median_salary": "$XX,000-$YY,000",
+    "confidence_score": 0.88,
+    "riasec_alignment": "Strong Investigative (I) and Artistic (A) match",
+    "career_path": "Junior → Mid-level → Senior → Lead"
+  }}
+]"""
+
+            # Call LLM to generate personalized careers
+            careers = self._call_llm_for_careers(prompt, student_profile, profiler_data)
+
+            if careers and len(careers) > 0:
+                logging.info(f"AI generated {len(careers)} personalized career predictions")
+                return careers[:5]
+            else:
+                logging.warning("AI generation returned empty, using fallback")
+                return self._generate_fallback_career_predictions(student_profile, profiler_data)
+
+        except Exception as e:
+            logging.error(f"Career prediction generation failed: {e}. Using fallback.")
+            return self._generate_fallback_career_predictions(student_profile, profiler_data)
+
+    def _extract_qa_pairs(self, conversation_context: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Extract question-answer pairs from conversation context."""
+        question_history = conversation_context.get("question_history", [])
+        response_history = conversation_context.get("response_history", [])
+
+        qa_pairs = []
+        for i, (q, a) in enumerate(zip(question_history, response_history), 1):
+            qa_pairs.append({
+                "number": i,
+                "question": q,
+                "answer": a
+            })
+        return qa_pairs
+
+    def _format_qa_history(self, qa_pairs: List[Dict]) -> str:
+        """Format Q&A pairs for LLM prompt."""
+        if not qa_pairs:
+            return "No conversation history available."
+
+        formatted = []
+        for qa in qa_pairs:
+            formatted.append(f"Q{qa['number']}: {qa['question']}")
+            formatted.append(f"A{qa['number']}: {qa['answer']}\n")
+        return "\n".join(formatted)
+
+    def _call_llm_for_careers(self, prompt: str, student_profile: StudentProfile, profiler_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Call LLM to generate career predictions dynamically."""
+        try:
+            from langchain_core.messages import HumanMessage
+
+            response = self.llm.invoke([HumanMessage(content=prompt)])
+
+            if not response or not response.content:
+                logging.warning("Empty LLM response for career generation")
+                return []
+
+            response_text = response.content.strip()
+
+            # Extract JSON array from response
+            # Try to find JSON array in the response
+            import re
+            json_match = re.search(r'\[[\s\S]*\]', response_text)
+
+            if json_match:
+                import json
+                try:
+                    careers = json.loads(json_match.group())
+
+                    if isinstance(careers, list) and len(careers) > 0:
+                        # Validate and clean career data
+                        validated_careers = []
+                        for career in careers[:5]:  # Max 5 careers
+                            if isinstance(career, dict) and "title" in career:
+                                # Ensure all required fields exist
+                                validated_career = {
+                                    "title": career.get("title", "Unknown Career"),
+                                    "description": career.get("description", "No description available"),
+                                    "why_good_fit": career.get("why_good_fit", "Based on your profile"),
+                                    "required_education": career.get("required_education", "Bachelor's degree"),
+                                    "required_skills": career.get("required_skills", []),
+                                    "growth_outlook": career.get("growth_outlook", "Medium"),
+                                    "median_salary": career.get("median_salary", "$60,000-$80,000"),
+                                    "confidence_score": float(career.get("confidence_score", 0.75)),
+                                    "riasec_alignment": career.get("riasec_alignment", "Multi-faceted match"),
+                                    "career_path": career.get("career_path", "Entry → Mid → Senior")
+                                }
+                                validated_careers.append(validated_career)
+
+                        if validated_careers:
+                            return validated_careers
+
+                except json.JSONDecodeError as je:
+                    logging.error(f"Failed to parse LLM JSON: {je}")
+                    logging.debug(f"Response text: {response_text[:500]}")
+
+            logging.warning("Could not extract valid JSON from LLM response")
+            return []
+
+        except Exception as e:
+            logging.error(f"LLM career generation error: {e}")
+            return []
+
+    def _create_final_confidence_report(
+        self,
+        student_profile: StudentProfile,
+        profiler_data: Dict[str, Any],
+        session_state: AgentState,
+        session_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Create a comprehensive final confidence report for completed sessions.
+        """
+        total_questions = profiler_data.get("total_questions", 0)
+        profile_confidence = profiler_data.get("profile_confidence", 0.0)
+
+        # Extract confidence breakdown if available
+        confidence_breakdown = profiler_data.get("final_confidence_breakdown", {})
+        confidence_journey = profiler_data.get("confidence_journey", {})
+
+        # Create final assessment
+        assessment_summary = {
+            "total_questions_asked": total_questions,
+            "final_confidence_score": round(profile_confidence, 2),
+            "final_confidence_percentage": f"{profile_confidence:.0%}",
+            "session_duration_interactions": session_info.get("total_interactions", 0),
+            "conversation_efficiency": self._calculate_conversation_efficiency(total_questions, profile_confidence),
+            "data_collection_quality": self._assess_data_collection_quality(student_profile, profile_confidence)
         }
 
-        # Get RIASEC scores from profile
-        riasec_scores = student_profile.riasec_scores or {}
+        # Confidence categories analysis
+        categories_analysis = {}
+        if confidence_breakdown and "confidence_breakdown" in confidence_breakdown:
+            for category, data in confidence_breakdown["confidence_breakdown"].items():
+                categories_analysis[category] = {
+                    "final_score": data.get("current", 0.0),
+                    "final_percentage": data.get("percentage", "0%"),
+                    "target_met": data.get("status") in ["sufficient", "excellent"],
+                    "quality_rating": data.get("status", "unknown")
+                }
 
-        # Convert string keys to proper format if needed
-        normalized_scores = {}
-        for key, value in riasec_scores.items():
-            if isinstance(key, str) and len(key) == 1:
-                normalized_scores[key.upper()] = value
-            elif isinstance(key, str) and len(key) > 1:
-                # Handle full names like "Realistic" -> "R"
-                first_letter = key[0].upper()
-                if first_letter in ["R", "I", "A", "S", "E", "C"]:
-                    normalized_scores[first_letter] = value
+        # RIASEC confidence analysis
+        riasec_analysis = {}
+        if student_profile.riasec_scores:
+            for category, score in student_profile.riasec_scores.items():
+                riasec_analysis[category] = {
+                    "score": round(score, 2),
+                    "percentage": f"{score:.0%}",
+                    "confidence_level": "high" if score >= 0.6 else "moderate" if score >= 0.4 else "developing"
+                }
 
-        # Sort RIASEC categories by score (highest first)
-        sorted_categories = sorted(normalized_scores.items(), key=lambda x: x[1], reverse=True)
+        # Prediction reliability assessment
+        prediction_reliability = {
+            "overall_reliability": self._assess_prediction_reliability(profile_confidence),
+            "career_predictions_confidence": "high" if profile_confidence >= 0.7 else "moderate" if profile_confidence >= 0.5 else "developing",
+            "recommendation_strength": self._calculate_recommendation_strength(profile_confidence, total_questions),
+            "areas_well_understood": self._identify_well_understood_areas(categories_analysis),
+            "areas_with_limited_data": self._identify_limited_data_areas(categories_analysis)
+        }
 
-        # Generate career predictions
-        predictions = []
-        used_careers = set()
+        # Session insights
+        session_insights = {
+            "conversation_flow": "efficient" if total_questions <= 10 else "thorough",
+            "user_engagement": self._assess_user_engagement(session_info),
+            "information_richness": self._assess_information_richness(student_profile),
+            "goal_achievement": "excellent" if profile_confidence >= 0.7 else "good" if profile_confidence >= 0.6 else "satisfactory"
+        }
 
-        # Get careers from top RIASEC categories
-        for category, score in sorted_categories:
-            if len(predictions) >= 5:
-                break
+        return {
+            "assessment_summary": assessment_summary,
+            "confidence_categories": categories_analysis,
+            "riasec_analysis": riasec_analysis,
+            "prediction_reliability": prediction_reliability,
+            "session_insights": session_insights,
+            "confidence_journey": confidence_journey,
+            "final_recommendations": {
+                "career_predictions_reliability": prediction_reliability["overall_reliability"]["level"],
+                "next_steps": self._generate_next_steps_recommendations(profile_confidence),
+                "improvement_opportunities": self._identify_improvement_opportunities(categories_analysis)
+            }
+        }
 
-            category_careers = career_database.get(category, [])
+    def _calculate_conversation_efficiency(self, questions_asked: int, final_confidence: float) -> Dict[str, Any]:
+        """Calculate how efficiently the conversation gathered information."""
+        # Ideal efficiency: high confidence with fewer questions
+        efficiency_score = final_confidence / max(questions_asked / 12, 1.0)  # Normalized to question limit
 
-            for career in category_careers:
-                if len(predictions) >= 5:
-                    break
+        if efficiency_score >= 0.8:
+            rating = "excellent"
+        elif efficiency_score >= 0.6:
+            rating = "good"
+        elif efficiency_score >= 0.4:
+            rating = "fair"
+        else:
+            rating = "could_improve"
 
-                if career["title"] not in used_careers:
-                    # Calculate match confidence based on RIASEC score and other factors
-                    base_confidence = score * 0.7  # RIASEC score contributes 70%
+        return {
+            "score": round(efficiency_score, 2),
+            "rating": rating,
+            "questions_per_confidence_point": round(questions_asked / max(final_confidence, 0.1), 1)
+        }
 
-                    # Add bonus for relevant skills or interests
-                    skill_bonus = 0.0
-                    if student_profile.technical_skills:
-                        if any(skill.lower() in career["description"].lower() for skill in student_profile.technical_skills):
-                            skill_bonus = 0.1
+    def _assess_data_collection_quality(self, student_profile: StudentProfile, confidence: float) -> Dict[str, Any]:
+        """Assess the quality of data collected during the conversation."""
+        quality_indicators = {
+            "has_academic_info": bool(student_profile.current_education_level and student_profile.current_education_level != "Unknown"),
+            "has_career_interests": bool(student_profile.career_interests),
+            "has_technical_skills": bool(student_profile.technical_skills),
+            "has_riasec_data": bool(student_profile.riasec_scores),
+            "has_goals": bool(student_profile.short_term_goals or student_profile.long_term_goals)
+        }
 
-                    interest_bonus = 0.0
-                    if student_profile.career_interests:
-                        if any(interest.lower() in career["title"].lower() or interest.lower() in career["description"].lower()
-                               for interest in student_profile.career_interests):
-                            interest_bonus = 0.1
+        quality_score = sum(quality_indicators.values()) / len(quality_indicators)
 
-                    confidence = min(base_confidence + skill_bonus + interest_bonus, 0.95)
+        return {
+            "quality_score": round(quality_score, 2),
+            "quality_percentage": f"{quality_score:.0%}",
+            "data_completeness": "comprehensive" if quality_score >= 0.8 else "good" if quality_score >= 0.6 else "basic",
+            "missing_elements": [key.replace("has_", "") for key, value in quality_indicators.items() if not value]
+        }
 
-                    # Create prediction with reasoning
-                    reasoning_parts = []
-                    reasoning_parts.append(f"Strong {self._get_riasec_name(category)} characteristics (score: {score:.1%})")
+    def _assess_prediction_reliability(self, confidence: float) -> Dict[str, Any]:
+        """Assess how reliable career predictions are based on confidence."""
+        if confidence >= 0.8:
+            return {
+                "level": "very_high",
+                "description": "Career predictions are highly reliable and well-supported by comprehensive data",
+                "recommendation": "Proceed with confidence in these career recommendations"
+            }
+        elif confidence >= 0.7:
+            return {
+                "level": "high",
+                "description": "Career predictions are reliable with good supporting data",
+                "recommendation": "These career suggestions provide a strong foundation for exploration"
+            }
+        elif confidence >= 0.6:
+            return {
+                "level": "good",
+                "description": "Career predictions are reasonably reliable with adequate data",
+                "recommendation": "Use these suggestions as a starting point for career exploration"
+            }
+        elif confidence >= 0.5:
+            return {
+                "level": "moderate",
+                "description": "Career predictions have moderate reliability due to limited data",
+                "recommendation": "Consider these as initial guidance while gathering more information"
+            }
+        else:
+            return {
+                "level": "developing",
+                "description": "Career predictions are based on limited information",
+                "recommendation": "Use as preliminary guidance and continue career exploration"
+            }
 
-                    if skill_bonus > 0:
-                        reasoning_parts.append("Relevant technical skills identified")
-                    if interest_bonus > 0:
-                        reasoning_parts.append("Aligns with expressed career interests")
+    def _calculate_recommendation_strength(self, confidence: float, questions_asked: int) -> str:
+        """Calculate the strength of career recommendations."""
+        if confidence >= 0.7 and questions_asked >= 8:
+            return "strong"
+        elif confidence >= 0.6 and questions_asked >= 6:
+            return "moderate"
+        elif confidence >= 0.5:
+            return "preliminary"
+        else:
+            return "exploratory"
 
-                    if student_profile.dominant_riasec_type and category in student_profile.dominant_riasec_type:
-                        reasoning_parts.append("Matches your dominant personality type")
+    def _identify_well_understood_areas(self, categories_analysis: Dict[str, Any]) -> List[str]:
+        """Identify areas where we have high confidence."""
+        well_understood = []
+        for category, data in categories_analysis.items():
+            if data.get("quality_rating") in ["sufficient", "excellent"]:
+                well_understood.append(category)
+        return well_understood
 
-                    prediction = {
-                        "title": career["title"],
-                        "description": career["description"],
-                        "confidence_score": round(confidence, 2),
-                        "reasoning": "; ".join(reasoning_parts),
-                        "riasec_category": self._get_riasec_name(category),
-                        "growth_outlook": career["growth_outlook"],
-                        "median_salary": career["median_salary"],
-                        "why_good_fit": self._generate_fit_explanation(career, student_profile, category)
-                    }
+    def _identify_limited_data_areas(self, categories_analysis: Dict[str, Any]) -> List[str]:
+        """Identify areas where data collection was limited."""
+        limited_areas = []
+        for category, data in categories_analysis.items():
+            if data.get("quality_rating") == "needs_improvement":
+                limited_areas.append(category)
+        return limited_areas
 
-                    predictions.append(prediction)
-                    used_careers.add(career["title"])
+    def _assess_user_engagement(self, session_info: Dict[str, Any]) -> str:
+        """Assess how engaged the user was during the conversation."""
+        interactions = session_info.get("total_interactions", 0)
+        if interactions >= 10:
+            return "highly_engaged"
+        elif interactions >= 6:
+            return "well_engaged"
+        elif interactions >= 3:
+            return "moderately_engaged"
+        else:
+            return "limited_engagement"
 
-        # If we don't have 5 predictions, add some general technology careers
-        if len(predictions) < 5:
-            fallback_careers = [
-                {"title": "Technology Consultant", "description": "Advise organizations on technology solutions", "growth_outlook": "High", "median_salary": "$85,000"},
-                {"title": "Business Intelligence Analyst", "description": "Transform data into business insights", "growth_outlook": "High", "median_salary": "$78,000"},
-                {"title": "Digital Transformation Specialist", "description": "Lead digital innovation initiatives", "growth_outlook": "Very High", "median_salary": "$92,000"}
+    def _assess_information_richness(self, student_profile: StudentProfile) -> str:
+        """Assess how rich and detailed the collected information is."""
+        richness_score = 0
+
+        # Academic information richness
+        if student_profile.major_field:
+            richness_score += 1
+        if student_profile.academic_performance:
+            richness_score += 1
+
+        # Skills richness
+        if len(student_profile.technical_skills or []) >= 3:
+            richness_score += 1
+        if len(student_profile.soft_skills or []) >= 2:
+            richness_score += 1
+
+        # Interest richness
+        if len(student_profile.career_interests or []) >= 3:
+            richness_score += 1
+        if student_profile.industry_preferences:
+            richness_score += 1
+
+        # Goals richness
+        if student_profile.short_term_goals:
+            richness_score += 1
+        if student_profile.long_term_goals:
+            richness_score += 1
+
+        if richness_score >= 6:
+            return "very_rich"
+        elif richness_score >= 4:
+            return "rich"
+        elif richness_score >= 2:
+            return "moderate"
+        else:
+            return "basic"
+
+    def _generate_next_steps_recommendations(self, confidence: float) -> List[str]:
+        """Generate recommendations for next steps based on confidence level."""
+        if confidence >= 0.7:
+            return [
+                "Explore the recommended careers in depth",
+                "Research specific companies and roles",
+                "Connect with professionals in these fields",
+                "Consider relevant internships or projects",
+                "Develop skills aligned with your top career matches"
+            ]
+        elif confidence >= 0.6:
+            return [
+                "Research the suggested career areas further",
+                "Take additional career assessments if needed",
+                "Gain experience through volunteering or projects",
+                "Speak with career counselors for additional guidance",
+                "Continue exploring your interests and strengths"
+            ]
+        else:
+            return [
+                "Continue self-exploration and career research",
+                "Take comprehensive career assessments",
+                "Gain diverse experiences to better understand preferences",
+                "Seek guidance from career professionals",
+                "Keep an open mind while exploring various paths"
             ]
 
-            for career in fallback_careers:
-                if len(predictions) >= 5:
-                    break
-                if career["title"] not in used_careers:
-                    prediction = {
-                        "title": career["title"],
-                        "description": career["description"],
-                        "confidence_score": 0.65,
-                        "reasoning": "Good general fit based on overall profile",
-                        "riasec_category": "Multi-category fit",
-                        "growth_outlook": career["growth_outlook"],
-                        "median_salary": career["median_salary"],
-                        "why_good_fit": "This role combines multiple aspects of your interests and skills"
-                    }
-                    predictions.append(prediction)
+    def _identify_improvement_opportunities(self, categories_analysis: Dict[str, Any]) -> List[str]:
+        """Identify areas where the assessment could be improved."""
+        opportunities = []
+        for category, data in categories_analysis.items():
+            if not data.get("target_met", True):
+                opportunities.append(f"Gather more information about {category.replace('_', ' ')}")
 
-        return predictions[:5]  # Ensure we return exactly 5 predictions
+        if not opportunities:
+            opportunities.append("Continue monitoring career interests as they evolve")
+
+        return opportunities
+
+    def _create_fallback_student_profile(self, profiler_data: Dict[str, Any], session_id: str) -> StudentProfile:
+        """
+        Create a minimal but functional student profile when normal extraction fails.
+        Ensures career predictions can always be generated.
+        """
+        self._log_task_completion("fallback_profile_creation", True,
+                                f"Session {session_id}: Creating fallback profile from available data")
+
+        # Extract what data we can from profiler_data
+        academic_level = "Unknown"
+        career_interests = ["General"]
+        riasec_scores = {}
+        confidence_score = 0.3  # Default low confidence
+
+        # Try to extract any available information
+        if isinstance(profiler_data, dict):
+            # Look for RIASEC data
+            if "riasec_scores" in profiler_data:
+                riasec_data = profiler_data["riasec_scores"]
+                if isinstance(riasec_data, dict):
+                    riasec_scores = riasec_data
+
+            # Look for basic profile info
+            if "profile_confidence" in profiler_data:
+                confidence_score = max(confidence_score, profiler_data.get("profile_confidence", 0.3))
+
+        # Create minimal viable profile
+        return StudentProfile(
+            current_education_level=academic_level,
+            career_interests=career_interests,
+            riasec_scores=riasec_scores,
+            technical_skills=["General problem-solving"],
+            soft_skills=["Communication"],
+            short_term_goals=["Explore career options"],
+            long_term_goals=["Find fulfilling career"]
+        )
+
+    def _generate_fallback_career_predictions(self, student_profile: StudentProfile, profiler_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Generate basic career predictions when normal prediction process fails.
+        Provides general career suggestions suitable for most students.
+        """
+        self._log_task_completion("fallback_predictions", True,
+                                "Generating fallback career predictions")
+
+        # General career suggestions suitable for most people
+        fallback_careers = [
+            {
+                "career_title": "Business Analyst",
+                "confidence_score": 0.65,
+                "match_percentage": 65,
+                "key_reasons": [
+                    "Versatile career path suitable for various backgrounds",
+                    "Combines analytical thinking with communication skills",
+                    "Available across multiple industries"
+                ],
+                "riasec_match": "Investigative, Enterprising",
+                "growth_outlook": "Strong job growth expected",
+                "education_requirements": "Bachelor's degree preferred",
+                "industries": ["Technology", "Finance", "Healthcare", "Consulting"]
+            },
+            {
+                "career_title": "Project Coordinator",
+                "confidence_score": 0.62,
+                "match_percentage": 62,
+                "key_reasons": [
+                    "Organizational skills valuable across industries",
+                    "Entry-level pathway to management roles",
+                    "Develops transferable skills"
+                ],
+                "riasec_match": "Enterprising, Conventional",
+                "growth_outlook": "Steady demand across sectors",
+                "education_requirements": "Bachelor's degree or equivalent experience",
+                "industries": ["Various industries"]
+            },
+            {
+                "career_title": "Customer Success Specialist",
+                "confidence_score": 0.58,
+                "match_percentage": 58,
+                "key_reasons": [
+                    "Growing field with increasing demand",
+                    "Combines interpersonal and problem-solving skills",
+                    "Opportunity for career advancement"
+                ],
+                "riasec_match": "Social, Enterprising",
+                "growth_outlook": "High growth potential",
+                "education_requirements": "Bachelor's degree preferred",
+                "industries": ["Technology", "SaaS", "Services"]
+            },
+            {
+                "career_title": "Marketing Coordinator",
+                "confidence_score": 0.55,
+                "match_percentage": 55,
+                "key_reasons": [
+                    "Creative and analytical aspects",
+                    "Digital marketing skills in high demand",
+                    "Diverse career progression opportunities"
+                ],
+                "riasec_match": "Artistic, Enterprising",
+                "growth_outlook": "Strong growth in digital marketing",
+                "education_requirements": "Bachelor's degree in marketing or related field",
+                "industries": ["Marketing", "Technology", "Retail", "Services"]
+            },
+            {
+                "career_title": "Operations Specialist",
+                "confidence_score": 0.52,
+                "match_percentage": 52,
+                "key_reasons": [
+                    "Process improvement and efficiency focus",
+                    "Analytical and systematic approach",
+                    "Stable career with advancement potential"
+                ],
+                "riasec_match": "Conventional, Investigative",
+                "growth_outlook": "Steady demand for operational efficiency",
+                "education_requirements": "Bachelor's degree preferred",
+                "industries": ["Manufacturing", "Healthcare", "Finance", "Logistics"]
+            }
+        ]
+
+        # Try to customize based on any available profile information
+        if student_profile and hasattr(student_profile, 'riasec_scores') and student_profile.riasec_scores:
+            # Adjust confidence scores based on RIASEC alignment if available
+            for career in fallback_careers:
+                # Simple boost for better alignment (this is basic but functional)
+                career["confidence_score"] = min(career["confidence_score"] + 0.05, 0.75)
+                career["match_percentage"] = int(career["confidence_score"] * 100)
+
+        return fallback_careers
 
     def _get_riasec_name(self, code: str) -> str:
         """Convert RIASEC code to full name."""

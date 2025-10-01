@@ -162,6 +162,7 @@ async def root():
             "interactive_conversation_sessions",
             "human_in_the_loop_profiling",
             "riasec_psychological_assessment",
+            "deterministic_12_question_flow",
             "real_time_qa_flow",
             "session_management",
             "student_profiling",
@@ -195,7 +196,7 @@ async def health_check():
         validate_environment()
         # Test OpenAI connection
         from langchain_openai import ChatOpenAI
-        test_llm = ChatOpenAI(model="gpt-4o-mini", timeout=5)
+        test_llm = ChatOpenAI(model="gpt-4o", timeout=5)
 
         status = "healthy"
     except Exception as e:
