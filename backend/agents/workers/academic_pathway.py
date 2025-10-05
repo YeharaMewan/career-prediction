@@ -131,7 +131,7 @@ CAREER LEVEL ASSESSMENT FRAMEWORK:
 **Sri Lankan Education System Focus:**
 
 **State Universities:**
-- University of Colombo, University of Peradeniya, University of Moratuwa
+- University of Colombo, University of Ruhuna, University of Peradeniya, University of Moratuwa
 - University of Sri Jayewardenepura, University of Kelaniya
 - Specialized universities (OUSL, SLIIT affiliations)
 
@@ -273,6 +273,14 @@ Remember: Your academic pathway should transform career aspirations into concret
                     "website": "https://www.mrt.ac.lk/",
                     "entry_method": "University admission via Z-score",
                     "language": "English"
+                },
+                "university_of_ruhuna": {
+                    "name": "University of Ruhuna",
+                    "location": "Matara",
+                    "strengths": ["Medicine", "Engineering", "Science", "Humanities", "Management", "Fisheries"],
+                    "website": "https://www.ruh.ac.lk/",
+                    "entry_method": "University admission via Z-score",
+                    "language": "English/Sinhala"
                 },
                 "university_of_sri_jayewardenepura": {
                     "name": "University of Sri Jayewardenepura",
