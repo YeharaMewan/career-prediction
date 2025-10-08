@@ -60,6 +60,9 @@ except EnvironmentError as e:
 from utils.langsmith_config import setup_langsmith
 setup_langsmith()
 
+# Import LLM factory for provider validation
+from utils.llm_factory import LLMFactory
+
 # Import your existing agents
 try:
     from agents.supervisors.main_supervisor import MainSupervisor
@@ -194,11 +197,16 @@ async def health_check():
     """Health check endpoint with environment validation"""
     try:
         validate_environment()
-        # Test OpenAI connection
-        from langchain_openai import ChatOpenAI
-        test_llm = ChatOpenAI(model="gpt-4o", timeout=5)
 
-        status = "healthy"
+        # Validate LLM configuration
+        llm_config = LLMFactory.validate_configuration()
+
+        if llm_config["status"] == "error":
+            logger.warning(f"LLM configuration issue: {llm_config['message']}")
+            status = "degraded"
+        else:
+            status = "healthy"
+
     except Exception as e:
         logger.warning(f"Health check failed: {e}")
         status = "degraded"

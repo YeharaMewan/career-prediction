@@ -4,7 +4,6 @@ Simple LangGraph implementation for career planning system
 from typing import Dict, Any
 from datetime import datetime
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
@@ -13,6 +12,9 @@ load_dotenv()
 
 # Import and setup LangSmith configuration
 from utils.langsmith_config import setup_langsmith, get_traced_run_config, log_agent_execution
+
+# Import LLM factory for flexible provider support
+from utils.llm_factory import create_llm
 
 # Setup LangSmith for monitoring
 setup_success = setup_langsmith()
@@ -53,19 +55,19 @@ def generate_career_suggestions(state: AgentState) -> AgentState:
     """Generate career suggestions based on user profile"""
     start_time = datetime.now()
     log_agent_execution("career_graph", "generate_suggestions", "Starting career suggestion generation")
-    
-    # This would use the main supervisor and worker agents
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
-    
+
+    # Use LLM factory with fallback support
+    llm_wrapper = create_llm(temperature=0.1)
+
     prompt = f"""
     Based on the user profile: {state.user_profile}
     And conversation: {state.messages}
-    
+
     Generate 3-5 career suggestions with brief explanations.
     """
-    
+
     try:
-        response = llm.invoke(prompt)
+        response = llm_wrapper.invoke(prompt)
         state.career_suggestions = [
             "Software Engineer - High demand in tech industry",
             "Data Scientist - Growing field with good prospects", 

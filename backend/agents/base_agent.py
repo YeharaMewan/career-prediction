@@ -14,7 +14,6 @@ import logging
 from datetime import datetime
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 # Load environment variables for LangSmith from backend folder
@@ -26,6 +25,9 @@ load_dotenv(backend_env_path)
 # Use absolute import
 from models.state_models import AgentState, TaskResult, StudentProfile
 
+# Import LLM factory for flexible LLM provider support
+from utils.llm_factory import LLMFactory
+
 
 class BaseAgent(ABC):
     """
@@ -33,25 +35,33 @@ class BaseAgent(ABC):
     """
     
     def __init__(
-        self, 
-        name: str, 
+        self,
+        name: str,
         description: str,
         model: str = "gpt-4o",
-        temperature: float = 0.1
+        temperature: float = 0.1,
+        use_fallback: bool = True
     ):
         self.name = name
         self.description = description
         self.model = model
         self.temperature = temperature
+        self.use_fallback = use_fallback
         self.logger = logging.getLogger(f"agent.{name}")
-        
-        # Initialize the LLM
-        self.llm = ChatOpenAI(
-            model=self.model,
-            temperature=self.temperature,
-            timeout=60
-        )
-        
+
+        # Initialize the LLM using factory with fallback support
+        try:
+            self.llm_wrapper = LLMFactory.create_llm(
+                model=self.model,
+                temperature=self.temperature,
+                enable_fallback=self.use_fallback
+            )
+            self.llm = self.llm_wrapper.llm
+            self.logger.info(f"✅ LLM initialized for agent '{name}' using {self.llm_wrapper.strategy.provider_name}")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize LLM for agent '{name}': {str(e)}")
+            raise
+
         # Agent state tracking
         self.agent_type = "base"
         self.capabilities = []
@@ -96,14 +106,21 @@ class BaseAgent(ABC):
     
     def get_info(self) -> Dict[str, Any]:
         """Return information about this agent."""
-        return {
+        info = {
             "name": self.name,
             "description": self.description,
             "type": self.agent_type,
             "capabilities": self.capabilities,
             "model": self.model,
-            "temperature": self.temperature
+            "temperature": self.temperature,
+            "use_fallback": self.use_fallback
         }
+
+        # Add LLM provider info if available
+        if hasattr(self, 'llm_wrapper'):
+            info["llm_stats"] = self.llm_wrapper.get_stats()
+
+        return info
 
 
 class WorkerAgent(BaseAgent):
