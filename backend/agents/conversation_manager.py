@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain_openai import ChatOpenAI
 
 from agents.conversation_states import (
     ConversationState, ConversationContext, RIASECCategory,
@@ -22,6 +21,9 @@ from agents.conversation_states import (
 
 # Import LangSmith configuration
 from utils.langsmith_config import get_traced_run_config, log_agent_execution, setup_langsmith
+
+# Import LLM factory for fallback support
+from utils.llm_factory import LLMFactory
 
 # Ensure LangSmith is configured
 setup_langsmith()
@@ -82,7 +84,15 @@ class ConversationManager:
     MAX_QUESTIONS_PER_RIASEC = 2  # Exactly 2 questions per category
 
     def __init__(self, model: str = "gpt-4o", temperature: float = 0.3):
-        self.llm = ChatOpenAI(model=model, temperature=temperature)
+        # Use LLM factory with fallback support instead of direct ChatOpenAI
+        self.llm_wrapper = LLMFactory.create_llm(
+            model=model,
+            temperature=temperature,
+            enable_fallback=True
+        )
+        self.llm = self.llm_wrapper.llm
+        logging.info(f"✅ ConversationManager LLM initialized using {self.llm_wrapper.strategy.provider_name}")
+
         self.state_machine = ConversationStateMachine()
         self.question_bank = self._initialize_question_bank()
         self.riasec_keywords = self._initialize_riasec_keywords()
@@ -454,7 +464,7 @@ EXAMPLES OF GOOD QUESTIONS:
 Generate ONE simple question for a high school student:"""
 
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
 
             if not response or not response.content:
                 raise ValueError("Empty response from LLM")
@@ -520,7 +530,7 @@ EXAMPLES:
 Generate a friendly, simple greeting ending with ONE question:"""
 
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
             question_text = response.content.strip()
 
             # Enforce single question ending
@@ -597,7 +607,7 @@ Provide analysis in this JSON format:
 }}"""
 
         try:
-            response = self.llm.invoke([HumanMessage(content=analysis_prompt)])
+            response = self.llm_wrapper.invoke([HumanMessage(content=analysis_prompt)])
 
             if not response or not response.content:
                 raise ValueError("Empty response from LLM")
@@ -1167,7 +1177,7 @@ FOLLOW-UP QUESTION EXAMPLES:
 Generate ONE contextual, professional follow-up question:"""
 
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
 
             if not response or not response.content:
                 raise ValueError("Empty response from LLM")

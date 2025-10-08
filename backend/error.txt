@@ -1,0 +1,132 @@
+yehme  cp-3  ♥ 18:30  docker compose down 
+time="2025-10-07T20:06:53+05:30" level=warning msg="C:\\Users\\yehme\\Desktop\\projects\\cp-3\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 3/3
+ ✔ Container career-planning-frontend  Removed                                  0.0s 
+ ✔ Container career-planning-backend   R...                                     0.0s 
+ ✔ Network career-planning-network     Rem...                                   0.3s 
+yehme  cp-3  ♥ 20:06  docker compose build
+time="2025-10-07T20:17:02+05:30" level=warning msg="C:\\Users\\yehme\\Desktop\\projects\\cp-3\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Building 120.6s (34/34) FINISHED
+ => [internal] load local bake definitions                                      0.0s 
+ => => reading from stdin 1.10kB                                                0.0s 
+ => [backend internal] load build definition from Dockerfile                    0.0s 
+ => => transferring dockerfile: 1.01kB                                          0.0s 
+ => [frontend internal] load build definition from Dockerfile                   0.1s 
+ => => transferring dockerfile: 776B                                            0.0s 
+ => [backend internal] load metadata for docker.io/library/python:3.11-slim     3.0s 
+ => [frontend internal] load metadata for docker.io/library/nginx:alpine        3.9s 
+ => [frontend internal] load metadata for docker.io/library/node:20-alpine      8.9s 
+ => [auth] library/nginx:pull token for registry-1.docker.io                    0.0s 
+ => [auth] library/python:pull token for registry-1.docker.io                   0.0s 
+ => [backend internal] load .dockerignore                                       0.0s 
+ => => transferring context: 710B                                               0.0s 
+ => [backend 1/8] FROM docker.io/library/python:3.11-slim@sha256:9bffe4353b925  0.0s 
+ => => resolve docker.io/library/python:3.11-slim@sha256:9bffe4353b925a1656688  0.0s 
+ => [backend internal] load build context                                       0.1s 
+ => => transferring context: 530.42kB                                           0.1s 
+ => CACHED [backend 2/8] WORKDIR /app                                           0.0s 
+ => CACHED [backend 3/8] RUN apt-get update && apt-get install -y     gcc       0.0s 
+ => [backend 4/8] COPY requirements.txt .                                       0.1s 
+ => [backend 5/8] RUN pip install --no-cache-dir --upgrade pip                  5.9s 
+ => [auth] library/node:pull token for registry-1.docker.io                     0.0s 
+ => [frontend internal] load .dockerignore                                      0.0s 
+ => => transferring context: 528B                                               0.0s 
+ => [frontend builder 1/6] FROM docker.io/library/node:20-alpine@sha256:eabac8  0.0s 
+ => [frontend stage-1 1/3] FROM docker.io/library/nginx:alpine@sha256:42a516af  0.0s 
+ => => resolve docker.io/library/nginx:alpine@sha256:42a516af16b852e33b7682d5e  0.0s 
+ => [frontend internal] load build context                                      0.0s 
+ => => transferring context: 395.42kB                                           0.0s 
+ => CACHED [frontend stage-1 2/3] COPY nginx-docker.conf /etc/nginx/conf.d/def  0.0s 
+ => CACHED [frontend builder 2/6] WORKDIR /app                                  0.0s 
+ => CACHED [frontend builder 3/6] COPY package*.json ./                         0.0s 
+ => CACHED [frontend builder 4/6] RUN npm ci                                    0.0s 
+ => CACHED [frontend builder 5/6] COPY . .                                      0.0s 
+ => CACHED [frontend builder 6/6] RUN npm run build                             0.0s 
+ => CACHED [frontend stage-1 3/3] COPY --from=builder /app/dist /usr/share/ngi  0.0s 
+ => [frontend] exporting to image                                               0.0s 
+ => => exporting layers                                                         0.0s 
+ => => writing image sha256:8296e8eba28158245a78b76aab4cd764ae686cf684a4044ec9  0.0s 
+ => => naming to docker.io/library/cp-3-frontend                                0.0s 
+ => [frontend] resolving provenance for metadata file                           0.0s 
+ => [backend 6/8] RUN pip install --no-cache-dir -r requirements.txt          103.3s 
+ => [backend 7/8] COPY . .                                                      0.1s 
+ => [backend 8/8] RUN mkdir -p outputs/logs outputs/reports data/career_data d  0.3s 
+ => [backend] exporting to image                                                5.9s 
+ => => exporting layers                                                         5.5s 
+ => => writing image sha256:27652ed24312b8dbec9db660f062b88b93b396857f9b8124e8  0.1s 
+ => => naming to docker.io/library/cp-3-backend                                 0.1s 
+ => [backend] resolving provenance for metadata file                            0.0s 
+[+] Building 2/2
+ ✔ cp-3-backend   Built                                                         0.0s 
+ ✔ cp-3-frontend  Built                                                         0.0s 
+yehme  cp-3  ♥ 20:19  docker compose up -d
+time="2025-10-07T20:19:43+05:30" level=warning msg="C:\\Users\\yehme\\Desktop\\projects\\cp-3\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 2/3
+ ✔ Network career-planning-network     Cre...                                   0.1s 
+ - Container career-planning-backend   S...                                     0.6s 
+ ✔ Container career-planning-frontend  Created                                  0.1s 
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint career-planning-backend (bbcfc559683fda91532bf72c3b5a3cb5581acaf25197af19d83e420f671e56bb): Bind for 0.0.0.0:8000 failed: port is already allocated
+yehme  cp-3  ♥ 20:19  docker compose up -d
+time="2025-10-07T20:20:02+05:30" level=warning msg="C:\\Users\\yehme\\Desktop\\projects\\cp-3\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 0/1
+ - Container career-planning-backend  St...                                     0.3s 
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint career-planning-backend (3654dd7d0855a92efc935158adbec0e0f7aed9f6dd5065ab0b28eb3ffc77cc68): Bind for 0.0.0.0:8000 failed: port is already allocated
+yehme  cp-3  ♥ 20:20  docker compose build
+time="2025-10-07T20:20:17+05:30" level=warning msg="C:\\Users\\yehme\\Desktop\\projects\\cp-3\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Building 1.9s (31/31) FINISHED
+ => [internal] load local bake definitions                                      0.0s 
+ => => reading from stdin 1.10kB                                                0.0s 
+ => [backend internal] load build definition from Dockerfile                    0.0s 
+ => => transferring dockerfile: 1.01kB                                          0.0s 
+ => [frontend internal] load build definition from Dockerfile                   0.0s 
+ => => transferring dockerfile: 776B                                            0.0s 
+ => [frontend internal] load metadata for docker.io/library/nginx:alpine        0.8s 
+ => [frontend internal] load metadata for docker.io/library/node:20-alpine      0.8s 
+ => [backend internal] load metadata for docker.io/library/python:3.11-slim     0.9s 
+ => [frontend internal] load .dockerignore                                      0.0s 
+ => => transferring context: 528B                                               0.0s 
+ => [backend internal] load .dockerignore                                       0.0s 
+ => => transferring context: 710B                                               0.0s 
+ => [frontend internal] load build context                                      0.0s 
+ => => transferring context: 2.13kB                                             0.0s 
+ => [frontend builder 1/6] FROM docker.io/library/node:20-alpine@sha256:eabac8  0.0s 
+ => [frontend stage-1 1/3] FROM docker.io/library/nginx:alpine@sha256:42a516af  0.1s 
+ => => resolve docker.io/library/nginx:alpine@sha256:42a516af16b852e33b7682d5e  0.1s 
+ => [backend internal] load build context                                       0.0s 
+ => => transferring context: 3.76kB                                             0.0s 
+ => [backend 1/8] FROM docker.io/library/python:3.11-slim@sha256:9bffe4353b925  0.1s 
+ => => resolve docker.io/library/python:3.11-slim@sha256:9bffe4353b925a1656688  0.1s 
+ => CACHED [frontend stage-1 2/3] COPY nginx-docker.conf /etc/nginx/conf.d/def  0.0s 
+ => CACHED [frontend builder 2/6] WORKDIR /app                                  0.0s
+ => CACHED [frontend builder 3/6] COPY package*.json ./                         0.0s 
+ => CACHED [frontend builder 4/6] RUN npm ci                                    0.0s 
+ => CACHED [frontend builder 5/6] COPY . .                                      0.0s 
+ => CACHED [frontend builder 6/6] RUN npm run build                             0.0s 
+ => CACHED [frontend stage-1 3/3] COPY --from=builder /app/dist /usr/share/ngi  0.0s 
+ => [frontend] exporting to image                                               0.1s 
+ => => exporting layers                                                         0.0s 
+ => => writing image sha256:af5785d16d6764146e1abda7586fe1afd00dc5324082a8bab3  0.0s 
+ => => naming to docker.io/library/cp-3-frontend                                0.0s 
+ => CACHED [backend 2/8] WORKDIR /app                                           0.0s 
+ => CACHED [backend 3/8] RUN apt-get update && apt-get install -y     gcc       0.0s 
+ => CACHED [backend 4/8] COPY requirements.txt .                                0.0s 
+ => CACHED [backend 5/8] RUN pip install --no-cache-dir --upgrade pip           0.0s 
+ => CACHED [backend 6/8] RUN pip install --no-cache-dir -r requirements.txt     0.0s 
+ => [backend 7/8] COPY . .                                                      0.1s 
+ => [backend 8/8] RUN mkdir -p outputs/logs outputs/reports data/career_data d  0.3s 
+ => [frontend] resolving provenance for metadata file                           0.0s 
+ => [backend] exporting to image                                                0.1s 
+ => => exporting layers                                                         0.1s 
+ => => writing image sha256:1598541256496b11f927ff284ef320999a44cef1c9730a73c2  0.0s 
+ => => naming to docker.io/library/cp-3-backend                                 0.0s 
+ => [backend] resolving provenance for metadata file                            0.0s 
+[+] Building 2/2
+ ✔ cp-3-backend   Built                                                         0.0s 
+ ✔ cp-3-frontend  Built                                                         0.0s 
+yehme  cp-3  ♥ 20:20  docker compose up -d
+time="2025-10-07T20:20:26+05:30" level=warning msg="C:\\Users\\yehme\\Desktop\\projects\\cp-3\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 1/2
+ - Container career-planning-backend   S...                                     0.5s 
+ ✔ Container career-planning-frontend  Recreated                                0.1s 
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint career-planning-backend (9c05d1cae8314551dde77ce3c5f3c2b765204faf26872146069383d73cd44504): Bind for 0.0.0.0:8000 failed: port is already allocated
+yehme  cp-3  ♥ 20:20 

@@ -25,6 +25,10 @@ requests-toolbelt==1.0.0
 openai==1.107.3
 tiktoken==0.11.0
 
+# Google Gemini AI
+langchain-google-genai==2.0.10
+google-generativeai==0.8.4
+
 # Environment and configuration
 python-dotenv==1.1.1
 pydantic==2.11.9
