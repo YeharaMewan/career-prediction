@@ -153,6 +153,72 @@ class InteractiveResponse(BaseModel):
     final_report: Optional[str] = None
     completed: bool = False
     career_predictions: Optional[list] = None
+    # Career planning results
+    career_title: Optional[str] = None
+    academic_plan: Optional[Dict[str, Any]] = None
+    skill_plan: Optional[Dict[str, Any]] = None
+    academic_message: Optional[str] = None
+    skill_message: Optional[str] = None
+    message: Optional[str] = None
+
+# Helper function to validate and sanitize response fields
+def validate_and_clean_response_fields(result_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate and clean response fields to prevent undefined/None values in frontend.
+    Ensures all text fields are proper strings without 'undefined' concatenations.
+    """
+    cleaned_data = result_data.copy()
+
+    # Validate and clean question field (most critical)
+    if 'question' in cleaned_data:
+        question = cleaned_data['question']
+        if question is None or (isinstance(question, str) and not question.strip()):
+            logger.warning("Empty or None question detected, using fallback")
+            cleaned_data['question'] = "Could you tell me more?"
+        elif isinstance(question, str):
+            # Ensure it's a clean string (no undefined appended)
+            question = question.strip()
+
+            # CRITICAL: Remove any "undefined" text
+            if " undefined" in question:
+                logger.warning(f"Detected ' undefined' in question, removing it")
+                question = question.replace(" undefined", "")
+            if question.endswith("undefined"):
+                logger.warning(f"Detected 'undefined' at end of question, removing it")
+                question = question.replace("undefined", "").strip()
+
+            # Check for cut-off beginnings and fix
+            if question and question[0].islower():
+                logger.warning(f"Question starts with lowercase, may be cut off: '{question[:50]}...'")
+                # Prepend "You " if starts with lowercase
+                common_starts = ["mentioned", "said", "told", "indicated", "expressed", "described"]
+                for start in common_starts:
+                    if question.lower().startswith(start):
+                        question = "You " + question
+                        logger.info(f"Fixed question beginning in API validation")
+                        break
+
+            cleaned_data['question'] = question
+        else:
+            logger.error(f"Invalid question type: {type(question)}, using fallback")
+            cleaned_data['question'] = "Could you tell me more?"
+
+    # Validate other optional text fields
+    text_fields = ['message', 'final_report', 'conversation_state', 'career_title',
+                   'academic_message', 'skill_message']
+
+    for field in text_fields:
+        if field in cleaned_data:
+            value = cleaned_data[field]
+            if value is None:
+                cleaned_data[field] = None  # Keep as None (optional field)
+            elif isinstance(value, str):
+                cleaned_data[field] = value.strip()
+            elif value:  # Non-string, non-None value
+                logger.warning(f"Field '{field}' has unexpected type: {type(value)}")
+                cleaned_data[field] = str(value).strip()
+
+    return cleaned_data
 
 @app.get("/", response_model=Dict[str, Any])
 async def root():
@@ -404,13 +470,16 @@ async def initialize_agent_session():
         if result.success:
             result_data = result.result_data
 
+            # Validate and clean response fields before sending to frontend
+            cleaned_data = validate_and_clean_response_fields(result_data)
+
             return InteractiveResponse(
                 success=True,
                 session_id=session_id,
-                question=result_data.get("question"),
-                awaiting_user_response=result_data.get("awaiting_user_response", True),
-                conversation_state=result_data.get("conversation_state"),
-                progress=result_data.get("progress"),
+                question=cleaned_data.get("question"),
+                awaiting_user_response=cleaned_data.get("awaiting_user_response", True),
+                conversation_state=cleaned_data.get("conversation_state"),
+                progress=cleaned_data.get("progress"),
                 completed=False
             )
         else:
@@ -443,13 +512,16 @@ async def start_interactive_session(request: SessionStartRequest):
         if result.success:
             result_data = result.result_data
 
+            # Validate and clean response fields before sending to frontend
+            cleaned_data = validate_and_clean_response_fields(result_data)
+
             return InteractiveResponse(
                 success=True,
                 session_id=session_id,
-                question=result_data.get("question"),
-                awaiting_user_response=result_data.get("awaiting_user_response", True),
-                conversation_state=result_data.get("conversation_state"),
-                progress=result_data.get("progress"),
+                question=cleaned_data.get("question"),
+                awaiting_user_response=cleaned_data.get("awaiting_user_response", True),
+                conversation_state=cleaned_data.get("conversation_state"),
+                progress=cleaned_data.get("progress"),
                 completed=False
             )
         else:
@@ -473,26 +545,36 @@ async def send_user_response(session_id: str, user_response: UserResponse):
         if result and hasattr(result, 'success') and result.success:
             result_data = result.result_data or {}
 
+            # Validate and clean response fields before sending to frontend
+            cleaned_data = validate_and_clean_response_fields(result_data)
+
             # Check if conversation is complete
-            if result_data.get("completed"):
+            if cleaned_data.get("completed"):
                 return InteractiveResponse(
                     success=True,
                     session_id=session_id,
                     question=None,
                     awaiting_user_response=False,
                     conversation_state="completed",
-                    final_report=result_data.get("final_report"),
+                    final_report=cleaned_data.get("final_report"),
                     completed=True,
-                    career_predictions=result_data.get("career_predictions")
+                    career_predictions=cleaned_data.get("career_predictions"),
+                    # Career planning results
+                    career_title=cleaned_data.get("career_title"),
+                    academic_plan=cleaned_data.get("academic_plan"),
+                    skill_plan=cleaned_data.get("skill_plan"),
+                    academic_message=cleaned_data.get("academic_message"),
+                    skill_message=cleaned_data.get("skill_message"),
+                    message=cleaned_data.get("message")
                 )
             else:
                 return InteractiveResponse(
                     success=True,
                     session_id=session_id,
-                    question=result_data.get("question"),
-                    awaiting_user_response=result_data.get("awaiting_user_response", True),
-                    conversation_state=result_data.get("conversation_state"),
-                    progress=result_data.get("progress"),
+                    question=cleaned_data.get("question"),
+                    awaiting_user_response=cleaned_data.get("awaiting_user_response", True),
+                    conversation_state=cleaned_data.get("conversation_state"),
+                    progress=cleaned_data.get("progress"),
                     completed=False
                 )
         else:
@@ -523,6 +605,14 @@ async def get_session_status(session_id: str):
     except Exception as e:
         logger.error(f"Error getting session status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions/{session_id}/confidence")
+async def get_session_confidence(session_id: str):
+    """Stub endpoint to prevent 404 errors - confidence tracking not implemented"""
+    return {
+        "session_id": session_id,
+        "message": "Confidence tracking not enabled"
+    }
 
 @app.delete("/sessions/{session_id}")
 async def end_session(session_id: str):
