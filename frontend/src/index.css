@@ -1,0 +1,418 @@
+@import 'tailwindcss';
+/* @import 'tw-animate-css'; */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fredoka:wght@300..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Fredoka', sans-serif; 
+    font-family: var(--font-ceoruse); 
+    background-color: var(--color-main);
+  }
+}
+
+@layer utilities {
+  .responsive-padding-x {
+    @apply midxl:px-[96px] px-[16px] md:px-[50px] lg:px-[48px] xl:px-[80px];
+  }
+  .text-topic {
+    color: var(--color-topic);
+  }
+  .text-para {
+    color: var(--color-para);
+  }
+  .text-red {
+    color: var(--color-red);
+  }
+}
+
+:root {
+  --color-topic: #252525;
+  --color-para: #5f5f5f;
+  --color-main: #060010;
+  --color-red: #b91533;
+}
+
+.dark {
+  --color-topic: #ffffff;
+  --color-para: #a0a0a0;
+  --color-main: #060010;
+  --color-red: #d6262c;
+}
+
+@font-face {
+  font-family: 'ceoruse';
+  src: url('./assets/fonts/ceoruse.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: inter;
+  src: url('./assets/fonts/interreguler.ttf');
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scroll-container {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
+}
+
+@theme {
+  --font-fredoka: fredoka;
+  --font-ceoruse: ceoruse, sans-serif;
+  --font-contharax: Contharax, sans-serif;
+  --font-dm-sans: DM Sans, sans-serif;
+
+  --breakpoint-xxxmin: 320px;
+  --breakpoint-xxmin: 350px;
+  --breakpoint-xxmmin: 360px;
+  --breakpoint-xmin: 375px;
+  --breakpoint-xdmin: 385px;
+  --breakpoint-mini: 393px;
+  --breakpoint-minism: 430px;
+  --breakpoint-midsm: 550px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-midlg: 960px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-midxl: 1430px;
+  --breakpoint-2xl: 1536px;
+
+  --breakpoint-xmlg: 1800px;
+  --breakpoint-xmmlg: 1900px;
+  --breakpoint-xxmlg: 1925px;
+  --breakpoint-xmxlg: 2100px;
+  --breakpoint-xmmllg: 1740px;
+  --breakpoint-midxmmllg: 2100px;
+  --breakpoint-xmmllgg: 2400px;
+  --breakpoint-xmmlllg: 2600px;
+
+  --color-ash: #f1f1f1;
+  --color-darkash: #a0a0a0;
+}
+/* 1873 */
+
+.clip-nav {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 60%,
+    54% 60%,
+    52% 100%,
+    47% 100%,
+    45% 60%,
+    0 60%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.leftClip {
+  clip-path: path(
+    'M 0 0 Q 20 -10 45 15 Q 50 20 55 20 L  145 20 Q 150 20 155 15  Q 180 -10 200 0 Z'
+  );
+}
+
+/* From Uiverse.io by Shoh2008 */
+.loader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 6rem;
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
+
+.loader:before,
+.loader:after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  animation: pulsOut 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 1rem rgba(255, 255, 255, 0.75));
+}
+
+.loader:before {
+  width: 100%;
+  padding-bottom: 100%;
+  box-shadow: inset 0 0 0 1rem #fff;
+  animation-name: pulsIn;
+}
+
+.loader:after {
+  width: calc(100% - 2rem);
+  padding-bottom: calc(100% - 2rem);
+  box-shadow: 0 0 0 0 #fff;
+}
+
+@keyframes pulsIn {
+  0% {
+    box-shadow: inset 0 0 0 1rem #fff;
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    box-shadow: inset 0 0 0 0 #fff;
+    opacity: 0;
+  }
+}
+
+@keyframes pulsOut {
+  0%,
+  50% {
+    box-shadow: 0 0 0 0 #fff;
+    opacity: 0;
+  }
+
+  100% {
+    box-shadow: 0 0 0 1rem #fff;
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-dot {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.scrollbar-hide {
+  -webkit-overflow-scrolling: touch;
+  user-select: none;
+}
+
+.snap-start {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.tooltiptext {
+  background-color:#fc33a4;
+ 
+  text-align: center;
+  border-radius: 6px;
+  padding: 12px 24px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes floatSlower {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-35px);
+  }
+}
+
+
+/* From Uiverse.io by ilkhoeri */ 
+.wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.inner {
+ --w: min(15vw, 120px);
+  --h: min(30vw, 180px);
+  
+  --translateZ: calc((var(--w) + var(--h)) + 0px);
+  --rotateX: -15deg;
+  --perspective: 1000px;
+  position: absolute;
+  width: var(--w);
+  height: var(--h);
+  top: 25%;
+  left: calc(50% - (var(--w) / 2) - 2.5px);
+  z-index: 2;
+  transform-style: preserve-3d;
+  transform: perspective(var(--perspective));
+  animation: rotating 20s linear infinite; /* */
+}
+@keyframes rotating {
+  from {
+    transform: perspective(var(--perspective)) rotateX(var(--rotateX))
+      rotateY(0);
+  }
+  to {
+    transform: perspective(var(--perspective)) rotateX(var(--rotateX))
+      rotateY(1turn);
+  }
+}
+
+.card {
+  position: absolute;
+  border: 2px solid rgba(var(--color-card));
+  border-radius: 12px;
+  overflow: hidden;
+  inset: 0;
+  transform: rotateY(calc((360deg / var(--quantity)) * var(--index)))
+    translateZ(var(--translateZ));
+}
+
+.img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0000
+    radial-gradient(
+      circle,
+      rgba(var(--color-card), 0.2) 0%,
+      rgba(var(--color-card), 0.6) 80%,
+      rgba(var(--color-card), 0.9) 100%
+    );
+}
+
+/* home msg buttonl */
+.codepen-button {
+  position: relative;
+  border-radius: 12px; /* match your input rounded-xl */
+  z-index: 0;
+  
+}
+
+.codepen-button::before,
+.codepen-button::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    45deg,
+    #fb0094,
+    #0000ff,
+    #00ff00,
+    #ffff00,
+    #ff0000,
+    #fb0094,
+    #0000ff,
+    #00ff00,
+    #ffff00,
+    #ff0000
+  );
+  background-size: 400%;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+  z-index: -1;
+  animation: steam 20s linear infinite;
+}
+
+
+
+@keyframes steam {
+  0% {
+    background-position: 0 0;
+  }
+  50% {
+    background-position: 400% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+
+.liquid-ether-container {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+
+/* From Uiverse.io by cssbuttons-io for chat */ 
+.chat-button {
+ --glow-color: rgb(217, 176, 255);
+ --glow-spread-color: rgba(191, 123, 255, 0.781);
+ --enhanced-glow-color: rgb(231, 206, 255);
+ --btn-color: rgb(100, 61, 136);
+ border: .25em solid var(--glow-color);
+ padding: 1em 3em;
+ color: var(--glow-color);
+ font-size: 15px;
+ font-weight: bold;
+ background-color: var(--btn-color);
+ border-radius: 1em;
+ outline: none;
+ box-shadow: 0 0 1em .25em var(--glow-color),
+        0 0 4em 1em var(--glow-spread-color),
+        inset 0 0 .75em .25em var(--glow-color);
+ text-shadow: 0 0 .5em var(--glow-color);
+ 
+ transition: all 0.3s;
+}
+
+.chat-button::after {
+ pointer-events: none;
+ content: "";
+ position: absolute;
+ top: 120%;
+ left: 0;
+ height: 100%;
+ width: 100%;
+ background-color: var(--glow-spread-color);
+ filter: blur(2em);
+ opacity: .7;
+ transform: perspective(1.5em) rotateX(35deg) scale(1, .6);
+}
+
+.chat-button:hover {
+ color: var(--btn-color);
+ background-color: var(--glow-color);
+ box-shadow: 0 0 1em .25em var(--glow-color),
+        0 0 4em 2em var(--glow-spread-color),
+        inset 0 0 .75em .25em var(--glow-color);
+}
+
+.chat-button:active {
+ box-shadow: 0 0 0.6em .25em var(--glow-color),
+        0 0 2.5em 2em var(--glow-spread-color),
+        inset 0 0 .5em .25em var(--glow-color);
+}

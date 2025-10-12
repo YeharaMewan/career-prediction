@@ -14,6 +14,7 @@ from langgraph.prebuilt import create_react_agent
 # Use absolute imports
 from agents.base_agent import SupervisorAgent
 from agents.workers.user_profiler import UserProfilerAgent
+from agents.supervisors.career_planning_supervisor import CareerPlanningSupervisor
 from models.state_models import (
     AgentState, TaskResult, StudentProfile, CareerBlueprint,
     ConversationSession, ConversationState
@@ -197,6 +198,8 @@ Your goal is to deliver exceptional career guidance through both efficient batch
 
         if current_stage == "profiling":
             return self._handle_interactive_profiling(state, session_id)
+        elif current_stage == "career_selection_awaiting":
+            return self._handle_career_selection(state, session_id)
         elif current_stage == "career_planning":
             return self._handle_career_planning_stage(state, session_id)
         elif current_stage == "completion":
@@ -247,6 +250,12 @@ Your goal is to deliver exceptional career guidance through both efficient batch
 
             self._log_task_completion("session_initialization", True, f"Session {session_id} started")
 
+            # Ensure question is never None/undefined
+            question_text = result_data.get("question") or result_data.get("current_question") or ""
+            if not question_text:
+                logging.warning(f"Session {session_id}: No question in profiler result, using fallback")
+                question_text = "Hello! I'm here to help you explore career options. What are you interested in?"
+
             return self._create_task_result(
                 task_type="session_initialization",
                 success=True,
@@ -254,8 +263,8 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                     "session_id": session_id,
                     "mode": "interactive",
                     "stage": "profiling",
-                    "question": result_data.get("question"),
-                    "conversation_state": result_data.get("conversation_state"),
+                    "question": question_text.strip(),
+                    "conversation_state": result_data.get("conversation_state", "greeting"),
                     "awaiting_user_response": True,
                     "progress": result_data.get("progress", {})
                 },
@@ -299,15 +308,22 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 else:
                     # Continue conversation
                     session_state.awaiting_user_response = True
-                    session_state.current_question = result_data.get("question")
+
+                    # Ensure question is never None/undefined
+                    question_text = result_data.get("question") or result_data.get("current_question") or ""
+                    if not question_text:
+                        logging.warning(f"Session {session_id}: No question in profiler response, using fallback")
+                        question_text = "Could you tell me more about your interests?"
+
+                    session_state.current_question = question_text
 
                     return self._create_task_result(
                         task_type="profiling_interaction",
                         success=True,
                         result_data={
                             "session_id": session_id,
-                            "question": result_data.get("question"),
-                            "conversation_state": result_data.get("conversation_state"),
+                            "question": question_text.strip(),
+                            "conversation_state": result_data.get("conversation_state", "gathering_info"),
                             "awaiting_user_response": True,
                             "progress": result_data.get("progress", {}),
                             "riasec_scores": result_data.get("riasec_scores", {})
@@ -391,23 +407,178 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             student_profile, profiler_data, session_state, session_info
         )
 
+        # Convert career predictions to CareerBlueprint objects and store in state
+        career_blueprints = []
+        for prediction in career_predictions:
+            blueprint = CareerBlueprint(
+                career_title=prediction.get("title", ""),
+                career_description=prediction.get("description", ""),
+                match_score=prediction.get("confidence_score", 0.0) * 100,
+                match_reasoning=prediction.get("why_good_fit", ""),
+                typical_responsibilities=[],
+                required_qualifications=prediction.get("required_skills", []),
+                salary_range=prediction.get("median_salary", ""),
+                career_progression=[]
+            )
+            career_blueprints.append(blueprint)
+
+        # Store career blueprints in session state
+        session_state.career_blueprints = career_blueprints
+
+        # Update stage to await career selection
+        session_info["current_stage"] = "career_selection_awaiting"
+        session_state.current_step = "career_selection_awaiting"
+        session_state.awaiting_user_response = True
+
+        # Prepare career selection question - ensure it's properly formatted
+        try:
+            career_list = "\n".join([f"{i+1}. {pred.get('title', 'Career Option')}" for i, pred in enumerate(career_predictions)])
+            first_career_title = career_predictions[0].get('title', 'your preferred career') if career_predictions else 'your preferred career'
+
+            selection_message = f"""Perfect! Based on our conversation, I've identified some great career matches for you. Here are my recommendations:
+
+{career_list}
+
+If you choose one of the above careers, I would like to provide an agent response that will help you with your future plans, including the career path you need and the relevant skills.
+
+Please respond with the career you'd like to pursue (e.g., "I want to pursue {first_career_title}")"""
+        except Exception as e:
+            logging.error(f"Error formatting career selection message: {e}")
+            selection_message = "I've identified some great career matches for you. Which career would you like to explore further?"
+
+        # Ensure selection_message is valid
+        if not selection_message or not selection_message.strip():
+            selection_message = "Based on our conversation, I have career recommendations for you. Which career interests you most?"
+
+        session_state.current_question = selection_message
+
         return self._create_task_result(
-            task_type="career_prediction_completion",
+            task_type="career_prediction_with_selection",
             success=True,
             result_data={
                 "session_id": session_id,
-                "stage": "career_prediction_complete",
+                "stage": "career_selection_awaiting",
                 "profile_created": True,
                 "profile_confidence": profiler_data.get("profile_confidence", 0.0),
                 "dominant_riasec": profiler_data.get("dominant_riasec"),
                 "total_questions": profiler_data.get("total_questions", 0),
                 "career_predictions": career_predictions,
-                "completed": True,
-                "message": f"Perfect! Based on our conversation, I've identified some great career matches for you. Here are my recommendations:",
+                "completed": False,
+                "awaiting_user_response": True,
+                "question": selection_message.strip(),
+                "message": "Career predictions generated. Please select a career to get detailed planning.",
                 "final_confidence_report": final_confidence_report,
                 "prediction_reliability": self._assess_prediction_reliability(profiler_data.get("profile_confidence", 0.0))
             }
         )
+
+    def _handle_career_selection(self, state: AgentState, session_id: str) -> TaskResult:
+        """Handle user's career selection and route to career planning supervisor."""
+
+        session_info = self.active_sessions[session_id]
+        session_state = self.session_states[session_id]
+
+        # Check if we have a user response to process
+        if state.pending_user_response and not state.response_processed:
+            user_response = state.pending_user_response.lower()
+            session_info["total_interactions"] += 1
+            state.response_processed = True
+
+            # Extract selected career from user response
+            selected_career = None
+            if session_state.career_blueprints:
+                for blueprint in session_state.career_blueprints:
+                    if blueprint.career_title.lower() in user_response:
+                        selected_career = blueprint
+                        break
+
+            if not selected_career:
+                # Default to first career if we can't parse
+                selected_career = session_state.career_blueprints[0] if session_state.career_blueprints else None
+
+            if not selected_career:
+                return self._create_task_result(
+                    task_type="career_selection_error",
+                    success=False,
+                    error_message="No career could be identified from your selection"
+                )
+
+            # Initialize career planning supervisor if needed
+            if not self.career_planning_supervisor:
+                self.career_planning_supervisor = CareerPlanningSupervisor()
+
+            # Update session stage
+            session_info["current_stage"] = "career_planning"
+            session_state.current_step = "career_planning"
+            session_state.awaiting_user_response = False
+
+            # Create state for career planning supervisor with only selected career
+            planning_state = AgentState(
+                session_id=session_id,
+                student_profile=session_state.student_profile,
+                career_blueprints=[selected_career],  # Only the selected career
+                interaction_mode="interactive"
+            )
+
+            # Route to career planning supervisor (it will execute both agents in parallel)
+            self.logger.info(f"🔄 Routing to career planning supervisor for: {selected_career.career_title}")
+            planning_result = self.career_planning_supervisor.process_task(planning_state)
+
+            if planning_result.success:
+                # Update session state with results
+                if planning_result.updated_state:
+                    session_state.career_blueprints = planning_result.updated_state.career_blueprints
+
+                # Update stage to completion
+                session_info["current_stage"] = "completion"
+                session_state.current_step = "career_planning_complete"
+
+                # Get the planning results
+                result_data = planning_result.result_data or {}
+                academic_plan = result_data.get("academic_plan")
+                skill_plan = result_data.get("skill_plan")
+
+                # Format detailed messages for frontend display using the full plan data
+                academic_message = self._format_academic_plan_message(
+                    selected_career.career_title,
+                    academic_plan
+                ) if academic_plan else None
+
+                skill_message = self._format_skill_plan_message(
+                    selected_career.career_title,
+                    skill_plan
+                ) if skill_plan else None
+
+                return self._create_task_result(
+                    task_type="career_planning_complete",
+                    success=True,
+                    result_data={
+                        "session_id": session_id,
+                        "career_title": selected_career.career_title,
+                        "academic_plan": academic_plan,
+                        "skill_plan": skill_plan,
+                        "academic_message": academic_message,
+                        "skill_message": skill_message,
+                        "completed": True,
+                        "message": f"Thank you! Your career planning session is complete.",
+                        "delivery_sequence": ["academic_pathway", "skill_development"]
+                    },
+                    updated_state=session_state
+                )
+            else:
+                return self._create_task_result(
+                    task_type="career_planning_error",
+                    success=False,
+                    error_message=f"Career planning failed: {planning_result.error_message}"
+                )
+
+        # Still waiting for user response
+        elif state.awaiting_user_response:
+            return self._create_waiting_result(session_id, session_state)
+
+        # No user response yet
+        else:
+            return self._create_waiting_result(session_id, session_state)
 
     def _handle_career_planning_stage(self, state: AgentState, session_id: str) -> TaskResult:
         """Handle career prediction stage - this is now the completion stage."""
@@ -1129,6 +1300,226 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "C": f"Your organized, detail-oriented approach makes you an excellent fit for {career['title']} roles that require systematic thinking."
         }
         return explanations.get(category, f"This {career['title']} role aligns well with your overall profile and interests.")
+
+    def _format_academic_plan_message(self, career_title: str, academic_plan: Dict[str, Any]) -> str:
+        """
+        Format the complete academic pathway plan into a detailed, readable message.
+        Shows all pathway options, institutions, costs, and next steps.
+        """
+        if not academic_plan:
+            return f"📚 **Academic Pathway for {career_title}**\n\nDetailed plan is being generated..."
+
+        message_parts = []
+        message_parts.append(f"📚 **ACADEMIC PATHWAY FOR {career_title.upper()}**\n")
+
+        # Student Assessment
+        student_assessment = academic_plan.get("student_assessment", {})
+        if student_assessment:
+            message_parts.append("🎓 **STUDENT ASSESSMENT**")
+            if student_assessment.get("current_level"):
+                message_parts.append(f"• Current Level: {student_assessment.get('current_level', 'Not specified')}")
+            if student_assessment.get("recommended_timeline"):
+                message_parts.append(f"• Timeline to Career: {student_assessment.get('recommended_timeline', 'Varies')}")
+            message_parts.append("")
+
+        # Pathway Options - This is the main content!
+        pathway_options = academic_plan.get("pathway_options", [])
+        if pathway_options:
+            message_parts.append("📍 **EDUCATIONAL PATHWAY OPTIONS**\n")
+
+            for idx, pathway in enumerate(pathway_options, 1):
+                pathway_type = pathway.get("pathway_type", "Option")
+                message_parts.append(f"**{idx}. {pathway_type} Pathway**")
+
+                # Sri Lankan Options
+                sri_lankan_options = pathway.get("sri_lankan_options", [])
+                if sri_lankan_options:
+                    message_parts.append("\n**🇱🇰 Sri Lankan Institutions:**")
+                    for option in sri_lankan_options[:10]:  # Show up to 10 options
+                        inst_name = option.get("institution_name", "Institution")
+                        program = option.get("program_name", "Related program")
+                        duration = option.get("duration", "")
+                        cost = option.get("approximate_cost", "")
+                        message_parts.append(f"• **{inst_name}**")
+                        message_parts.append(f"  - Program: {program}")
+                        if duration:
+                            message_parts.append(f"  - Duration: {duration}")
+                        if cost:
+                            message_parts.append(f"  - Cost: {cost}")
+                    message_parts.append("")
+
+                # International Options
+                international_options = pathway.get("international_options", [])
+                if international_options:
+                    message_parts.append("**🌍 International Options:**")
+                    for option in international_options[:10]:  # Show up to 10 options
+                        country = option.get("country", "Country")
+                        program_type = option.get("program_type", "Degree program")
+                        duration = option.get("duration", "")
+                        cost = option.get("approximate_cost", "")
+                        message_parts.append(f"• **{country}** - {program_type}")
+                        if duration:
+                            message_parts.append(f"  - Duration: {duration}")
+                        if cost:
+                            message_parts.append(f"  - Cost: {cost}")
+                    message_parts.append("")
+
+        # Step-by-step Implementation Plan
+        step_plan = academic_plan.get("step_by_step_plan", [])
+        if step_plan:
+            message_parts.append("📋 **IMPLEMENTATION ROADMAP**\n")
+            for phase in step_plan[:3]:  # Show up to 3 phases
+                phase_name = phase.get("phase", "Phase")
+                timeframe = phase.get("timeframe", "")
+                actions = phase.get("actions", [])
+
+                message_parts.append(f"**{phase_name}** ({timeframe})")
+                if actions:
+                    for action in actions[:5]:  # Show up to 5 actions per phase
+                        message_parts.append(f"  • {action}")
+                message_parts.append("")
+
+        # Financial Planning
+        financial = academic_plan.get("financial_planning", {})
+        if financial:
+            message_parts.append("💰 **FINANCIAL PLANNING**")
+            total_cost = financial.get("total_estimated_cost_lkr", "")
+            if total_cost and total_cost != "To be determined":
+                message_parts.append(f"• Estimated Total Cost: {total_cost}")
+
+            funding_options = financial.get("funding_options", [])
+            if funding_options:
+                message_parts.append("\n**Funding Options:**")
+                for option in funding_options[:5]:
+                    message_parts.append(f"  • {option}")
+            message_parts.append("")
+
+        # Next Immediate Steps
+        next_steps = academic_plan.get("next_immediate_steps", [])
+        if next_steps:
+            message_parts.append("🎯 **NEXT IMMEDIATE STEPS**")
+            for idx, step in enumerate(next_steps[:5], 1):
+                message_parts.append(f"{idx}. {step}")
+            message_parts.append("")
+
+        # Alternative Pathways
+        alternatives = academic_plan.get("alternative_pathways", [])
+        if alternatives:
+            message_parts.append("🔄 **ALTERNATIVE PATHWAYS**")
+            for alt in alternatives[:3]:
+                desc = alt.get("pathway_description", "")
+                if desc:
+                    message_parts.append(f"• {desc}")
+            message_parts.append("")
+
+        return "\n".join(message_parts)
+
+    def _format_skill_plan_message(self, career_title: str, skill_plan: Dict[str, Any]) -> str:
+        """
+        Format the complete skill development plan into a detailed, readable message.
+        Shows all technical skills, soft skills, learning phases, and certifications.
+        """
+        if not skill_plan:
+            return f"🎯 **Skill Development Plan for {career_title}**\n\nDetailed plan is being generated..."
+
+        message_parts = []
+        message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**\n")
+
+        # Technical Skills
+        technical_skills = skill_plan.get("technical_skills", {})
+        if technical_skills:
+            message_parts.append("💻 **TECHNICAL SKILLS**\n")
+
+            # Core Skills
+            core_skills = technical_skills.get("core_skills", [])
+            if core_skills:
+                message_parts.append("**Core Skills (Must-Have):**")
+                for skill in core_skills:
+                    message_parts.append(f"• {skill}")
+                message_parts.append("")
+
+            # Advanced Skills
+            advanced_skills = technical_skills.get("advanced_skills", [])
+            if advanced_skills:
+                message_parts.append("**Advanced Skills:**")
+                for skill in advanced_skills:
+                    message_parts.append(f"• {skill}")
+                message_parts.append("")
+
+            # Tools & Technologies
+            tools = technical_skills.get("tools_technologies", [])
+            if tools:
+                message_parts.append("**Tools & Technologies:**")
+                for tool in tools:
+                    message_parts.append(f"• {tool}")
+                message_parts.append("")
+
+        # Soft Skills
+        soft_skills = skill_plan.get("soft_skills", {})
+        if soft_skills:
+            message_parts.append("🤝 **SOFT SKILLS**\n")
+
+            # Essential
+            essential = soft_skills.get("essential", [])
+            if essential:
+                message_parts.append("**Essential:**")
+                for skill in essential:
+                    message_parts.append(f"• {skill}")
+                message_parts.append("")
+
+            # Recommended
+            recommended = soft_skills.get("recommended", [])
+            if recommended:
+                message_parts.append("**Recommended:**")
+                for skill in recommended:
+                    message_parts.append(f"• {skill}")
+                message_parts.append("")
+
+        # Learning Phases
+        learning_phases = skill_plan.get("learning_phases", [])
+        if learning_phases:
+            message_parts.append("📚 **LEARNING PHASES**\n")
+
+            for phase in learning_phases:
+                phase_name = phase.get("phase", "Phase")
+                duration = phase.get("duration", "")
+                skills_focus = phase.get("skills_focus", [])
+                resources = phase.get("resources", [])
+                milestones = phase.get("milestones", [])
+
+                message_parts.append(f"**{phase_name}** ({duration})")
+
+                if skills_focus:
+                    message_parts.append("Skills to Master:")
+                    for skill in skills_focus[:5]:
+                        message_parts.append(f"  • {skill}")
+
+                if resources:
+                    message_parts.append("Learning Resources:")
+                    for resource in resources[:5]:
+                        message_parts.append(f"  • {resource}")
+
+                if milestones:
+                    message_parts.append("Milestones:")
+                    for milestone in milestones[:3]:
+                        message_parts.append(f"  ✓ {milestone}")
+
+                message_parts.append("")
+
+        # Certifications
+        certifications = skill_plan.get("certifications", [])
+        if certifications:
+            message_parts.append("🎓 **RECOMMENDED CERTIFICATIONS**")
+            for cert in certifications[:10]:
+                message_parts.append(f"• {cert}")
+            message_parts.append("")
+
+        # Estimated Timeline
+        total_time = skill_plan.get("estimated_total_time", "")
+        if total_time:
+            message_parts.append(f"⏱️ **Estimated Timeline:** {total_time}\n")
+
+        return "\n".join(message_parts)
 
     # Include original batch processing methods for backward compatibility
     def _handle_student_request(self, state: AgentState) -> TaskResult:

@@ -30,6 +30,9 @@ from models.state_models import AgentState, TaskResult, StudentProfile
 # Import LangSmith for monitoring
 from utils.langsmith_config import get_traced_run_config, log_agent_execution
 
+# Import Web Search Tool
+from utils.web_search_tool import WebSearchTool
+
 
 class AcademicPathwayAgent(WorkerAgent):
     """
@@ -68,7 +71,10 @@ class AcademicPathwayAgent(WorkerAgent):
         self.sri_lankan_institutions = self._initialize_sri_lankan_institutions()
         self.international_options = self._initialize_international_options()
         self.career_level_matrix = self._initialize_career_level_matrix()
-        
+
+        # Initialize web search tool for real-time information
+        self.web_search = WebSearchTool(cache_duration_minutes=120)
+
         self.logger = logging.getLogger(f"agent.{self.name}")
 
     def _create_system_prompt(self) -> str:
@@ -76,8 +82,11 @@ class AcademicPathwayAgent(WorkerAgent):
         return """You are an expert Academic Pathway Agent specializing in educational roadmap design for Sri Lankan students pursuing various careers.
 
 YOUR ROLE:
-You are a specialist in the Career Planning team, working under the Career Planning Supervisor. 
+You are a specialist in the Career Planning team, working under the Career Planning Supervisor.
 Your specific responsibility is to create detailed, actionable educational pathways for identified careers, with expertise in both Sri Lankan and international education systems.
+
+KEY CAPABILITY:
+You have access to REAL-TIME WEB SEARCH to gather current information about universities, programs, scholarships, and educational opportunities. You will receive search results and MUST use them to provide accurate, current, and specific recommendations with URLs and contact information.
 
 CORE COMPETENCIES:
 1. Career Level Assessment: Determine student's current academic/professional level
@@ -452,6 +461,171 @@ Remember: Your academic pathway should transform career aspirations into concret
             }
         }
 
+    def _search_local_universities(self, career_title: str) -> str:
+        """
+        Search for Sri Lankan universities offering programs for the career.
+
+        Returns:
+            Formatted string with search results
+        """
+        try:
+            self.logger.info(f"Searching for Sri Lankan universities for {career_title}")
+
+            # Search for universities
+            results = self.web_search.search_universities(
+                career_title,
+                country="Sri Lanka",
+                max_results=8
+            )
+
+            if not results:
+                return "No current information found. Using database knowledge."
+
+            return self.web_search.format_results_for_llm(results, max_snippets=5)
+
+        except Exception as e:
+            self.logger.error(f"University search failed: {e}")
+            return "Search unavailable. Using database knowledge."
+
+    def _search_local_scholarships(self, career_title: str) -> str:
+        """
+        Search for scholarships available in Sri Lanka for the career.
+
+        Returns:
+            Formatted string with search results
+        """
+        try:
+            self.logger.info(f"Searching for Sri Lankan scholarships for {career_title}")
+
+            # Search for scholarships
+            results = self.web_search.search_scholarships(
+                career_title,
+                country="Sri Lanka",
+                max_results=6
+            )
+
+            if not results:
+                return "No scholarship information found."
+
+            return self.web_search.format_results_for_llm(results, max_snippets=4)
+
+        except Exception as e:
+            self.logger.error(f"Scholarship search failed: {e}")
+            return "Scholarship search unavailable."
+
+    def _search_international_universities(self, career_title: str, country: str = "UK") -> str:
+        """
+        Search for international universities offering programs for the career.
+
+        Args:
+            career_title: Career name
+            country: Country to search in (UK, USA, Australia, Canada, etc.)
+
+        Returns:
+            Formatted string with search results
+        """
+        try:
+            self.logger.info(f"Searching for international universities for {career_title} in {country}")
+
+            # Search for international universities
+            results = self.web_search.search_universities(
+                career_title,
+                country=country,
+                max_results=6
+            )
+
+            if not results:
+                return f"No information found for {country}."
+
+            return self.web_search.format_results_for_llm(results, max_snippets=4)
+
+        except Exception as e:
+            self.logger.error(f"International university search failed: {e}")
+            return "International search unavailable."
+
+    def _search_international_scholarships(self, career_title: str) -> str:
+        """
+        Search for international scholarship opportunities.
+
+        Returns:
+            Formatted string with search results
+        """
+        try:
+            self.logger.info(f"Searching for international scholarships for {career_title}")
+
+            # Search for major international scholarships
+            chevening_results = self.web_search.search(
+                f"Chevening scholarship {career_title} Sri Lankan students",
+                max_results=3
+            )
+
+            commonwealth_results = self.web_search.search(
+                f"Commonwealth scholarship {career_title} Sri Lanka",
+                max_results=3
+            )
+
+            # Combine results
+            all_results = chevening_results + commonwealth_results
+
+            if not all_results:
+                return "No international scholarship information found."
+
+            return self.web_search.format_results_for_llm(all_results, max_snippets=4)
+
+        except Exception as e:
+            self.logger.error(f"International scholarship search failed: {e}")
+            return "International scholarship search unavailable."
+
+    def _search_alternative_pathways(self, career_title: str) -> str:
+        """
+        Search for alternative educational pathways (online degrees, bootcamps, etc.).
+
+        Returns:
+            Formatted string with search results
+        """
+        try:
+            self.logger.info(f"Searching for alternative pathways for {career_title}")
+
+            # Search for online programs and bootcamps
+            results = self.web_search.search(
+                f"{career_title} online degree programs bootcamps certifications",
+                max_results=6
+            )
+
+            if not results:
+                return "No alternative pathway information found."
+
+            return self.web_search.format_results_for_llm(results, max_snippets=4)
+
+        except Exception as e:
+            self.logger.error(f"Alternative pathway search failed: {e}")
+            return "Alternative pathway search unavailable."
+
+    def _search_admission_requirements(self, career_title: str) -> str:
+        """
+        Search for typical admission requirements for the career's programs.
+
+        Returns:
+            Formatted string with search results
+        """
+        try:
+            self.logger.info(f"Searching for admission requirements for {career_title}")
+
+            # Search for admission requirements
+            results = self.web_search.search(
+                f"{career_title} university admission requirements Sri Lanka A/L Z-score",
+                max_results=5
+            )
+
+            if not results:
+                return "No admission requirement information found."
+
+            return self.web_search.format_results_for_llm(results, max_snippets=3)
+
+        except Exception as e:
+            self.logger.error(f"Admission requirements search failed: {e}")
+            return "Admission requirements search unavailable."
+
     def process_task(self, state: AgentState) -> TaskResult:
         """
         Main task processing: Create academic pathway for a career.
@@ -660,16 +834,60 @@ Remember: Your academic pathway should transform career aspirations into concret
         student_profile: Optional[StudentProfile],
         student_level: Optional[Dict[str, Any]]
     ) -> str:
-        """Build comprehensive prompt for academic pathway planning."""
-        
+        """Build comprehensive prompt for academic pathway planning with web search results."""
+
+        # Perform web searches for current information
+        self.logger.info(f"Gathering real-time information for {career_title}")
+
+        local_universities_info = self._search_local_universities(career_title)
+        local_scholarships_info = self._search_local_scholarships(career_title)
+        international_uk_info = self._search_international_universities(career_title, "UK")
+        international_usa_info = self._search_international_universities(career_title, "USA")
+        international_scholarships_info = self._search_international_scholarships(career_title)
+        alternative_pathways_info = self._search_alternative_pathways(career_title)
+        admission_requirements_info = self._search_admission_requirements(career_title)
+
         prompt_parts = [
             f"Create a comprehensive academic pathway plan for: {career_title}",
             ""
         ]
-        
+
         if career_description:
             prompt_parts.append(f"Career Description: {career_description}")
             prompt_parts.append("")
+
+        # Add web search results
+        prompt_parts.extend([
+            "=" * 80,
+            "REAL-TIME WEB SEARCH RESULTS (Use this current information):",
+            "=" * 80,
+            "",
+            "LOCAL UNIVERSITIES AND PROGRAMS (Sri Lanka):",
+            local_universities_info,
+            "",
+            "LOCAL SCHOLARSHIPS (Sri Lanka):",
+            local_scholarships_info,
+            "",
+            "ADMISSION REQUIREMENTS:",
+            admission_requirements_info,
+            "",
+            "INTERNATIONAL UNIVERSITIES (UK):",
+            international_uk_info,
+            "",
+            "INTERNATIONAL UNIVERSITIES (USA):",
+            international_usa_info,
+            "",
+            "INTERNATIONAL SCHOLARSHIPS:",
+            international_scholarships_info,
+            "",
+            "ALTERNATIVE PATHWAYS:",
+            alternative_pathways_info,
+            "",
+            "=" * 80,
+            "END OF WEB SEARCH RESULTS",
+            "=" * 80,
+            ""
+        ])
         
         if student_level:
             prompt_parts.append("STUDENT LEVEL ASSESSMENT:")
@@ -691,98 +909,128 @@ Remember: Your academic pathway should transform career aspirations into concret
             prompt_parts.append("")
         
         prompt_parts.extend([
-            "REQUIRED OUTPUT - Comprehensive Academic Pathway Plan:",
+            "IMPORTANT INSTRUCTIONS:",
+            "- USE THE REAL-TIME WEB SEARCH RESULTS PROVIDED ABOVE",
+            "- Include actual university names, programs, URLs, and current costs from search results",
+            "- Reference specific scholarships and opportunities found in searches",
+            "- Follow the STRUCTURE: Local Pathways → International Pathways → Other Relevant Information",
+            "- Provide AT LEAST 5-8 specific institutions per category (Sri Lankan state, private, international)",
+            "- Include SPECIFIC degree program names (e.g., 'BSc (Hons) in Computer Science' not 'related degree')",
             "",
-            "1. STUDENT ASSESSMENT:",
-            "   - Detected current academic/professional level",
-            "   - Academic background analysis",
-            "   - Recommended timeline to career readiness",
+            "OUTPUT FORMAT - Write a detailed, well-structured plan with clear section headings:",
             "",
-            "2. PRIMARY PATHWAY (Sri Lankan Options):",
+            "## 1. STUDENT ASSESSMENT",
+            "- **Current Level:** [Specify the student's level]",
+            "- **Timeline to Career:** [Realistic timeframe]",
             "",
-            "   A. STATE UNIVERSITIES:",
-            "   - Relevant degree programs",
-            "   - Entry requirements (Z-score, A/L subjects)",
-            "   - Duration and cost estimates",
-            "   - Application timeline and process",
+            "## 2. LOCAL PATHWAYS (Sri Lankan Options)",
             "",
-            "   B. PRIVATE UNIVERSITIES/INSTITUTES:",
-            "   - Alternative degree programs",
-            "   - Entry requirements and costs",
-            "   - International partnership programs",
-            "   - Flexible study options",
+            "### A. STATE UNIVERSITIES",
+            "List 5-8 state universities with specific programs:",
+            "- **[University Name]** - [Specific Program Name]",
+            "  - Program: [Full degree/diploma name]",
+            "  - Duration: [X years]",
+            "  - Entry Requirements: [Z-score, A/L subjects]",
+            "  - Approximate Cost: [LKR amount]",
+            "  - Application Period: [Specific months]",
+            "  - Website: [URL if available]",
             "",
-            "   C. PROFESSIONAL INSTITUTES:",
-            "   - Industry-relevant professional qualifications",
-            "   - Certification programs (CA, CIMA, etc.)",
-            "   - Entry requirements and duration",
+            "### B. PRIVATE UNIVERSITIES/INSTITUTES",
+            "List 5-8 private institutions with specific programs:",
+            "- **[Institution Name]** - [Specific Program Name]",
+            "  - Program: [Full degree/diploma name]",
+            "  - Duration: [X years]",
+            "  - Entry Requirements: [Specific requirements]",
+            "  - Approximate Cost: [LKR amount per year]",
+            "  - International Partnerships: [Partner universities if any]",
+            "  - Website: [URL if available]",
             "",
-            "3. INTERNATIONAL PATHWAY OPTIONS:",
-            "   - Top destination countries for this career",
-            "   - University examples and program types",
-            "   - Entry requirements and costs",
-            "   - Scholarship opportunities",
-            "   - Application processes and timelines",
+            "### C. PROFESSIONAL INSTITUTES",
+            "List relevant professional certifications:",
+            "- **[Institute Name]** - [Qualification Name]",
+            "  - Program: [Full certification name]",
+            "  - Duration: [X years/months]",
+            "  - Entry Requirements: [Requirements]",
+            "  - Approximate Cost: [LKR amount]",
             "",
-            "4. STEP-BY-STEP IMPLEMENTATION PLAN:",
+            "## 3. INTERNATIONAL PATHWAY OPTIONS",
             "",
-            "   PHASE 1 - IMMEDIATE PREPARATION (Next 6 months):",
-            "   - Actions to take now",
-            "   - Documents to prepare",
-            "   - Decisions to make",
+            "### United Kingdom",
+            "List 3-5 universities:",
+            "- **[University Name]** - [Program Name]",
+            "  - Program: [Specific degree name]",
+            "  - Duration: [X years]",
+            "  - Entry Requirements: [A/L, IELTS scores]",
+            "  - Approximate Cost: [$X,XXX-$X,XXX per year]",
+            "  - Scholarships: [Specific scholarship names]",
             "",
-            "   PHASE 2 - APPLICATION PERIOD (6-12 months):",
-            "   - Application submissions",
-            "   - Exam preparations",
-            "   - Interview preparations",
+            "### United States",
+            "List 3-5 universities:",
+            "- **[University Name]** - [Program Name]",
+            "  - Program: [Specific degree name]",
+            "  - Duration: [X years]",
+            "  - Entry Requirements: [SAT/ACT, TOEFL/IELTS]",
+            "  - Approximate Cost: [$X,XXX-$X,XXX per year]",
+            "  - Scholarships: [Available scholarships]",
             "",
-            "   PHASE 3 - STUDY PERIOD (Duration varies):",
-            "   - Academic milestones",
-            "   - Internship/practical experience",
-            "   - Skill development alongside studies",
+            "### Other Countries",
+            "List options from Australia, Canada, Germany, or Singapore with similar details.",
             "",
-            "5. FINANCIAL PLANNING:",
-            "   - Total estimated costs (LKR and USD)",
-            "   - Cost breakdown by category",
-            "   - Funding options and scholarships",
-            "   - Cost-saving strategies",
+            "## 4. STEP-BY-STEP IMPLEMENTATION PLAN",
             "",
-            "6. ALTERNATIVE PATHWAYS:",
-            "   - If primary path doesn't work out",
-            "   - Bridge programs and foundation courses",
-            "   - Part-time and distance learning options",
-            "   - Work-study combinations",
+            "### PHASE 1 - IMMEDIATE PREPARATION (Months 1-6)",
+            "- [Specific action 1]",
+            "- [Specific action 2]",
+            "- [Specific action 3]",
             "",
-            "7. IMMEDIATE NEXT STEPS:",
-            "   - Top 3 most urgent actions",
-            "   - Key decision points",
-            "   - Resources to research",
+            "### PHASE 2 - APPLICATION PERIOD (Months 6-12)",
+            "- [Specific action 1]",
+            "- [Specific action 2]",
+            "- [Specific action 3]",
             "",
-            "SPECIAL FOCUS AREAS:",
-            "- Sri Lankan education system expertise",
-            "- Realistic Z-score and competition analysis",
-            "- A/L subject combination recommendations",
-            "- English proficiency requirements",
-            "- Local vs international cost comparisons",
-            "- Industry partnerships and placement opportunities",
-            "- Work experience integration with studies",
+            "### PHASE 3 - STUDY PERIOD (Years 1-4)",
+            "- [Milestone 1]",
+            "- [Milestone 2]",
+            "- [Milestone 3]",
             "",
-            "Make the plan:",
-            "1. Specific to Sri Lankan education context",
-            "2. Realistic about costs and competition",
-            "3. Actionable with clear timelines",
-            "4. Include both traditional and innovative pathways",
-            "5. Consider financial constraints",
-            "6. Provide multiple backup options",
+            "## 5. FINANCIAL PLANNING",
+            "- **Total Estimated Cost (Local):** LKR [amount] for [X] years",
+            "- **Total Estimated Cost (International):** $[amount] for [X] years",
             "",
-            "Format as a detailed, structured academic roadmap."
+            "**Funding Options:**",
+            "- [Specific scholarship 1] - [Brief details]",
+            "- [Specific scholarship 2] - [Brief details]",
+            "- [Loan option 1]",
+            "- [Other funding sources]",
+            "",
+            "## 6. ALTERNATIVE PATHWAYS",
+            "- **Online Programs:** [List 2-3 specific online degree programs with names and providers]",
+            "- **Bootcamps:** [List relevant bootcamps/intensive programs]",
+            "- **Bridge Programs:** [List foundation/bridge courses]",
+            "",
+            "## 7. IMMEDIATE NEXT STEPS",
+            "1. [Most urgent action with timeline]",
+            "2. [Second action with timeline]",
+            "3. [Third action with timeline]",
+            "4. [Fourth action]",
+            "5. [Fifth action]",
+            "",
+            "CRITICAL REQUIREMENTS:",
+            "1. USE WEB SEARCH RESULTS - Extract and include specific names, programs, and URLs",
+            "2. PROVIDE SPECIFIC DETAILS - No generic terms like 'related program' or 'various universities'",
+            "3. INCLUDE COSTS - Actual LKR and USD amounts, not ranges like 'varies'",
+            "4. LOCAL FIRST - Prioritize Sri Lankan options with the most detail",
+            "5. MULTIPLE OPTIONS - At least 5-8 institutions per major category",
+            "6. ACTIONABLE - Each step should be specific and executable",
+            "",
+            "Write the complete plan following this exact structure."
         ])
         
         return "\n".join(prompt_parts)
 
     def _parse_academic_plan_response(self, response: str, career_title: str, student_level: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """Parse LLM response into structured academic plan."""
-        
+        """Parse LLM response into structured academic plan with enhanced extraction."""
+
         academic_plan = {
             "career_title": career_title,
             "student_assessment": {
@@ -802,53 +1050,76 @@ Remember: Your academic pathway should transform career aspirations into concret
             "next_immediate_steps": [],
             "raw_plan": response  # Keep full response
         }
-        
-        # Parse different sections from response
+
+        # Parse response sections more intelligently
         lines = response.split('\n')
         current_section = None
         current_pathway = None
         current_phase = None
-        
-        for line in lines:
+        current_institution_data = {}
+
+        for i, line in enumerate(lines):
             line_lower = line.lower().strip()
             line_clean = line.strip()
-            
-            # Detect major sections
-            if "student assessment" in line_lower:
-                current_section = "assessment"
-            elif ("sri lankan" in line_lower and "option" in line_lower) or "state universit" in line_lower:
-                current_section = "sri_lankan_pathway"
-                current_pathway = {
-                    "pathway_type": "Primary",
-                    "education_level": "Undergraduate",
-                    "sri_lankan_options": [],
-                    "international_options": []
-                }
-            elif "international" in line_lower and ("pathway" in line_lower or "option" in line_lower):
-                current_section = "international_pathway"
-                if not current_pathway:
-                    current_pathway = {
-                        "pathway_type": "International",
-                        "education_level": "Undergraduate",
-                        "sri_lankan_options": [],
-                        "international_options": []
-                    }
-            elif "step" in line_lower and ("plan" in line_lower or "implementation" in line_lower):
-                current_section = "step_plan"
-                if current_pathway:
-                    academic_plan["pathway_options"].append(current_pathway)
-                    current_pathway = None
-            elif "financial" in line_lower and "planning" in line_lower:
-                current_section = "financial"
-            elif "alternative" in line_lower and "pathway" in line_lower:
-                current_section = "alternatives"
-            elif "immediate" in line_lower and ("step" in line_lower or "action" in line_lower):
-                current_section = "immediate_steps"
-            elif "phase" in line_lower and any(num in line_lower for num in ["1", "2", "3"]):
-                if "phase 1" in line_lower:
+
+            # Detect major section headers (markdown style)
+            if line_clean.startswith('##'):
+                # Main sections
+                if "student assessment" in line_lower:
+                    current_section = "assessment"
+                elif "local pathway" in line_lower or "sri lankan" in line_lower:
+                    current_section = "local_pathways"
+                    if not current_pathway:
+                        current_pathway = {
+                            "pathway_type": "Local (Sri Lankan)",
+                            "education_level": "Undergraduate/Postgraduate",
+                            "sri_lankan_options": [],
+                            "international_options": []
+                        }
+                elif "international pathway" in line_lower:
+                    current_section = "international_pathways"
+                    # Save current pathway before starting international
+                    if current_pathway and current_pathway["sri_lankan_options"]:
+                        academic_plan["pathway_options"].append(current_pathway)
+                        current_pathway = {
+                            "pathway_type": "International",
+                            "education_level": "Undergraduate/Postgraduate",
+                            "sri_lankan_options": [],
+                            "international_options": []
+                        }
+                elif "implementation plan" in line_lower or "step-by-step" in line_lower:
+                    current_section = "implementation"
+                    # Save pathways before moving to implementation
+                    if current_pathway:
+                        academic_plan["pathway_options"].append(current_pathway)
+                        current_pathway = None
+                elif "financial planning" in line_lower:
+                    current_section = "financial"
+                elif "alternative pathway" in line_lower:
+                    current_section = "alternatives"
+                elif "immediate" in line_lower and "step" in line_lower:
+                    current_section = "immediate_steps"
+                elif "next step" in line_lower:
+                    current_section = "immediate_steps"
+
+            # Detect subsections (### headers)
+            elif line_clean.startswith('###'):
+                if "state universit" in line_lower:
+                    current_section = "state_universities"
+                elif "private" in line_lower and ("universit" in line_lower or "institute" in line_lower):
+                    current_section = "private_universities"
+                elif "professional institute" in line_lower:
+                    current_section = "professional_institutes"
+                elif "united kingdom" in line_lower or "uk" == line_lower:
+                    current_section = "international_uk"
+                elif "united states" in line_lower or "usa" in line_lower:
+                    current_section = "international_usa"
+                elif "australia" in line_lower:
+                    current_section = "international_australia"
+                elif "phase 1" in line_lower:
                     current_phase = {
                         "phase": "Immediate Preparation",
-                        "timeframe": "Next 6 months",
+                        "timeframe": self._extract_timeframe(line_clean),
                         "actions": [],
                         "milestones": [],
                         "key_decisions": []
@@ -858,7 +1129,7 @@ Remember: Your academic pathway should transform career aspirations into concret
                         academic_plan["step_by_step_plan"].append(current_phase)
                     current_phase = {
                         "phase": "Application Period",
-                        "timeframe": "6-12 months",
+                        "timeframe": self._extract_timeframe(line_clean),
                         "actions": [],
                         "milestones": [],
                         "key_decisions": []
@@ -868,37 +1139,42 @@ Remember: Your academic pathway should transform career aspirations into concret
                         academic_plan["step_by_step_plan"].append(current_phase)
                     current_phase = {
                         "phase": "Study Period",
-                        "timeframe": "3-6 years",
+                        "timeframe": self._extract_timeframe(line_clean),
                         "actions": [],
                         "milestones": [],
                         "key_decisions": []
                     }
-            
-            # Extract bullet points and structured data
-            if line_clean.startswith(('-', '•', '*', '✅', '1.', '2.', '3.')):
-                item = re.sub(r'^[-•*✅\d\.\s]+', '', line_clean).strip()
-                if item and len(item) > 3:
+
+            # Extract structured institution data
+            if current_section in ["state_universities", "private_universities", "professional_institutes"]:
+                # Look for institution entries starting with bold markers or dashes
+                if line_clean.startswith(('- **', '* **', '• **')) or (line_clean.startswith('-') and '**' in line_clean):
+                    # Extract institution and program from line
+                    inst_info = self._extract_institution_details(line_clean, lines[i:min(i+10, len(lines))])
+                    if inst_info and current_pathway:
+                        current_pathway["sri_lankan_options"].append(inst_info)
+
+            elif current_section in ["international_uk", "international_usa", "international_australia"]:
+                if line_clean.startswith(('- **', '* **', '• **')) or (line_clean.startswith('-') and '**' in line_clean):
+                    intl_info = self._extract_international_details(line_clean, lines[i:min(i+10, len(lines))], current_section)
+                    if intl_info and current_pathway:
+                        current_pathway["international_options"].append(intl_info)
+
+            # Extract bullet points
+            if line_clean.startswith(('-', '•', '*', '1.', '2.', '3.', '4.', '5.')):
+                item = re.sub(r'^[-•*\d\.\s]+', '', line_clean).strip()
+                if item and len(item) > 5:
                     if current_section == "assessment":
                         if "level" in line_lower:
                             academic_plan["student_assessment"]["current_level"] = item
                         elif "timeline" in line_lower:
                             academic_plan["student_assessment"]["recommended_timeline"] = item
-                    elif current_section == "sri_lankan_pathway" and current_pathway:
-                        # Extract institution information
-                        if any(keyword in item.lower() for keyword in ["university", "institute", "college"]):
-                            institution_info = self._parse_institution_info(item)
-                            if institution_info:
-                                current_pathway["sri_lankan_options"].append(institution_info)
-                    elif current_section == "international_pathway" and current_pathway:
-                        if any(keyword in item.lower() for keyword in ["country", "university", "usa", "uk", "australia"]):
-                            international_info = self._parse_international_info(item)
-                            if international_info:
-                                current_pathway["international_options"].append(international_info)
                     elif current_section == "financial":
-                        if "cost" in line_lower or "lkr" in line_lower or "usd" in line_lower:
+                        if "scholarship" in line_lower or "funding" in line_lower or "loan" in line_lower:
                             academic_plan["financial_planning"]["funding_options"].append(item)
-                        elif "scholarship" in line_lower or "funding" in line_lower:
-                            academic_plan["financial_planning"]["funding_options"].append(item)
+                        elif "lkr" in line_lower or "estimated cost" in line_lower:
+                            if "local" in line_lower:
+                                academic_plan["financial_planning"]["total_estimated_cost_lkr"] = item
                     elif current_section == "alternatives":
                         academic_plan["alternative_pathways"].append({
                             "pathway_description": item,
@@ -908,32 +1184,146 @@ Remember: Your academic pathway should transform career aspirations into concret
                     elif current_section == "immediate_steps":
                         academic_plan["next_immediate_steps"].append(item)
                     elif current_phase:
-                        if "action" in line_lower or "apply" in line_lower or "prepare" in line_lower:
-                            current_phase["actions"].append(item)
-                        elif "milestone" in line_lower or "complete" in line_lower:
-                            current_phase["milestones"].append(item)
-                        else:
-                            current_phase["actions"].append(item)
-        
-        # Add any remaining data
-        if current_pathway:
+                        current_phase["actions"].append(item)
+
+        # Add remaining data
+        if current_pathway and (current_pathway["sri_lankan_options"] or current_pathway["international_options"]):
             academic_plan["pathway_options"].append(current_pathway)
         if current_phase:
             academic_plan["step_by_step_plan"].append(current_phase)
-        
+
         # Ensure minimum viable data
         if not academic_plan["pathway_options"]:
             academic_plan["pathway_options"] = self._create_default_pathways(career_title)
-        
+
         if not academic_plan["next_immediate_steps"]:
             academic_plan["next_immediate_steps"] = [
-                "Research specific degree programs for this career",
+                f"Research specific degree programs for {career_title} at Sri Lankan universities",
                 "Check A/L subject requirements for relevant programs",
-                "Explore scholarship and funding options",
-                "Contact university admission offices for guidance"
+                "Explore scholarship and funding options (local and international)",
+                "Contact university admission offices for up-to-date information",
+                "Prepare required documents (transcripts, certificates, recommendations)"
             ]
-        
+
         return academic_plan
+
+    def _extract_timeframe(self, text: str) -> str:
+        """Extract timeframe from phase header."""
+        # Look for patterns like (Months 1-6) or (Next 6 months)
+        match = re.search(r'\((.*?)\)', text)
+        if match:
+            return match.group(1)
+        return "Variable duration"
+
+    def _extract_institution_details(self, line: str, following_lines: List[str]) -> Optional[Dict[str, Any]]:
+        """Extract institution details from markdown-formatted text."""
+        # Extract institution name and program from bold text
+        inst_match = re.search(r'\*\*(.*?)\*\*(?:\s*-\s*(.*))?', line)
+        if not inst_match:
+            return None
+
+        institution_name = inst_match.group(1).strip()
+        program_name = inst_match.group(2).strip() if inst_match.group(2) else "Relevant program"
+
+        # Extract details from following indented lines
+        details = {
+            "institution_name": institution_name,
+            "program_name": program_name,
+            "duration": "3-4 years",
+            "entry_requirements": [],
+            "approximate_cost": "Contact institution for details",
+            "application_timeline": "Check university website",
+            "additional_notes": ""
+        }
+
+        for follow_line in following_lines[:8]:  # Check next 8 lines for details
+            follow_clean = follow_line.strip()
+            follow_lower = follow_clean.lower()
+
+            if follow_clean.startswith(('- **', '  - ', '    - ')):
+                # Extract field and value
+                if "program:" in follow_lower:
+                    details["program_name"] = self._extract_field_value(follow_clean, "program")
+                elif "duration:" in follow_lower:
+                    details["duration"] = self._extract_field_value(follow_clean, "duration")
+                elif "entry requirements:" in follow_lower or "requirements:" in follow_lower:
+                    req_value = self._extract_field_value(follow_clean, "entry requirements", "requirements")
+                    if req_value:
+                        details["entry_requirements"] = [r.strip() for r in req_value.split(',')]
+                elif "cost:" in follow_lower or "approximate cost:" in follow_lower:
+                    details["approximate_cost"] = self._extract_field_value(follow_clean, "cost", "approximate cost")
+                elif "application" in follow_lower:
+                    details["application_timeline"] = self._extract_field_value(follow_clean, "application")
+                elif "website:" in follow_lower or "url:" in follow_lower:
+                    details["additional_notes"] = f"Website: {self._extract_field_value(follow_clean, 'website', 'url')}"
+
+        return details
+
+    def _extract_international_details(self, line: str, following_lines: List[str], section: str) -> Optional[Dict[str, Any]]:
+        """Extract international institution details."""
+        inst_match = re.search(r'\*\*(.*?)\*\*(?:\s*-\s*(.*))?', line)
+        if not inst_match:
+            return None
+
+        institution_name = inst_match.group(1).strip()
+        program_name = inst_match.group(2).strip() if inst_match.group(2) else "Relevant program"
+
+        # Determine country
+        country = "International"
+        if "uk" in section:
+            country = "United Kingdom"
+        elif "usa" in section:
+            country = "United States"
+        elif "australia" in section:
+            country = "Australia"
+
+        details = {
+            "country": country,
+            "institution_examples": [institution_name],
+            "program_type": program_name,
+            "duration": "3-4 years",
+            "entry_requirements": [],
+            "approximate_cost": "Contact institution for details",
+            "scholarship_opportunities": [],
+            "notes": ""
+        }
+
+        for follow_line in following_lines[:8]:
+            follow_clean = follow_line.strip()
+            follow_lower = follow_clean.lower()
+
+            if follow_clean.startswith(('- **', '  - ', '    - ')):
+                if "program:" in follow_lower:
+                    details["program_type"] = self._extract_field_value(follow_clean, "program")
+                elif "duration:" in follow_lower:
+                    details["duration"] = self._extract_field_value(follow_clean, "duration")
+                elif "entry requirements:" in follow_lower or "requirements:" in follow_lower:
+                    req_value = self._extract_field_value(follow_clean, "entry requirements", "requirements")
+                    if req_value:
+                        details["entry_requirements"] = [r.strip() for r in req_value.split(',')]
+                elif "cost:" in follow_lower or "approximate cost:" in follow_lower:
+                    details["approximate_cost"] = self._extract_field_value(follow_clean, "cost", "approximate cost")
+                elif "scholarship" in follow_lower:
+                    sch_value = self._extract_field_value(follow_clean, "scholarship")
+                    if sch_value:
+                        details["scholarship_opportunities"] = [s.strip() for s in sch_value.split(',')]
+
+        return details
+
+    def _extract_field_value(self, text: str, *field_names) -> str:
+        """Extract value after field name (e.g., 'Duration: 4 years' -> '4 years')."""
+        text_lower = text.lower()
+        for field_name in field_names:
+            field_lower = field_name.lower()
+            if field_lower in text_lower:
+                # Find position of field name
+                pos = text_lower.find(field_lower)
+                # Extract everything after the colon
+                after_field = text[pos + len(field_name):].strip()
+                # Remove leading colon and whitespace
+                after_field = re.sub(r'^[:\s\*\-]+', '', after_field).strip()
+                return after_field
+        return ""
 
     def _parse_institution_info(self, text: str) -> Optional[Dict[str, Any]]:
         """Parse institution information from text."""
@@ -962,41 +1352,128 @@ Remember: Your academic pathway should transform career aspirations into concret
         }
 
     def _create_default_pathways(self, career_title: str) -> List[Dict[str, Any]]:
-        """Create default academic pathways as fallback."""
+        """Create default academic pathways with specific Sri Lankan examples as fallback."""
+
+        # Map career titles to relevant programs - provide realistic examples
+        career_lower = career_title.lower()
+
+        # Determine relevant programs based on career type
+        if any(term in career_lower for term in ["software", "computer", "it", "technology", "data", "developer", "programming"]):
+            state_programs = [
+                ("University of Colombo", "BSc (Hons) in Computer Science", "4 years", "Z-score 1.8+, Maths stream"),
+                ("University of Moratuwa", "BSc Engineering (Computer Science & Engineering)", "4 years", "Z-score 2.0+, Maths stream"),
+                ("University of Kelaniya", "BSc (Hons) in Software Engineering", "4 years", "Z-score 1.7+, Maths stream"),
+                ("University of Sri Jayewardenepura", "BSc (Hons) in Information Technology", "4 years", "Z-score 1.6+, Maths/Bio stream"),
+            ]
+            private_programs = [
+                ("SLIIT", "BSc (Hons) in Information Technology", "4 years", "LKR 800,000-1,200,000 per year"),
+                ("NSBM Green University", "BSc (Hons) in Computer Science", "3-4 years", "LKR 750,000-1,000,000 per year"),
+                ("IIT (Informatics Institute)", "BSc (Hons) in Computing (Westminster)", "3 years", "LKR 900,000-1,400,000 per year"),
+                ("APIIT", "BSc (Hons) in Computer Science (Staffordshire)", "3-4 years", "LKR 850,000-1,300,000 per year"),
+            ]
+        elif any(term in career_lower for term in ["engineer", "mechanical", "electrical", "civil"]):
+            state_programs = [
+                ("University of Moratuwa", "BSc Engineering (Relevant specialization)", "4 years", "Z-score 1.9+, Maths stream"),
+                ("University of Peradeniya", "BSc Engineering (Relevant specialization)", "4 years", "Z-score 1.8+, Maths stream"),
+                ("University of Ruhuna", "BSc Engineering (Relevant specialization)", "4 years", "Z-score 1.7+, Maths stream"),
+            ]
+            private_programs = [
+                ("SLIIT", "BSc (Hons) in Engineering (Relevant specialization)", "4 years", "LKR 900,000-1,400,000 per year"),
+                ("NSBM Green University", "BSc (Hons) in Engineering", "4 years", "LKR 850,000-1,250,000 per year"),
+            ]
+        elif any(term in career_lower for term in ["business", "management", "marketing", "finance", "accounting"]):
+            state_programs = [
+                ("University of Sri Jayewardenepura", "BSc in Business Administration", "3-4 years", "Z-score 1.5+, Commerce/Arts"),
+                ("University of Kelaniya", "BSc in Management Studies & Commerce", "3-4 years", "Z-score 1.4+, Commerce/Arts"),
+                ("University of Colombo", "BBA/BSc in Management", "3-4 years", "Z-score 1.6+, Commerce/Arts"),
+            ]
+            private_programs = [
+                ("NSBM Green University", "BSc (Hons) in Business Management", "3-4 years", "LKR 600,000-900,000 per year"),
+                ("SLIIT", "BSc (Hons) in Business Administration", "3-4 years", "LKR 650,000-950,000 per year"),
+                ("IIT", "BSc (Hons) in Business Management (Westminster)", "3 years", "LKR 700,000-1,000,000 per year"),
+            ]
+        elif any(term in career_lower for term in ["design", "art", "creative", "graphic", "animation"]):
+            state_programs = [
+                ("University of the Visual & Performing Arts", "BA in Design", "4 years", "Portfolio + A/L qualification"),
+                ("University of Moratuwa", "BSc in Architecture", "5 years", "Aptitude test + Z-score 1.5+"),
+            ]
+            private_programs = [
+                ("SLIIT", "BSc (Hons) in Multimedia & Web Design", "3-4 years", "LKR 700,000-1,000,000 per year"),
+                ("NSBM Green University", "BSc (Hons) in Graphic Design", "3-4 years", "LKR 650,000-900,000 per year"),
+                ("AOD (Academy of Design)", "Higher Diploma in Graphic Design", "2-3 years", "LKR 500,000-800,000 per year"),
+            ]
+        else:
+            # Generic fallback for other careers
+            state_programs = [
+                ("University of Colombo", f"Relevant degree program for {career_title}", "3-4 years", "Z-score varies by program"),
+                ("University of Peradeniya", f"Relevant degree program", "3-4 years", "Z-score varies by program"),
+                ("University of Kelaniya", f"Relevant degree program", "3-4 years", "Z-score varies by program"),
+            ]
+            private_programs = [
+                ("SLIIT", f"Relevant degree program for {career_title}", "3-4 years", "LKR 700,000-1,200,000 per year"),
+                ("NSBM Green University", f"Relevant degree program", "3-4 years", "LKR 650,000-1,000,000 per year"),
+            ]
+
+        # Build Sri Lankan options from the selected programs
+        sri_lankan_options = []
+
+        for univ, program, duration, req_or_cost in state_programs:
+            sri_lankan_options.append({
+                "institution_name": univ,
+                "program_name": program,
+                "duration": duration,
+                "entry_requirements": [req_or_cost, "A/L with relevant subjects"],
+                "approximate_cost": "LKR 30,000-100,000 per year (state university)",
+                "application_timeline": "Apply during university admission period (August-September)",
+                "additional_notes": "Highly competitive admission via UGC"
+            })
+
+        for univ, program, duration, cost in private_programs:
+            sri_lankan_options.append({
+                "institution_name": univ,
+                "program_name": program,
+                "duration": duration,
+                "entry_requirements": ["A/L qualification (3 passes minimum)", "Interview or entrance test"],
+                "approximate_cost": cost,
+                "application_timeline": "Multiple intake periods throughout the year",
+                "additional_notes": "Flexible admission, international degree partnerships available"
+            })
+
         return [
             {
-                "pathway_type": "Primary",
+                "pathway_type": "Sri Lankan & International",
                 "education_level": "Undergraduate",
-                "sri_lankan_options": [
-                    {
-                        "institution_name": "State Universities",
-                        "program_name": f"Degree program related to {career_title}",
-                        "duration": "3-4 years",
-                        "entry_requirements": ["Strong A/L results", "Z-score requirements"],
-                        "approximate_cost": "LKR 50,000-100,000 per year",
-                        "application_timeline": "Apply during university admission period",
-                        "additional_notes": "Highly competitive admission"
-                    },
-                    {
-                        "institution_name": "Private Universities",
-                        "program_name": f"Related degree with industry focus",
-                        "duration": "3-4 years",
-                        "entry_requirements": ["A/L qualification", "Interview/entrance exam"],
-                        "approximate_cost": "LKR 500,000-1,500,000 per year",
-                        "application_timeline": "Multiple intake periods",
-                        "additional_notes": "Flexible admission requirements"
-                    }
-                ],
+                "sri_lankan_options": sri_lankan_options,
                 "international_options": [
                     {
                         "country": "United Kingdom",
-                        "institution_examples": ["Various universities"],
-                        "program_type": "Bachelor's degree",
-                        "duration": "3 years",
-                        "entry_requirements": ["A/L qualification", "IELTS 6.0+"],
-                        "approximate_cost": "$25,000-35,000 per year",
-                        "scholarship_opportunities": ["Chevening", "Commonwealth scholarships"],
-                        "notes": "High quality education with shorter duration"
+                        "institution_examples": ["University of London", "Manchester Metropolitan University", "Coventry University", "Plymouth University"],
+                        "program_type": f"BSc/BA (Hons) in related field to {career_title}",
+                        "duration": "3 years (full-time)",
+                        "entry_requirements": ["A/L qualification with good grades", "IELTS 6.0-6.5 overall", "Personal statement"],
+                        "approximate_cost": "$22,000-35,000 per year (tuition + living)",
+                        "scholarship_opportunities": ["Chevening Scholarship", "Commonwealth Scholarships", "University merit scholarships"],
+                        "notes": "Shorter duration than US, post-study work visa available for 2 years"
+                    },
+                    {
+                        "country": "United States",
+                        "institution_examples": ["State Universities (e.g., Arizona State, Penn State)", "Community Colleges with transfer pathways"],
+                        "program_type": f"Bachelor's degree in related field to {career_title}",
+                        "duration": "4 years (full-time)",
+                        "entry_requirements": ["A/L qualification", "SAT/ACT scores", "TOEFL (80+) or IELTS (6.5+)", "Essays and recommendations"],
+                        "approximate_cost": "$25,000-50,000 per year (varies widely)",
+                        "scholarship_opportunities": ["University scholarships (merit/need-based)", "Fulbright Program", "Athletic scholarships"],
+                        "notes": "Many universities offer financial aid to international students"
+                    },
+                    {
+                        "country": "Australia",
+                        "institution_examples": ["Curtin University", "Victoria University", "Monash University", "University of Melbourne"],
+                        "program_type": f"Bachelor degree in related field",
+                        "duration": "3-4 years",
+                        "entry_requirements": ["A/L qualification or foundation year", "IELTS 6.5-7.0", "May require bridging courses"],
+                        "approximate_cost": "$20,000-35,000 per year (AUD)",
+                        "scholarship_opportunities": ["Australia Awards", "University scholarships", "Destination Australia"],
+                        "notes": "Post-study work rights available, pathway to permanent residence"
                     }
                 ]
             }

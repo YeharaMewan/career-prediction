@@ -37,6 +37,8 @@ ehthumbs.db
 Thumbs.db
 
 # Environment files
+# Note: .env is excluded for security - it's handled by docker-compose env_file
+# The .env file should exist on the HOST but NOT be copied into the image
 .env
 .env.local
 .env.development.local

@@ -730,42 +730,93 @@ Provide analysis in this JSON format:
 
         return priority_categories
 
+    def _fix_question_beginning(self, question_text: str) -> str:
+        """Fix questions that start with lowercase or missing subject (e.g., 'mentioned...' -> 'You mentioned...')."""
+        if not question_text or not question_text.strip():
+            return question_text
+
+        question_text = question_text.strip()
+
+        # Check if question starts with lowercase letter (indicates missing subject)
+        if question_text and question_text[0].islower():
+            logging.warning(f"Question starts with lowercase: '{question_text[:50]}...'")
+
+            # Common fragments that need "You" prepended
+            lowercase_starts = [
+                "mentioned", "said", "told", "indicated", "expressed", "described",
+                "shared", "explained", "talked about", "spoke about"
+            ]
+
+            for start in lowercase_starts:
+                if question_text.lower().startswith(start):
+                    question_text = "You " + question_text
+                    logging.info(f"Fixed question beginning: '{question_text[:50]}...'")
+                    break
+
+        # Check for other common cut-off patterns
+        incomplete_starts = [
+            "are some ", "is your ", "do you ", "did you ", "have you ",
+            "can you ", "could you ", "would you ", "will you "
+        ]
+
+        for incomplete in incomplete_starts:
+            if question_text.lower().startswith(incomplete):
+                # These likely need "What " prepended
+                question_text = "What " + question_text
+                logging.info(f"Fixed incomplete question: '{question_text[:50]}...'")
+                break
+
+        return question_text
+
     def _ensure_single_question(self, question_text: str) -> str:
-        """Ensure only ONE question is asked per agent message - strictly enforced."""
-        if not question_text:
+        """Ensure only ONE question is asked per agent message - FIXED to prevent text cutoff."""
+        if not question_text or not question_text.strip():
             return question_text
 
         # Remove any newlines or extra spacing
         question_text = ' '.join(question_text.split())
 
+        # Count question marks
+        question_count = question_text.count('?')
+
+        if question_count == 0:
+            # No question mark - check if it looks like a question
+            sentences = question_text.split('.')
+            if sentences and sentences[0].strip():
+                first_sentence = sentences[0].strip()
+                # Add question mark if it seems like a question
+                if any(word in first_sentence.lower() for word in ['what', 'how', 'why', 'when', 'where', 'which', 'do you', 'are you', 'can you', 'could you', 'would you']):
+                    return first_sentence + '?'
+                return first_sentence + '.'
+            return question_text
+
+        if question_count == 1:
+            # Perfect - exactly one question, return as-is
+            return question_text.strip()
+
+        # Multiple questions - take ONLY the first complete question
+        # FIXED: Preserve full question text, don't cut off the beginning
+        logging.warning(f"Multiple questions detected ({question_count} question marks). Taking first question only.")
+
         # Split by question marks
-        questions = question_text.split('?')
+        parts = question_text.split('?')
 
-        # STRICT: Take ONLY the first question
-        if len(questions) > 1 and questions[0].strip():
-            first_question = questions[0].strip() + '?'
-
-            # Log if multiple questions were detected
-            if len([q for q in questions if q.strip()]) > 1:
-                logging.warning(f"Multiple questions detected. Using only first: {first_question}")
-
+        if len(parts) >= 2 and parts[0].strip():
+            # Take the first question (everything before the first ?)
+            first_question = parts[0].strip() + '?'
+            logging.info(f"Extracted first question: {first_question[:100]}...")
             return first_question
 
-        # If no question mark, take first sentence
-        sentences = question_text.split('.')
-        if sentences and sentences[0].strip():
-            first_sentence = sentences[0].strip()
-            # Add question mark if it seems like a question
-            if any(word in first_sentence.lower() for word in ['what', 'how', 'why', 'when', 'where', 'which', 'do you', 'are you', 'can you']):
-                return first_sentence + '?'
-            return first_sentence + '.'
-
-        return question_text
+        # Fallback
+        return question_text.split('?')[0].strip() + '?' if '?' in question_text else question_text
 
     def _ensure_greeting_has_single_question(self, greeting_text: str) -> str:
-        """Ensure greeting ends with exactly ONE question."""
-        if not greeting_text:
-            return greeting_text
+        """Ensure greeting ends with exactly ONE question - FIXED to prevent text cutoff."""
+        if not greeting_text or not greeting_text.strip():
+            logging.warning("Empty greeting, using fallback")
+            return "Hi! I'm your AI career helper. What interests you most about finding a career?"
+
+        greeting_text = greeting_text.strip()
 
         # Count question marks
         question_count = greeting_text.count('?')
@@ -776,41 +827,45 @@ Provide analysis in this JSON format:
             return "Hi! I'm your AI career helper. What interests you most about finding a career?"
 
         if question_count == 1:
-            # Perfect - exactly one question
+            # Perfect - exactly one question, return as-is
             return greeting_text
 
-        # Multiple questions - keep intro + last question only
-        parts = greeting_text.split('?')
-        if len(parts) >= 2:
-            # Find where the last question starts
-            last_question_part = parts[-2].strip()  # Second to last part (before final ?)
+        # Multiple questions - keep ALL text but remove extra question marks except the last one
+        # FIXED: Previously this was cutting off text, now we preserve everything
+        logging.warning(f"Multiple questions detected in greeting ({question_count} question marks)")
 
-            # Find the last sentence before the last question
-            sentences = greeting_text.split('.')
-            intro_sentences = []
-            for sentence in sentences:
-                if '?' not in sentence and len(intro_sentences) < 2:  # Keep max 2 intro sentences
-                    intro_sentences.append(sentence.strip())
+        # Find the position of the last question mark
+        last_q_index = greeting_text.rfind('?')
 
-            # Combine intro + last question
-            intro = '. '.join(intro_sentences)
-            if intro and not intro.endswith('.'):
-                intro += '.'
+        # Strategy: Keep everything up to and including the last question mark
+        # Remove any text after the last question mark (cleanup)
+        result = greeting_text[:last_q_index + 1].strip()
 
-            # Extract just the last question
-            last_q_index = greeting_text.rfind('?')
-            # Find start of last question (look for sentence start)
-            text_before_last_q = greeting_text[:last_q_index]
-            last_sentence_start = max(text_before_last_q.rfind('.'), text_before_last_q.rfind('!'), 0)
-            last_question = greeting_text[last_sentence_start:last_q_index + 1].strip()
-            if last_question.startswith('.') or last_question.startswith('!'):
-                last_question = last_question[1:].strip()
+        # Now remove intermediate question marks by replacing ? with . in the intro part
+        # Find where the last sentence before final ? starts
+        # Look backwards from the last ? to find sentence boundaries
+        text_before_final_q = result[:last_q_index]
 
-            result = f"{intro} {last_question}"
-            logging.warning(f"Multiple questions in greeting. Reduced to: {result}")
-            return result
+        # Replace all ? in the intro with . to maintain text but remove extra questions
+        if '?' in text_before_final_q:
+            # Find the start of the last sentence
+            sentence_starters = []
+            for i, char in enumerate(text_before_final_q):
+                if char in '.!?' and i < len(text_before_final_q) - 1:
+                    sentence_starters.append(i + 1)
 
-        return greeting_text
+            if sentence_starters:
+                # Get the start of the last sentence (last question)
+                last_sentence_start = sentence_starters[-1] if sentence_starters else 0
+                intro = text_before_final_q[:last_sentence_start].replace('?', '.')
+                last_question = text_before_final_q[last_sentence_start:]
+                result = intro + last_question + '?'
+            else:
+                # No sentence boundaries found, just replace ? with . in intro
+                result = text_before_final_q.replace('?', '.') + '?'
+
+        logging.info(f"Cleaned greeting to single question: {result[:100]}...")
+        return result
 
     def _update_riasec_question_tracking(self, context: ConversationContext, question_text: str, riasec_relevance: Dict[RIASECCategory, float]):
         """Update RIASEC question counts - STRICT: Each question counts for exactly ONE category."""
@@ -1156,25 +1211,35 @@ PREVIOUS USER RESPONSE: "{context.response_history[-1] if context.response_histo
 AREA NEEDING MORE INFORMATION: {follow_up_area}
 CONVERSATION CONTEXT: Questions asked: {len(context.question_history)}, Current state: {context.current_state.name}
 
+CRITICAL FORMATTING RULES:
+1. MUST start your question with "You mentioned..." or "You said..." or "I noticed you..." or "That's interesting..."
+2. MUST be a COMPLETE sentence starting with a proper subject
+3. NO starting with lowercase letters or fragments like "mentioned..." or "said..."
+4. MUST include exactly ONE question with ONE question mark (?)
+5. NO appending undefined variables or extra text
+
 ANALYSIS: Based on their previous response, identify specific topics, interests, skills, or experiences they mentioned that warrant deeper exploration for career assessment purposes.
 
 Generate a professional follow-up question that:
-1. References specific details from their previous response
-2. Seeks to gather more comprehensive career-relevant information
-3. Uses clear, accessible language while maintaining counseling depth
-4. Provides specific direction for what kind of additional detail would be helpful
-5. Shows you were actively listening to their response
-6. Helps build toward accurate career recommendations
-7. Contains ONLY ONE question (not multiple questions)
+1. STARTS with "You mentioned..." or "You said..." or similar proper opening
+2. References specific details from their previous response
+3. Seeks to gather more comprehensive career-relevant information
+4. Uses clear, accessible language while maintaining counseling depth
+5. Provides specific direction for what kind of additional detail would be helpful
+6. Shows you were actively listening to their response
+7. Helps build toward accurate career recommendations
 
-IMPORTANT: Generate exactly ONE question with ONE question mark (?)
+CORRECT FOLLOW-UP QUESTION EXAMPLES:
+- "You mentioned enjoying design work. What aspects of this work appeal to you most?"
+- "That's interesting that you have experience with programming. Could you tell me more about how you developed this ability and what you find most rewarding about it?"
+- "I noticed you're passionate about helping others. What specific ways of helping people feel most meaningful to you?"
 
-FOLLOW-UP QUESTION EXAMPLES:
-- "You mentioned enjoying [specific activity] - what aspects of this work appeal to you most?"
+INCORRECT EXAMPLES (DO NOT DO THIS):
+- "mentioned enjoying design work..." ❌ (missing "You")
+- "interesting that you like art" ❌ (missing question mark)
+- "What do you like? What excites you?" ❌ (multiple questions)
 
-- "That's interesting that you have experience with [specific skill]. Could you tell me more about how you developed this ability and what you find most rewarding about it?"
-
-Generate ONE contextual, professional follow-up question:"""
+Generate ONE complete, properly formatted follow-up question:"""
 
         try:
             response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
@@ -1184,8 +1249,19 @@ Generate ONE contextual, professional follow-up question:"""
 
             question_text = response.content.strip()
 
+            # CRITICAL: Remove any "undefined" text that might be appended
+            if " undefined" in question_text:
+                logging.warning(f"Detected ' undefined' in question, removing it")
+                question_text = question_text.replace(" undefined", "")
+            if question_text.endswith("undefined"):
+                logging.warning(f"Detected 'undefined' at end of question, removing it")
+                question_text = question_text.replace("undefined", "").strip()
+
             # Enforce single question
             question_text = self._ensure_single_question(question_text)
+
+            # CRITICAL: Fix cut-off beginnings - ensure proper sentence start
+            question_text = self._fix_question_beginning(question_text)
 
             # Ensure the question is valid
             if not question_text or len(question_text) < 10:
