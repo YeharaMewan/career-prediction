@@ -15,6 +15,9 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 
+# Import pricing calculator
+from .llm_pricing import calculate_cost, calculate_detailed_cost
+
 # Gemini imports (will be conditional based on availability)
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI
@@ -282,6 +285,14 @@ class LLMStrategyWrapper:
         self.last_used = None
         self.logger = logging.getLogger(f"llm_wrapper.{strategy.provider_name}")
 
+        # Token usage tracking
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_tokens = 0
+        self.total_cost_usd = 0.0
+        self.last_request_tokens = None
+        self.last_request_cost = None
+
     def invoke(self, messages, **kwargs):
         """Invoke the LLM with monitoring and runtime fallback support"""
         try:
@@ -290,6 +301,9 @@ class LLMStrategyWrapper:
 
             result = self.llm.invoke(messages, **kwargs)
             self.strategy.log_usage(success=True)
+
+            # Extract token usage from response
+            self._extract_and_track_tokens(result)
 
             return result
         except Exception as e:
@@ -315,6 +329,9 @@ class LLMStrategyWrapper:
 
                             # Try invoking with fallback
                             result = fallback_llm.invoke(messages, **kwargs)
+
+                            # Extract token usage from fallback response
+                            self._extract_and_track_tokens(result)
 
                             # Update to use this fallback provider
                             self.llm = fallback_llm
@@ -343,14 +360,124 @@ class LLMStrategyWrapper:
             # Re-raise the original exception if no fallback succeeded
             raise
 
+    def _extract_and_track_tokens(self, result) -> Optional[Dict[str, Any]]:
+        """
+        Extract token usage from LLM response and track costs.
+
+        Args:
+            result: The LLM response object
+
+        Returns:
+            Dictionary with token and cost information, or None if unavailable
+        """
+        try:
+            # Try to extract usage_metadata (new LangChain format)
+            usage_metadata = None
+
+            if hasattr(result, 'usage_metadata'):
+                usage_metadata = result.usage_metadata
+            elif hasattr(result, 'response_metadata'):
+                # Try extracting from response_metadata (OpenAI format)
+                response_metadata = result.response_metadata
+                if isinstance(response_metadata, dict) and 'token_usage' in response_metadata:
+                    token_usage = response_metadata['token_usage']
+                    usage_metadata = {
+                        'input_tokens': token_usage.get('prompt_tokens', 0),
+                        'output_tokens': token_usage.get('completion_tokens', 0),
+                        'total_tokens': token_usage.get('total_tokens', 0)
+                    }
+
+            if usage_metadata:
+                # Extract token counts
+                input_tokens = usage_metadata.get('input_tokens', 0)
+                output_tokens = usage_metadata.get('output_tokens', 0)
+                total_tokens = usage_metadata.get('total_tokens', input_tokens + output_tokens)
+
+                # Get model name
+                model_name = self.strategy.model
+
+                # Calculate cost
+                cost_usd, pricing_found = calculate_cost(model_name, input_tokens, output_tokens)
+
+                # Update cumulative totals
+                self.total_input_tokens += input_tokens
+                self.total_output_tokens += output_tokens
+                self.total_tokens += total_tokens
+                self.total_cost_usd += cost_usd
+
+                # Store last request info
+                self.last_request_tokens = {
+                    'input_tokens': input_tokens,
+                    'output_tokens': output_tokens,
+                    'total_tokens': total_tokens
+                }
+                self.last_request_cost = cost_usd
+
+                # Log token usage
+                self.logger.info(
+                    f"📊 Token Usage - Input: {input_tokens}, Output: {output_tokens}, "
+                    f"Total: {total_tokens}, Cost: ${cost_usd:.6f}"
+                )
+
+                # Create dedicated LLM span with token data for easy visibility in Jaeger
+                try:
+                    from opentelemetry import trace
+                    tracer = trace.get_tracer(__name__)
+
+                    # Create a dedicated child span for this LLM call
+                    span_name = f"LLM Call: {model_name}"
+                    with tracer.start_as_current_span(span_name) as llm_span:
+                        # Add comprehensive token and cost attributes
+                        llm_span.set_attribute("llm.model", model_name)
+                        llm_span.set_attribute("llm.provider", self.strategy.provider_name)
+                        llm_span.set_attribute("llm.input_tokens", input_tokens)
+                        llm_span.set_attribute("llm.output_tokens", output_tokens)
+                        llm_span.set_attribute("llm.total_tokens", total_tokens)
+                        llm_span.set_attribute("llm.cost_usd", cost_usd)
+                        llm_span.set_attribute("llm.pricing_found", pricing_found)
+
+                        # Add formatted cost for easy reading
+                        llm_span.set_attribute("llm.cost_formatted", f"${cost_usd:.6f}")
+
+                        self.logger.debug(f"✓ Created LLM span '{span_name}' with token data")
+                except ImportError:
+                    # OpenTelemetry not available
+                    pass
+                except Exception as otel_error:
+                    self.logger.debug(f"Could not create LLM span: {otel_error}")
+
+                return {
+                    'input_tokens': input_tokens,
+                    'output_tokens': output_tokens,
+                    'total_tokens': total_tokens,
+                    'cost_usd': cost_usd,
+                    'pricing_found': pricing_found,
+                    'model': model_name
+                }
+
+        except Exception as e:
+            self.logger.warning(f"Failed to extract token usage: {e}")
+
+        return None
+
     def get_stats(self) -> Dict[str, Any]:
-        """Get usage statistics"""
+        """Get usage statistics including token usage and costs"""
         stats = {
             "provider": self.strategy.provider_name,
             "model": self.strategy.model,
             "usage_count": self.usage_count,
             "error_count": self.error_count,
-            "last_used": self.last_used.isoformat() if self.last_used else None
+            "last_used": self.last_used.isoformat() if self.last_used else None,
+
+            # Token usage statistics
+            "total_input_tokens": self.total_input_tokens,
+            "total_output_tokens": self.total_output_tokens,
+            "total_tokens": self.total_tokens,
+            "total_cost_usd": round(self.total_cost_usd, 6),
+
+            # Last request info
+            "last_request_tokens": self.last_request_tokens,
+            "last_request_cost_usd": round(self.last_request_cost, 6) if self.last_request_cost else None
         }
 
         # Add fallback stats if applicable

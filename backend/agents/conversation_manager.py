@@ -1250,12 +1250,13 @@ Generate ONE complete, properly formatted follow-up question:"""
             question_text = response.content.strip()
 
             # CRITICAL: Remove any "undefined" text that might be appended
-            if " undefined" in question_text:
-                logging.warning(f"Detected ' undefined' in question, removing it")
-                question_text = question_text.replace(" undefined", "")
-            if question_text.endswith("undefined"):
-                logging.warning(f"Detected 'undefined' at end of question, removing it")
-                question_text = question_text.replace("undefined", "").strip()
+            # Use robust regex to catch all variations (case-insensitive, multiple occurrences, different positions)
+            original_text = question_text
+            question_text = re.sub(r'\s*undefined\s*', ' ', question_text, flags=re.IGNORECASE)
+            question_text = re.sub(r'\s+', ' ', question_text).strip()  # Clean up multiple spaces
+
+            if original_text != question_text:
+                logging.warning(f"Removed 'undefined' from question. Original length: {len(original_text)}, New length: {len(question_text)}")
 
             # Enforce single question
             question_text = self._ensure_single_question(question_text)

@@ -1,0 +1,86 @@
+# Docker Compose Debug Configuration
+# Use this for troubleshooting - it removes health checks and simplifies the setup
+#
+# Usage: docker-compose -f docker-compose.debug.yml up
+#
+# This configuration:
+# - Removes all health checks
+# - Removes depends_on conditions
+# - Adds verbose logging
+# - Easier to see what's failing
+
+version: "3.8"
+
+services:
+  # Backend service - Career Planning Multi-Agent System (DEBUG MODE)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: career-planning-backend-debug
+    restart: "no"  # Don't auto-restart in debug mode
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONPATH=/app
+      - HOST=0.0.0.0
+      - PORT=8000
+      # Debug: Disable tracing by default for simpler debugging
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-career-planning-system}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
+      - OTEL_PYTHON_LANGCHAIN_CAPTURE_INPUTS=${OTEL_PYTHON_LANGCHAIN_CAPTURE_INPUTS:-false}
+      - OTEL_PYTHON_LANGCHAIN_CAPTURE_OUTPUTS=${OTEL_PYTHON_LANGCHAIN_CAPTURE_OUTPUTS:-false}
+      # Debug logging
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Mount output directories for logs and reports
+      - ./backend/outputs:/app/outputs
+      - ./backend/data:/app/data
+    networks:
+      - career-planning-network
+    # NO HEALTH CHECK in debug mode
+    # NO DEPENDS_ON in debug mode
+
+  # Frontend service - React application (DEBUG MODE)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    container_name: career-planning-frontend-debug
+    restart: "no"
+    ports:
+      - "3000:80"
+    networks:
+      - career-planning-network
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    # NO HEALTH CHECK in debug mode
+    # NO DEPENDS_ON in debug mode
+
+  # Jaeger v2 - Distributed Tracing Backend (OPTIONAL in debug mode)
+  jaeger:
+    image: jaegertracing/jaeger:2.10.0
+    container_name: career-planning-jaeger-debug
+    restart: "no"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - career-planning-network
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=debug
+    # NO HEALTH CHECK in debug mode
+
+networks:
+  career-planning-network:
+    driver: bridge
+    name: career-planning-network-debug

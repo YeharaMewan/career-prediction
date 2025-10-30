@@ -1,2 +1,13 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Ensure shell scripts always use LF line endings (Unix format) for Docker containers
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+
+# Python files should use LF
+*.py text eol=lf
+
+# Dockerfile should use LF
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
