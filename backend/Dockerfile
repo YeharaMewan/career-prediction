@@ -32,6 +32,16 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
+# Copy and configure entrypoint script FIRST for optional OpenTelemetry auto-instrumentation
+# This ensures it's copied before the rest of the code and line endings are preserved
+COPY entrypoint.sh /entrypoint.sh
+
+# Convert line endings to Unix format (LF) and make executable
+# This handles cases where git didn't convert line endings properly
+RUN sed -i 's/\r$//' /entrypoint.sh && \
+    chmod +x /entrypoint.sh && \
+    echo "Entrypoint script configured successfully"
+
 # Copy application code
 COPY . .
 
@@ -45,5 +55,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Command to run the application
+# Use entrypoint script to support optional auto-instrumentation
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (passed to entrypoint)
 CMD ["python", "api_server.py"]

@@ -6,6 +6,7 @@ the career planning agents.
 """
 import os
 import logging
+import re
 from typing import Dict, Any, Optional
 from datetime import datetime
 import asyncio
@@ -26,7 +27,11 @@ load_dotenv(backend_env_path)
 
 # Validate required environment variables
 def validate_environment():
-    """Validate that all required environment variables are present."""
+    """
+    Validate that all required environment variables are present.
+    Returns a dict with status and message instead of raising exceptions.
+    This allows the app to start in degraded mode if keys are missing.
+    """
     required_vars = [
         'OPENAI_API_KEY',
         'LANGSMITH_API_KEY',
@@ -39,26 +44,43 @@ def validate_environment():
             missing_vars.append(var)
 
     if missing_vars:
-        raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        warning_msg = f"⚠️  Missing environment variables: {', '.join(missing_vars)}"
+        print(warning_msg)
+        print("   Application will start in degraded mode")
+        print("   Please configure your .env file for full functionality")
+        return {"status": "degraded", "message": warning_msg, "missing": missing_vars}
 
     # Test OpenAI API key format
     openai_key = os.getenv('OPENAI_API_KEY')
-    if not (openai_key.startswith('sk-') and len(openai_key) > 20):
-        raise EnvironmentError("Invalid OpenAI API key format")
+    if openai_key and not (openai_key.startswith('sk-') and len(openai_key) > 20):
+        warning_msg = "⚠️  OpenAI API key format appears invalid"
+        print(warning_msg)
+        return {"status": "degraded", "message": warning_msg}
 
-    print(f"✅ Environment validation passed - OpenAI API key loaded")
+    print(f"✅ Environment validation passed - All API keys loaded")
+    return {"status": "healthy", "message": "All environment variables configured"}
 
-# Validate environment on import
-try:
-    validate_environment()
-except EnvironmentError as e:
-    print(f"❌ Environment validation failed: {e}")
-    print("Please check your .env file in the backend folder")
-    # Don't exit, but log the error
+# Validate environment on import (non-blocking)
+env_status = validate_environment()
 
 # Initialize LangSmith before importing agents
 from utils.langsmith_config import setup_langsmith
 setup_langsmith()
+
+# OpenTelemetry Manual Instrumentation
+# This ensures tracing works even without auto-instrumentation
+if os.getenv('ENABLE_TRACING', 'false').lower() == 'true':
+    try:
+        from tracing.setup_tracing import setup_tracing
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        # Setup OpenTelemetry with Jaeger
+        service_name = os.getenv('OTEL_SERVICE_NAME', 'career-planning-system')
+        otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger:4317')
+        setup_tracing(service_name=service_name, otlp_endpoint=otlp_endpoint)
+        print(f"✅ Manual OpenTelemetry tracing initialized for {service_name}")
+    except Exception as e:
+        print(f"⚠️  Failed to initialize OpenTelemetry tracing: {e}")
 
 # Import LLM factory for provider validation
 from utils.llm_factory import LLMFactory
@@ -87,6 +109,15 @@ async def lifespan(app: FastAPI):
     global main_supervisor, user_profiler
 
     try:
+        # Log tracing status on startup
+        tracing_enabled = os.getenv('ENABLE_TRACING', 'false').lower() == 'true'
+        if tracing_enabled:
+            service_name = os.getenv('OTEL_SERVICE_NAME', 'career-planning-system')
+            otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger:4317')
+            logger.info(f"🔍 Manual tracing ACTIVE: {service_name} → {otlp_endpoint}")
+        else:
+            logger.info("ℹ️  Manual tracing DISABLED")
+
         if MainSupervisor:
             main_supervisor = MainSupervisor()
             logger.info("Main Supervisor initialized")
@@ -101,8 +132,19 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Cleanup code (if needed)
+    # Cleanup code - shutdown tracing to flush spans
     logger.info("Career Planning API server shutting down")
+
+    # Flush all remaining spans to Jaeger before shutdown
+    tracing_enabled = os.getenv('ENABLE_TRACING', 'false').lower() == 'true'
+    if tracing_enabled:
+        try:
+            from tracing.setup_tracing import shutdown_tracing
+            logger.info("🔍 Flushing OpenTelemetry spans to Jaeger...")
+            shutdown_tracing()
+            logger.info("✅ OpenTelemetry tracing shutdown complete")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to shutdown tracing: {e}")
 
 # FastAPI app
 app = FastAPI(
@@ -111,6 +153,15 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Instrument FastAPI with OpenTelemetry (if tracing is enabled)
+if os.getenv('ENABLE_TRACING', 'false').lower() == 'true':
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        FastAPIInstrumentor.instrument_app(app)
+        print("✅ FastAPI app instrumented with OpenTelemetry")
+    except Exception as e:
+        print(f"⚠️  Failed to instrument FastAPI: {e}")
 
 # CORS middleware
 app.add_middleware(
@@ -180,12 +231,13 @@ def validate_and_clean_response_fields(result_data: Dict[str, Any]) -> Dict[str,
             question = question.strip()
 
             # CRITICAL: Remove any "undefined" text
-            if " undefined" in question:
-                logger.warning(f"Detected ' undefined' in question, removing it")
-                question = question.replace(" undefined", "")
-            if question.endswith("undefined"):
-                logger.warning(f"Detected 'undefined' at end of question, removing it")
-                question = question.replace("undefined", "").strip()
+            # Use robust regex to catch all variations (case-insensitive, multiple occurrences, different positions)
+            original_question = question
+            question = re.sub(r'\s*undefined\s*', ' ', question, flags=re.IGNORECASE)
+            question = re.sub(r'\s+', ' ', question).strip()  # Clean up multiple spaces
+
+            if original_question != question:
+                logger.warning(f"Removed 'undefined' from question. Original length: {len(original_question)}, New length: {len(question)}")
 
             # Check for cut-off beginnings and fix
             if question and question[0].islower():
@@ -260,21 +312,29 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint with environment validation"""
+    """
+    Health check endpoint with environment validation.
+    Returns 'healthy' or 'degraded' status.
+    This endpoint always returns 200 OK to allow the container to pass health checks.
+    """
     try:
-        validate_environment()
+        # Validate environment
+        env_check = validate_environment()
 
         # Validate LLM configuration
-        llm_config = LLMFactory.validate_configuration()
-
-        if llm_config["status"] == "error":
-            logger.warning(f"LLM configuration issue: {llm_config['message']}")
+        try:
+            llm_config = LLMFactory.validate_configuration()
+            if llm_config["status"] == "error":
+                logger.warning(f"LLM configuration issue: {llm_config['message']}")
+                status = "degraded"
+            else:
+                status = env_check.get("status", "healthy")
+        except Exception as llm_error:
+            logger.warning(f"LLM validation error: {llm_error}")
             status = "degraded"
-        else:
-            status = "healthy"
 
     except Exception as e:
-        logger.warning(f"Health check failed: {e}")
+        logger.warning(f"Health check error: {e}")
         status = "degraded"
 
     return HealthResponse(
@@ -282,6 +342,26 @@ async def health_check():
         timestamp=datetime.now().isoformat(),
         version="1.0.0"
     )
+
+@app.get("/tracing/status")
+async def tracing_status():
+    """Get OpenTelemetry tracing status"""
+    tracing_enabled = os.getenv('ENABLE_TRACING', 'false').lower() == 'true'
+
+    if tracing_enabled:
+        return {
+            "tracing_enabled": True,
+            "service_name": os.getenv('OTEL_SERVICE_NAME', 'career-planning-system'),
+            "otlp_endpoint": os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger:4317'),
+            "jaeger_ui": "http://localhost:16686",
+            "instrumentation": "manual",
+            "message": "OpenTelemetry tracing is active"
+        }
+    else:
+        return {
+            "tracing_enabled": False,
+            "message": "OpenTelemetry tracing is disabled. Set ENABLE_TRACING=true to enable."
+        }
 
 @app.post("/chat")
 async def chat_endpoint(chat_message: ChatMessage):

@@ -28,6 +28,15 @@ from models.state_models import AgentState, TaskResult, StudentProfile
 # Import LLM factory for flexible LLM provider support
 from utils.llm_factory import LLMFactory
 
+# Import OpenTelemetry for token tracking
+try:
+    from opentelemetry import trace
+    from tracing.setup_tracing import add_llm_token_attributes, extract_and_add_token_attributes_from_response
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
+    trace = None
+
 
 class BaseAgent(ABC):
     """
@@ -56,8 +65,18 @@ class BaseAgent(ABC):
                 temperature=self.temperature,
                 enable_fallback=self.use_fallback
             )
-            self.llm = self.llm_wrapper.llm
-            self.logger.info(f"✅ LLM initialized for agent '{name}' using {self.llm_wrapper.strategy.provider_name}")
+            # Store the original LLM
+            self._original_llm = self.llm_wrapper.llm
+
+            # Wrap LLM with tracing if OpenTelemetry is available
+            if OTEL_AVAILABLE:
+                self.llm = self._create_traced_llm()
+                self.logger.info(f"✅ LLM initialized with OpenTelemetry tracing for agent '{name}'")
+            else:
+                self.llm = self._original_llm
+                self.logger.info(f"✅ LLM initialized for agent '{name}' (tracing disabled)")
+
+            self.logger.info(f"   Provider: {self.llm_wrapper.strategy.provider_name}")
         except Exception as e:
             self.logger.error(f"❌ Failed to initialize LLM for agent '{name}': {str(e)}")
             raise
@@ -122,6 +141,138 @@ class BaseAgent(ABC):
 
         return info
 
+    def log_llm_token_usage_to_span(
+        self,
+        llm_response,
+        span_name: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Log LLM token usage to the current OpenTelemetry span.
+
+        This method extracts token usage from an LLM response and adds it as
+        attributes to the current active span, making it visible in Jaeger UI.
+
+        Args:
+            llm_response: The LLM response object
+            span_name: Optional span name if you want to create a new span
+
+        Returns:
+            Dictionary with token usage data, or None if OTel not available
+
+        Example:
+            response = self.llm.invoke(messages)
+            self.log_llm_token_usage_to_span(response)
+        """
+        if not OTEL_AVAILABLE:
+            self.logger.warning("OpenTelemetry not available - cannot log token usage to span")
+            return None
+
+        try:
+            if span_name:
+                # Create a new span
+                tracer = trace.get_tracer(__name__)
+                with tracer.start_as_current_span(span_name) as span:
+                    return extract_and_add_token_attributes_from_response(
+                        span, llm_response, self.model
+                    )
+            else:
+                # Use current span
+                current_span = trace.get_current_span()
+                if current_span:
+                    return extract_and_add_token_attributes_from_response(
+                        current_span, llm_response, self.model
+                    )
+                else:
+                    self.logger.warning("No active span - cannot add token attributes")
+                    return None
+
+        except Exception as e:
+            self.logger.warning(f"Failed to log token usage to span: {e}")
+            return None
+
+    def get_token_usage_stats(self) -> Optional[Dict[str, Any]]:
+        """
+        Get cumulative token usage statistics for this agent.
+
+        Returns:
+            Dictionary with token usage stats, or None if not available
+        """
+        if hasattr(self, 'llm_wrapper'):
+            stats = self.llm_wrapper.get_stats()
+            return {
+                'total_input_tokens': stats.get('total_input_tokens', 0),
+                'total_output_tokens': stats.get('total_output_tokens', 0),
+                'total_tokens': stats.get('total_tokens', 0),
+                'total_cost_usd': stats.get('total_cost_usd', 0.0),
+                'usage_count': stats.get('usage_count', 0)
+            }
+        return None
+
+    def _create_traced_llm(self):
+        """
+        Create a wrapper around the LLM that automatically traces invocations.
+        This enables automatic span creation and token tracking for all LLM calls.
+        """
+        if not OTEL_AVAILABLE:
+            return self._original_llm
+
+        original_llm = self._original_llm
+        agent_name = self.name
+        model_name = self.model
+        logger = self.logger
+
+        class TracedLLM:
+            """Wrapper that traces all LLM invocations"""
+
+            def __init__(self, llm, agent_name, model_name, logger):
+                self._llm = llm
+                self._agent_name = agent_name
+                self._model_name = model_name
+                self._logger = logger
+
+            def invoke(self, *args, **kwargs):
+                """Traced invoke method"""
+                tracer = trace.get_tracer(__name__)
+
+                # Create a span for this LLM call
+                span_name = f"{self._agent_name}.llm_call"
+                with tracer.start_as_current_span(span_name) as span:
+                    # Add request attributes
+                    span.set_attribute("agent.name", self._agent_name)
+                    span.set_attribute("llm.model", self._model_name)
+                    span.set_attribute("llm.provider", "openai")
+
+                    try:
+                        # Call the original LLM
+                        response = self._llm.invoke(*args, **kwargs)
+
+                        # Extract and add token attributes
+                        token_info = extract_and_add_token_attributes_from_response(
+                            span, response, self._model_name
+                        )
+
+                        if token_info:
+                            self._logger.debug(
+                                f"Traced LLM call: {token_info['total_tokens']} tokens, "
+                                f"${token_info['cost_usd']:.6f}"
+                            )
+
+                        span.set_attribute("llm.status", "success")
+                        return response
+
+                    except Exception as e:
+                        span.set_attribute("llm.status", "error")
+                        span.set_attribute("error.message", str(e))
+                        span.record_exception(e)
+                        self._logger.error(f"LLM call failed: {e}")
+                        raise
+
+            def __getattr__(self, name):
+                """Delegate all other attributes to the original LLM"""
+                return getattr(self._llm, name)
+
+        return TracedLLM(original_llm, agent_name, model_name, logger)
+
 
 class WorkerAgent(BaseAgent):
     """
@@ -145,8 +296,9 @@ class WorkerAgent(BaseAgent):
         self.tools = tools or []
         
         # Create the react agent with tools
+        # Use original unwrapped LLM for LangGraph compatibility
         self.react_agent = create_react_agent(
-            model=self.llm,
+            model=self._original_llm,
             tools=self.tools,
             prompt=self.system_prompt
         )
@@ -157,13 +309,46 @@ class WorkerAgent(BaseAgent):
         """
         try:
             self._log_task_start("agent_invocation", f"with message: {user_message[:100]}...")
-            
+
             # Create the input state
             input_state = {"messages": [HumanMessage(content=user_message)]}
-            
-            # Invoke the react agent
-            result = self.react_agent.invoke(input_state)
-            
+
+            # Invoke the react agent with OpenTelemetry tracing
+            if OTEL_AVAILABLE:
+                tracer = trace.get_tracer(__name__)
+                span_name = f"{self.name}.react_agent_call"
+
+                with tracer.start_as_current_span(span_name) as span:
+                    # Add request attributes
+                    span.set_attribute("agent.name", self.name)
+                    span.set_attribute("agent.type", "worker")
+                    span.set_attribute("llm.model", self.model)
+
+                    # Invoke react agent
+                    result = self.react_agent.invoke(input_state)
+
+                    # Extract token usage from result if available
+                    if result.get("messages"):
+                        final_message = result["messages"][-1]
+                        if isinstance(final_message, AIMessage) and hasattr(final_message, 'response_metadata'):
+                            # Try to extract and add token attributes
+                            try:
+                                token_info = extract_and_add_token_attributes_from_response(
+                                    span, final_message, self.model
+                                )
+                                if token_info:
+                                    self.logger.debug(
+                                        f"React agent call: {token_info['total_tokens']} tokens, "
+                                        f"${token_info['cost_usd']:.6f}"
+                                    )
+                            except Exception as e:
+                                self.logger.debug(f"Could not extract token usage: {e}")
+
+                    span.set_attribute("agent.status", "success")
+            else:
+                # No tracing available, just invoke
+                result = self.react_agent.invoke(input_state)
+
             # Extract the final message
             if result.get("messages"):
                 final_message = result["messages"][-1]
@@ -171,10 +356,10 @@ class WorkerAgent(BaseAgent):
                     response = final_message.content
                     self._log_task_completion("agent_invocation", True, f"response length: {len(response)}")
                     return response
-            
+
             self._log_task_completion("agent_invocation", False, "No valid response generated")
             return "I apologize, but I couldn't generate a proper response to your request."
-            
+
         except Exception as e:
             self._log_task_completion("agent_invocation", False, f"Error: {str(e)}")
             return f"I encountered an error while processing your request: {str(e)}"

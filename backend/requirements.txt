@@ -14,6 +14,15 @@ langgraph-sdk==0.2.6
 # Monitoring and debugging
 langsmith==0.4.28
 
+# Distributed Tracing with OpenTelemetry and Jaeger
+# Latest stable versions as of October 2025
+opentelemetry-api==1.38.0
+opentelemetry-sdk==1.38.0
+opentelemetry-exporter-otlp-proto-grpc==1.38.0
+opentelemetry-instrumentation==0.59b0
+opentelemetry-instrumentation-langchain==0.47.3
+opentelemetry-instrumentation-fastapi==0.59b0
+
 # Web search and data retrieval
 langchain-tavily==0.2.11
 duckduckgo-search==8.1.1

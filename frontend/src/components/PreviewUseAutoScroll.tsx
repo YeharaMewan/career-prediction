@@ -3,6 +3,21 @@ import { autoScrollListRef } from "../hooks/use-auto-scroll";
 import { useNavigate } from "react-router-dom";
 import apiService from "../services/api";
 import type { Message } from "../types/chat";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+// Helper function to remove "undefined" text from messages (final safety net)
+const cleanUndefinedText = (text: string): string => {
+  if (!text) return text;
+
+  // Remove "undefined" (case-insensitive) with surrounding whitespace
+  let cleaned = text.replace(/\s*undefined\s*/gi, ' ');
+
+  // Clean up multiple spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+};
 
 const PreviewUseAutoScroll = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,7 +41,7 @@ const PreviewUseAutoScroll = () => {
 
         // Add the agent's initial question
         if (response.question) {
-          setMessages([{ sender: "ai", text: response.question }]);
+          setMessages([{ sender: "ai", text: cleanUndefinedText(response.question) }]);
         } else {
           setMessages([{ sender: "ai", text: "Hello! I'm here to help you with career planning. How can I assist you today?" }]);
         }
@@ -45,7 +60,10 @@ const PreviewUseAutoScroll = () => {
   }, []);
 
   const typeOutMessage = (text: string) => {
-    const words = text.split(" ");
+    // Clean any "undefined" text as a final safety net
+    const cleanedText = cleanUndefinedText(text);
+    // Filter out empty strings to prevent undefined from being displayed
+    const words = cleanedText.split(" ").filter(word => word.length > 0);
     let currentWordIndex = 0;
 
     // Add empty AI message first - this will be at the end of the messages array
@@ -67,8 +85,12 @@ const PreviewUseAutoScroll = () => {
 
         // Update the last message (which should be the AI message we just added)
         if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === "ai") {
-          updatedMessages[lastMessageIndex].text +=
-            (updatedMessages[lastMessageIndex].text ? " " : "") + words[currentWordIndex];
+          const word = words[currentWordIndex];
+          // Safety check: only add word if it exists and is not empty
+          if (word !== undefined && word !== "") {
+            updatedMessages[lastMessageIndex].text +=
+              (updatedMessages[lastMessageIndex].text ? " " : "") + word;
+          }
         }
 
         return updatedMessages;
@@ -257,7 +279,7 @@ interface MessageListProps {
 
 const MessageList = ({ messages, isLoading }: MessageListProps) => {
   return (
-    <ul ref={autoScrollListRef} className="mb-4 space-y-2 overflow-y-auto rounded-md pt-4">
+    <ul ref={autoScrollListRef} className="mb-4 space-y-2 overflow-y-auto rounded-md pt-4 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]">
       {messages.map((msg, index) => (
         <MessageItem key={`${index}-${msg.sender}-${msg.text}`} message={msg} />
       ))}
@@ -283,7 +305,48 @@ const MessageItem = ({ message }: MessageItemProps) => {
           : "font-fredoka border border-neutral-400/20 bg-neutral-400/10"
       }`}
     >
-      {message.text}
+      <div className="markdown-content">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            // Style headings
+            h1: ({node, ...props}) => <h1 className="text-2xl font-bold mb-3 mt-4 text-sky-400" {...props} />,
+            h2: ({node, ...props}) => <h2 className="text-xl font-bold mb-2 mt-3 text-sky-300" {...props} />,
+            h3: ({node, ...props}) => <h3 className="text-lg font-semibold mb-2 mt-2 text-sky-200" {...props} />,
+            // Style lists
+            ul: ({node, ...props}) => <ul className="list-disc list-inside mb-2 ml-2 space-y-1" {...props} />,
+            ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-2 ml-2 space-y-1" {...props} />,
+            li: ({node, ...props}) => <li className="ml-2" {...props} />,
+            // Style paragraphs
+            p: ({node, ...props}) => <p className="mb-2 leading-relaxed" {...props} />,
+            // Style strong/bold text
+            strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+            // Style emphasis/italic text
+            em: ({node, ...props}) => <em className="italic text-neutral-200" {...props} />,
+            // Style code blocks
+            code: ({node, className, children, ...props}) => {
+              const isInline = !className;
+              return isInline ? (
+                <code className="bg-neutral-700 px-1 py-0.5 rounded text-sky-300" {...props}>
+                  {children}
+                </code>
+              ) : (
+                <code className="block bg-neutral-700 p-2 rounded my-2 text-sky-300 overflow-x-auto" {...props}>
+                  {children}
+                </code>
+              );
+            },
+            // Style links
+            a: ({node, ...props}) => <a className="text-sky-400 hover:text-sky-300 underline" {...props} />,
+            // Style blockquotes
+            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-sky-400 pl-3 italic my-2" {...props} />,
+            // Style horizontal rules
+            hr: ({node, ...props}) => <hr className="my-4 border-neutral-600" {...props} />,
+          }}
+        >
+          {message.text}
+        </ReactMarkdown>
+      </div>
     </li>
   );
 };
