@@ -15,13 +15,14 @@ const MainLayout: React.FC<LayoutProps> = ({ children }) => {
           //colors={["#FF2200", "#FF5500", "#FFAA22"]}
 
           //colors= {["#0044FF", "#00FFAA", "#1AC6FF"]}
-          mouseForce={20}
-          cursorSize={100}
+          mouseForce={15}
+          cursorSize={80}
           isViscous={false}
           viscous={30}
-          iterationsViscous={32}
-          iterationsPoisson={32}
-          resolution={0.5}
+          iterationsViscous={20}
+          iterationsPoisson={20}
+          resolution={0.3}
+          dt={0.02}
           isBounce={false}
           autoDemo={true}
           autoSpeed={0.5}
@@ -29,7 +30,7 @@ const MainLayout: React.FC<LayoutProps> = ({ children }) => {
           takeoverDuration={0.25}
           autoResumeDelay={3000}
           autoRampDuration={0.6}
-          style={{ width: "100%", height: "100%" }} 
+          style={{ width: "100%", height: "100%" }}
         />
       </div>
       {/* <Navbar /> */}

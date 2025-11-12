@@ -26,6 +26,7 @@ services:
       # Mount output directories for logs and reports
       - ./backend/outputs:/app/outputs
       - ./backend/data:/app/data
+      - ./backend/knowledge_base:/app/knowledge_base
     networks:
       - career-planning-network
     depends_on:

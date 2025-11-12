@@ -23,7 +23,7 @@ const RotatingCards: React.FC = () => {
           className="font-fredoka text-[40px] font-bold text-white"
           style={{
             transform: `translateY(-120px) rotateY(${rotationCount * 180}deg)`,
-            transition: "transform 1s ease-in-out",
+            transition: "transform 1.5s ease-in-out", // GPU optimized: slower transition
           }}
         >
           {displayText}

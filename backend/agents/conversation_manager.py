@@ -107,14 +107,14 @@ class ConversationManager:
 
             ConversationState.ACADEMIC_GATHERING: [
                 {
-                    "question": "What's your favorite subject in school and why do you like it?",
+                    "question": "Tell me about your experience with school so far. What subjects or topics have really clicked for you?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "academic_background",
                     "follow_up_triggers": ["incomplete_info", "career_change", "multiple_fields"],
                     "priority": 1
                 },
                 {
-                    "question": "Are you better at working with your hands, solving math problems, writing stories, or helping people?",
+                    "question": "When you're learning something new, what helps it stick? Do you prefer hands-on practice, working through problems, creative projects, or discussing ideas with others?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "learning_style",
                     "follow_up_triggers": ["specific_methods", "challenges", "preferences"],
@@ -124,28 +124,28 @@ class ConversationManager:
 
             ConversationState.INTEREST_DISCOVERY: [
                 {
-                    "question": "What kind of activities make you feel excited and engaged - like building things, helping people, creating art, or solving puzzles?",
+                    "question": "Outside of school, what kinds of activities or hobbies really draw you in? What makes them appealing?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "work_preferences",
                     "follow_up_triggers": ["general_response", "multiple_activities", "unclear"],
                     "priority": 1
                 },
                 {
-                    "question": "Do you prefer working alone or with other people, and why?",
+                    "question": "Think about times when you've felt really engaged and energized. Was it working independently on something, or collaborating with others? What made that experience work for you?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "work_style",
                     "follow_up_triggers": ["combination", "uncertain", "strong_preference"],
                     "priority": 1
                 },
                 {
-                    "question": "What type of job setting sounds most interesting: an office, outdoors, a lab, or somewhere creative like a studio?",
+                    "question": "When you picture yourself in a work environment, what kind of setting appeals to you? What atmosphere helps you do your best work?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "industry_interests",
                     "follow_up_triggers": ["multiple_industries", "superficial_knowledge", "specific_companies"],
                     "priority": 1
                 },
                 {
-                    "question": "What's most important to you in a job: helping others, earning good money, being creative, or having job security?",
+                    "question": "Everyone values different things in their work. What matters most to you when you think about your future career - is it making an impact, creative freedom, financial stability, something else?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "career_values",
                     "follow_up_triggers": ["multiple_motivations", "unclear_values", "specific_impact"],
@@ -155,14 +155,14 @@ class ConversationManager:
 
             ConversationState.SKILLS_ASSESSMENT: [
                 {
-                    "question": "What are you naturally good at? Think about things people compliment you on or tasks that feel easy for you.",
+                    "question": "Let's talk about your strengths. What comes naturally to you that others might find challenging? What do people tend to come to you for?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "technical_skills",
                     "follow_up_triggers": ["limited_skills", "advanced_skills", "self_taught"],
                     "priority": 1
                 },
                 {
-                    "question": "When you have a problem to solve, do you like to figure it out by yourself or ask others for help?",
+                    "question": "When you're faced with a challenge or problem, how do you typically approach it? Walk me through your process.",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "problem_solving",
                     "follow_up_triggers": ["analytical", "creative", "collaborative"],
@@ -172,14 +172,14 @@ class ConversationManager:
 
             ConversationState.PERSONALITY_PROBE: [
                 {
-                    "question": "Do you get more energy from being around people or from having quiet time by yourself?",
+                    "question": "Some people recharge by being around others, while others need solo time to refuel. What's your pattern? When do you feel most like yourself?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "introversion_extraversion",
                     "follow_up_triggers": ["extreme_preference", "situational", "unclear"],
                     "priority": 1
                 },
                 {
-                    "question": "What makes you feel most proud: finishing a difficult project, helping someone, being creative, or leading a group?",
+                    "question": "Think about a time recently when you felt really satisfied or accomplished. What were you doing, and what about that moment made it meaningful for you?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "core_motivation",
                     "follow_up_triggers": ["multiple_motivations", "unclear", "specific_examples"],
@@ -262,6 +262,14 @@ class ConversationManager:
             # Force conversation completion by marking profile as ready
             # This is handled by the caller, but we shouldn't generate more questions
             raise ValueError(f"Maximum question limit of {self.MAX_QUESTIONS} reached")
+
+        # MID-CONVERSATION SUMMARY: Generate after 6-7 questions
+        questions_asked = len(context.question_history)
+        if questions_asked == 6 or questions_asked == 7:
+            # Check if we already did a summary (avoid duplicate)
+            if not hasattr(context, '_summary_done') or not context._summary_done:
+                logging.info(f"Generating mid-conversation summary at question {questions_asked}")
+                return self._generate_mid_conversation_summary(context)
 
         # Get available questions with priority consideration
         available_questions = self._get_available_questions_by_priority(context)
@@ -439,29 +447,69 @@ class ConversationManager:
         questions_asked = len(context.question_history)
         questions_remaining = 12 - questions_asked
 
-        prompt = f"""You are a friendly career counselor talking to a high school student. Generate ONE simple question that helps with career planning.
+        # Build context from recent conversation
+        recent_context = ""
+        if context.response_history:
+            last_response = context.response_history[-1]
+            recent_context = f"\nTheir most recent response: \"{last_response}\""
+
+        if len(context.response_history) >= 2:
+            previous_response = context.response_history[-2]
+            recent_context += f"\nPrevious response: \"{previous_response}\""
+
+        # Get student's tone and energy to adapt response
+        tone_context = ""
+        if context.response_history:
+            latest_tone = context.session_metadata.get("energy_level", "balanced")
+            confidence = context.session_metadata.get("confidence_level", "moderate")
+            suggested_personality = context.session_metadata.get("suggested_personality", "balanced_and_curious")
+
+            tone_context = f"\n\nSTUDENT'S COMMUNICATION STYLE:\n- Energy: {latest_tone}\n- Confidence: {confidence}\n- Match this tone: {suggested_personality}"
+
+        prompt = f"""You are a natural, adaptive career counselor having a real conversation with a HIGH SCHOOL STUDENT. Your responses should feel like talking to a supportive mentor, not a robot.{tone_context}
 
 GOAL: {state_objective}
 
-STUDENT CONTEXT:
-- Current Stage: {context.current_state.name}
-- Recent Questions: {context.question_history[-2:] if context.question_history else "None"}
-- Student's Last Answer: {context.response_history[-1] if context.response_history else "None"}
-- Questions Asked: {questions_asked} of 12 total
-- Questions Remaining: {questions_remaining}
+THEIR RECENT RESPONSE:{recent_context}
+Questions asked: {questions_asked} of 12-15 total
 
-REQUIREMENTS:
-1. Write ONE question only (not multiple questions)
-2. Use simple words that a high school student understands
-3. Keep it under 25 words
-4. Ask about: {state_objective}
+YOUR APPROACH - Respond naturally with 3 parts:
 
-EXAMPLES OF GOOD QUESTIONS:
-- "What do you like most about math class?"
-- "Do you prefer working on projects alone or with friends?"
-- "What's your favorite way to spend free time?"
+1. ACKNOWLEDGE & VALIDATE (1-2 sentences)
+   • If they asked a question, answer it directly and genuinely
+   • React naturally to what they shared - match their energy
+   • Be authentic - avoid repeating the same phrases
 
-Generate ONE simple question for a high school student:"""
+2. CONNECT (1 sentence)
+   • Naturally link what they just said to where you're going next
+   • Reference specific things they mentioned
+   • Show you're actively listening
+
+3. ASK (1-2 sentences)
+   • Ask your next question about {state_objective.lower()}
+   • Use their language and examples
+   • Keep it conversational and high school appropriate
+
+IMPORTANT: Do NOT include section labels like [VALIDATION], [BRIDGE], or [QUESTION] in your response. Flow naturally.
+
+EXAMPLE (one of many possible styles):
+
+Their response: "I love organizing events. It felt really impactful, you know?"
+
+Your response: "Absolutely! There's something really satisfying about pulling together an event and watching it all come together. That takes real planning skills.
+
+It sounds like you get a kick out of seeing your ideas actually happen in the real world.
+
+When you imagine your ideal career, what kind of impact are you hoping to make? Are you thinking more short-term wins like events, or are you also drawn to longer-term projects?"
+
+HOW TO SOUND NATURAL (Vary your language!):
+• Match their enthusiasm level - if they're excited, be excited; if they're thoughtful, be thoughtful
+• Use different validation phrases naturally - don't repeat yourself
+• Reference specific details they mentioned
+• Sound like a real person having a conversation, not following a script
+• High school language level - clear and simple without being condescending
+
+Generate your natural, conversational response:"""
 
         try:
             response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
@@ -470,6 +518,9 @@ Generate ONE simple question for a high school student:"""
                 raise ValueError("Empty response from LLM")
 
             question_text = response.content.strip()
+
+            # Strip structural markers that should not appear in user-facing output
+            question_text = self._strip_structural_markers(question_text)
 
             # Ensure single question only (for high school student clarity)
             question_text = self._ensure_single_question(question_text)
@@ -481,15 +532,49 @@ Generate ONE simple question for a high school student:"""
         except Exception as e:
             logging.error(f"Dynamic question generation failed: {type(e).__name__}: {str(e)}. Using fallback question.")
 
-            # Simple fallback questions for high school students
+            # Multiple varied fallback questions - rotate to avoid repetition
+            import random
             state_name = context.current_state.name.lower()
             fallback_questions = {
-                "academic_gathering": "What's your favorite subject in school?",
-                "interest_discovery": "What activities do you enjoy most in your free time?",
-                "skills_assessment": "What are you naturally good at?",
-                "personality_probe": "Do you prefer working with people or working alone?"
+                "academic_gathering": [
+                    "What subject or topic in school has really clicked with you so far?",
+                    "Tell me about something you're learning that genuinely interests you.",
+                    "Is there a class or subject area where things just make sense to you?",
+                    "What topic or area of study do you find yourself actually enjoying?",
+                    "When you're learning something new, what type of content tends to grab your attention?"
+                ],
+                "interest_discovery": [
+                    "What kinds of things do you do that make you lose track of time?",
+                    "Outside of school requirements, what activities or interests pull you in?",
+                    "What do you find yourself naturally drawn to when you have free time?",
+                    "Is there something you do where you feel genuinely engaged and energized?",
+                    "What activities or experiences have felt meaningful or satisfying to you?"
+                ],
+                "skills_assessment": [
+                    "What's something that comes naturally to you that others might struggle with?",
+                    "Is there an area where you feel particularly capable or confident?",
+                    "What do people tend to come to you for help with?",
+                    "What skills or abilities do you have that you feel good about?",
+                    "When have you felt really competent at something? What was it?"
+                ],
+                "personality_probe": [
+                    "How would your friends describe your personality or working style?",
+                    "What kind of environment or situation brings out your best?",
+                    "When do you feel most like yourself - in what kinds of settings?",
+                    "What matters most to you when you're working on something?",
+                    "How do you tend to approach new challenges or problems?"
+                ]
             }
-            question_text = fallback_questions.get(state_name, "What kind of career sounds interesting to you?")
+
+            # Get random question from the appropriate category
+            questions_list = fallback_questions.get(state_name, [
+                "What kind of career or work environment feels like it might be a good match for you?",
+                "What draws you to certain types of work or activities?",
+                "What are you hoping to find in a future career?",
+                "When you think about your future, what matters most to you?",
+                "What kind of impact or contribution would you like to make?"
+            ])
+            question_text = random.choice(questions_list)
 
         return GeneratedQuestion(
             question_text=question_text,
@@ -506,43 +591,76 @@ Generate ONE simple question for a high school student:"""
         session_id = context.session_metadata.get('session_id', 'unknown')
         current_time = datetime.now().strftime('%B %d, %Y')
 
-        prompt = f"""You are a friendly AI career helper talking to a high school student. Create a simple, encouraging greeting.
+        prompt = f"""You are a friendly career counselor starting a natural conversation with a HIGH SCHOOL STUDENT. Create a warm, genuine opening that feels like talking to a supportive mentor.
 
 CONTEXT:
-- You're helping a high school student explore careers
-- You'll ask simple questions about their interests and strengths
-- Keep it short and friendly - no more than 50 words
-- Use words a teenager understands
+- You're talking with a high school student about their future
+- Be welcoming but authentic - not overly peppy or robotic
+- Make them feel comfortable and understood
+- 2-3 sentences + ONE question
 
-TASK: Write a warm greeting that:
-1. Says you're an AI career helper
-2. Shows you're excited to help them
-3. Mentions you'll ask about their interests and what they're good at
-4. Ends with EXACTLY ONE simple question (no multiple questions)
+TASK: Write a natural opening that:
+1. Introduces yourself simply as their career counselor
+2. Shows genuine interest in helping them
+3. Feels like a real conversation, not a survey
+4. Ends with ONE engaging question
 
-IMPORTANT: End with ONLY ONE question mark (?)
+EXAMPLES OF VARIED NATURAL GREETINGS:
 
-EXAMPLES:
-- "Hi! I'm your AI career helper. I'm excited to help you explore different careers that might be perfect for you! I'll ask about what you enjoy and what you're good at. What interests you most about finding a career?"
+- "Hey! I'm here to help you explore what careers might be a good match for you. We'll talk about the things you enjoy, what you're good at, and what matters to you going forward. So what's making you think about careers right now?"
 
-- "Hello! I'm an AI that helps students discover cool career options. We'll chat about your favorite subjects, hobbies, and strengths. What made you want to learn about careers today?"
+- "Hi there! I work with students to help them discover career paths that actually fit who they are. We're just going to have a conversation about your interests and strengths. What's been on your mind when you think about your future?"
 
-Generate a friendly, simple greeting ending with ONE question:"""
+- "Hello! I'm your career counselor, and I'm glad we're doing this. We'll chat about what you care about and what you're naturally drawn to. What brings you here today?"
+
+- "Hey! I help students figure out career directions that make sense for them. We'll just talk through your interests, what you're good at, and where you might want to head. What got you interested in exploring this?"
+
+HOW TO SOUND NATURAL:
+• Friendly and approachable, but not fake-enthusiastic
+• Vary your word choice - don't sound scripted
+• High school appropriate - clear without being overly simple
+• Make it feel like the start of a real conversation
+
+AVOID:
+- Repeating the same greeting structure
+- Sounding like a bot or form letter
+- Multiple questions at once
+- Overly formal or academic language
+
+Generate a natural, varied greeting:"""
 
         try:
             response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
             question_text = response.content.strip()
 
+            # Strip structural markers that should not appear in user-facing output
+            question_text = self._strip_structural_markers(question_text)
+
             # Enforce single question ending
             question_text = self._ensure_greeting_has_single_question(question_text)
 
-            # Simple fallback greeting if LLM response is empty or too short
+            # Multiple varied fallback greetings if LLM response is empty or too short
+            import random
             if not question_text or len(question_text) < 20:
-                question_text = "Hi! I'm your AI career helper. I'm excited to help you explore different careers that might be perfect for you! What interests you most about finding a career?"
+                fallback_greetings = [
+                    "Hey! I'm here to help you explore career paths that might be a good fit for you. We'll talk about your interests, strengths, and what matters to you. So what's got you thinking about careers right now?",
+                    "Hi there! I work with students to help them figure out career directions that make sense for them. We'll just have a conversation about what you enjoy and what you're good at. What brings you here today?",
+                    "Hello! I'm your career counselor, and I'm glad we're doing this. We'll chat about your interests, what comes naturally to you, and where you might want to head. What's on your mind about your future?",
+                    "Hey! I help students discover career options that actually fit who they are. We'll talk through what you care about and what you're drawn to. What made you want to explore this?",
+                    "Hi! I'm here to help you find career paths that could be a good match. We'll discuss your strengths, interests, and goals. So what's making you think about careers today?"
+                ]
+                question_text = random.choice(fallback_greetings)
 
         except Exception as e:
-            # Simple fallback greeting if LLM fails
-            question_text = "Hello! I'm an AI that helps students discover cool career options. What made you want to learn about careers today?"
+            # Multiple varied fallback greetings if LLM fails
+            import random
+            fallback_greetings = [
+                "Hey! I'm here to help you explore career paths that might be a good fit for you. We'll talk about your interests, strengths, and what matters to you. So what's got you thinking about careers right now?",
+                "Hi there! I work with students to help them figure out career directions that make sense for them. We'll just have a conversation about what you enjoy and what you're good at. What brings you here today?",
+                "Hello! I'm your career counselor, and I'm glad we're doing this. We'll chat about your interests, what comes naturally to you, and where you might want to head. What's on your mind about your future?",
+                "Hey! I help students discover career options that actually fit who they are. We'll talk through what you care about and what you're drawn to. What made you want to explore this?"
+            ]
+            question_text = random.choice(fallback_greetings)
 
         return GeneratedQuestion(
             question_text=question_text,
@@ -550,6 +668,99 @@ Generate a friendly, simple greeting ending with ONE question:"""
             target_area="initial_engagement",
             expected_insights=["engagement_level", "communication_style", "initial_career_interests"],
             follow_up_triggers=["vague", "uncertain", "multiple_interests"],
+            riasec_relevance={}
+        )
+
+    def _generate_mid_conversation_summary(self, context: ConversationContext) -> GeneratedQuestion:
+        """Generate a mid-conversation summary after 6-7 questions to show active listening."""
+
+        # Gather key insights from responses so far
+        responses_summary = "\n".join([
+            f"Q{i+1}: {context.question_history[i]}\nA{i+1}: {context.response_history[i]}"
+            for i in range(min(len(context.question_history), len(context.response_history)))
+        ])
+
+        prompt = f"""You are a GREAT career counselor talking with a HIGH SCHOOL STUDENT. You've asked 6-7 questions so far. Now PAUSE and create a summary to show you're listening.
+
+CONVERSATION SO FAR:
+{responses_summary}
+
+YOUR TASK:
+Create a MID-CONVERSATION CHECK-IN with 3 parts:
+
+1. TRANSITION (1 sentence)
+   • Simple transition to the summary
+   • Example: "Let's pause for a quick sec."
+   • Example: "Okay, let me make sure I'm understanding you right."
+
+2. SUMMARY (3-5 bullet points)
+   • List key things you've learned about them
+   • Use THEIR words when possible
+   • Keep it simple and clear
+   • Example format:
+     - You love [specific thing they mentioned]
+     - You're good at [specific skill]
+     - You value [specific value]
+
+3. VALIDATION QUESTION (1-2 sentences)
+   • Ask if you got it right
+   • Give them chance to correct or add
+   • Example: "Does that sound right? Did I miss anything important?"
+
+COMPLETE EXAMPLE:
+
+"Let's take a quick break here. Let me make sure I've got the full picture so far.
+
+From what you've told me:
+- You love working with your soccer team and being active
+- You really enjoy making plans and seeing them work out
+- You're a hands-on learner - you learn best by actually doing things
+- You want to make a real impact and help people
+
+Does that sound right? Is there anything important I missed or got wrong?"
+
+LANGUAGE RULES (HIGH SCHOOL LEVEL):
+✓ Use simple, everyday words
+✓ Short bullet points
+✓ Conversational tone
+✓ Reference their specific examples
+
+Generate the mid-conversation summary:"""
+
+        try:
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
+
+            if not response or not response.content:
+                raise ValueError("Empty response from LLM")
+
+            summary_text = response.content.strip()
+
+            # Strip structural markers that should not appear in user-facing output
+            summary_text = self._strip_structural_markers(summary_text)
+
+            # Mark that we've done the summary
+            context._summary_done = True
+
+        except Exception as e:
+            logging.error(f"Mid-conversation summary generation failed: {e}. Using fallback.")
+
+            # Simple fallback summary
+            summary_text = """Let's pause for a sec. Let me make sure I understand what you've shared:
+
+- Your interests and strengths
+- What you enjoy doing
+- How you like to work
+
+Does that sound about right? Anything important I missed?"""
+
+            context._summary_done = True
+
+        return GeneratedQuestion(
+            question_text=summary_text,
+            question_type=QuestionType.OPEN_ENDED,
+            target_area="mid_conversation_summary",
+            expected_insights=["validation", "clarification"],
+            follow_up_triggers=[],
             riasec_relevance={}
         )
 
@@ -729,6 +940,34 @@ Provide analysis in this JSON format:
         priority_categories.sort(key=lambda cat: context.riasec_question_count.get(cat, 0))
 
         return priority_categories
+
+    def _strip_structural_markers(self, text: str) -> str:
+        """
+        Remove structural markers like [VALIDATION], [BRIDGE], [QUESTION] from LLM responses.
+        These markers are used in prompts for instruction but should never appear in user-facing output.
+        """
+        if not text:
+            return text
+
+        # Remove all structural markers (case-insensitive)
+        markers = [
+            r'\[VALIDATION\]', r'\[BRIDGE\]', r'\[QUESTION\]',
+            r'\[VALIDATE\]', r'\[EMPATHIZE\]', r'\[FOLLOW-UP QUESTION\]',
+            r'\[SUMMARY\]', r'\[TRANSITION\]'
+        ]
+
+        cleaned_text = text
+        for marker in markers:
+            cleaned_text = re.sub(marker, '', cleaned_text, flags=re.IGNORECASE)
+
+        # Clean up any extra whitespace that might result from marker removal
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+
+        # Log if markers were found and removed
+        if cleaned_text != text:
+            logging.info(f"Stripped structural markers from response. Original length: {len(text)}, Cleaned length: {len(cleaned_text)}")
+
+        return cleaned_text
 
     def _fix_question_beginning(self, question_text: str) -> str:
         """Fix questions that start with lowercase or missing subject (e.g., 'mentioned...' -> 'You mentioned...')."""
@@ -1119,7 +1358,103 @@ Provide analysis in this JSON format:
         enthusiasm_count = sum(1 for indicator in enthusiasm_indicators if indicator in response_lower)
         insights["enthusiasm_level"] = "high" if enthusiasm_count >= 2 else "moderate" if enthusiasm_count >= 1 else "low"
 
+        # NEW: Analyze student's tone and energy for adaptive responses
+        tone_analysis = self._analyze_student_tone(user_response, context)
+        insights.update(tone_analysis)
+
         return insights
+
+    def _analyze_student_tone(self, user_response: str, context: ConversationContext) -> Dict[str, Any]:
+        """
+        Analyze the student's communication style and tone to enable adaptive responses.
+        This helps the agent mirror their energy and match their personality.
+        """
+        response_lower = user_response.lower()
+        tone_insights = {}
+
+        # 1. Energy Level Detection
+        high_energy_indicators = ["!", "love", "awesome", "amazing", "super", "really", "so", "very", "excited"]
+        low_energy_indicators = ["i guess", "maybe", "i don't know", "not sure", "kind of", "sort of"]
+
+        high_energy_count = sum(1 for indicator in high_energy_indicators if indicator in user_response or indicator in response_lower)
+        low_energy_count = sum(1 for indicator in low_energy_indicators if indicator in response_lower)
+
+        if high_energy_count > low_energy_count and high_energy_count >= 2:
+            tone_insights["energy_level"] = "enthusiastic"
+        elif low_energy_count > high_energy_count:
+            tone_insights["energy_level"] = "reserved"
+        else:
+            tone_insights["energy_level"] = "balanced"
+
+        # 2. Formality Level
+        casual_indicators = ["yeah", "gonna", "wanna", "kinda", "sorta", "cool", "stuff"]
+        formal_indicators = ["however", "therefore", "furthermore", "indeed", "particularly"]
+
+        casual_count = sum(1 for indicator in casual_indicators if indicator in response_lower)
+        formal_count = sum(1 for indicator in formal_indicators if indicator in response_lower)
+
+        if casual_count > formal_count:
+            tone_insights["formality"] = "casual"
+        elif formal_count > casual_count:
+            tone_insights["formality"] = "formal"
+        else:
+            tone_insights["formality"] = "neutral"
+
+        # 3. Confidence Level
+        confident_indicators = ["i know", "i'm good at", "definitely", "absolutely", "for sure"]
+        uncertain_indicators = ["i guess", "maybe", "not sure", "i think", "possibly", "i'm not great"]
+
+        confident_count = sum(1 for indicator in confident_indicators if indicator in response_lower)
+        uncertain_count = sum(1 for indicator in uncertain_indicators if indicator in response_lower)
+
+        if confident_count > uncertain_count:
+            tone_insights["confidence_level"] = "confident"
+        elif uncertain_count > confident_count:
+            tone_insights["confidence_level"] = "uncertain"
+        else:
+            tone_insights["confidence_level"] = "moderate"
+
+        # 4. Emotional State
+        positive_indicators = ["happy", "enjoy", "love", "excited", "fun", "interesting"]
+        negative_indicators = ["worried", "stressed", "concerned", "difficult", "struggle", "hard"]
+
+        positive_count = sum(1 for indicator in positive_indicators if indicator in response_lower)
+        negative_count = sum(1 for indicator in negative_indicators if indicator in response_lower)
+
+        if positive_count > negative_count and positive_count >= 1:
+            tone_insights["emotional_state"] = "positive"
+        elif negative_count > positive_count:
+            tone_insights["emotional_state"] = "concerned"
+        else:
+            tone_insights["emotional_state"] = "neutral"
+
+        # 5. Response Length Pattern (Brief vs Elaborate)
+        word_count = len(user_response.split())
+        if word_count < 10:
+            tone_insights["response_style"] = "brief"
+        elif word_count > 40:
+            tone_insights["response_style"] = "elaborate"
+        else:
+            tone_insights["response_style"] = "moderate"
+
+        # 6. Question Asking Behavior (Are they asking questions?)
+        has_question = "?" in user_response or any(q in response_lower for q in ["right?", "correct?", "is that", "do you think"])
+        tone_insights["asks_questions"] = has_question
+
+        # 7. Create Adaptive Response Guidance
+        # This provides guidance on how the agent should respond
+        if tone_insights["energy_level"] == "enthusiastic":
+            tone_insights["suggested_personality"] = "encouraging_and_energetic"
+        elif tone_insights["confidence_level"] == "uncertain":
+            tone_insights["suggested_personality"] = "reassuring_and_patient"
+        elif tone_insights["energy_level"] == "reserved":
+            tone_insights["suggested_personality"] = "calm_and_thoughtful"
+        elif tone_insights["emotional_state"] == "concerned":
+            tone_insights["suggested_personality"] = "empathetic_and_supportive"
+        else:
+            tone_insights["suggested_personality"] = "balanced_and_curious"
+
+        return tone_insights
 
     def _extract_additional_data_from_response(self, user_response: str, context: ConversationContext) -> Dict[str, Any]:
         """Extract additional structured data from user responses."""
@@ -1205,41 +1540,62 @@ Provide analysis in this JSON format:
         else:
             follow_up_area = "general"
 
-        prompt = f"""You are conducting a professional career assessment and need to ask a contextual follow-up question based on the user's previous response.
+        # Extract key insights from their response
+        insights_context = ""
+        if hasattr(analysis, 'key_insights') and analysis.key_insights:
+            insights_context = f"\nKey insights from their response: {', '.join(analysis.key_insights[:3])}"
 
-PREVIOUS USER RESPONSE: "{context.response_history[-1] if context.response_history else 'None'}"
-AREA NEEDING MORE INFORMATION: {follow_up_area}
-CONVERSATION CONTEXT: Questions asked: {len(context.question_history)}, Current state: {context.current_state.name}
+        # Get student's tone for adaptive response
+        tone_context = ""
+        latest_tone = context.session_metadata.get("energy_level", "balanced")
+        confidence = context.session_metadata.get("confidence_level", "moderate")
+        suggested_personality = context.session_metadata.get("suggested_personality", "balanced_and_curious")
 
-CRITICAL FORMATTING RULES:
-1. MUST start your question with "You mentioned..." or "You said..." or "I noticed you..." or "That's interesting..."
-2. MUST be a COMPLETE sentence starting with a proper subject
-3. NO starting with lowercase letters or fragments like "mentioned..." or "said..."
-4. MUST include exactly ONE question with ONE question mark (?)
-5. NO appending undefined variables or extra text
+        tone_context = f"\n\nSTUDENT'S COMMUNICATION STYLE:\n- Energy: {latest_tone}\n- Confidence: {confidence}\n- Match this tone: {suggested_personality}"
 
-ANALYSIS: Based on their previous response, identify specific topics, interests, skills, or experiences they mentioned that warrant deeper exploration for career assessment purposes.
+        prompt = f"""You are a natural, adaptive career counselor having a real conversation with a HIGH SCHOOL STUDENT. They just shared something that needs more exploration. Dig deeper in a genuine, conversational way.{tone_context}
 
-Generate a professional follow-up question that:
-1. STARTS with "You mentioned..." or "You said..." or similar proper opening
-2. References specific details from their previous response
-3. Seeks to gather more comprehensive career-relevant information
-4. Uses clear, accessible language while maintaining counseling depth
-5. Provides specific direction for what kind of additional detail would be helpful
-6. Shows you were actively listening to their response
-7. Helps build toward accurate career recommendations
+THEIR RESPONSE: "{context.response_history[-1] if context.response_history else 'None'}"
 
-CORRECT FOLLOW-UP QUESTION EXAMPLES:
-- "You mentioned enjoying design work. What aspects of this work appeal to you most?"
-- "That's interesting that you have experience with programming. Could you tell me more about how you developed this ability and what you find most rewarding about it?"
-- "I noticed you're passionate about helping others. What specific ways of helping people feel most meaningful to you?"
+WHAT NEEDS MORE INFO: {follow_up_area}{insights_context}
 
-INCORRECT EXAMPLES (DO NOT DO THIS):
-- "mentioned enjoying design work..." ❌ (missing "You")
-- "interesting that you like art" ❌ (missing question mark)
-- "What do you like? What excites you?" ❌ (multiple questions)
+YOUR APPROACH - Respond naturally and flow into your follow-up:
 
-Generate ONE complete, properly formatted follow-up question:"""
+1. ACKNOWLEDGE (1 sentence)
+   • React genuinely to what they shared
+   • If they asked a question, answer it naturally
+   • Match their tone and energy level
+
+2. CONNECT (1 sentence)
+   • Smoothly reference what they said
+   • Show you're tracking the conversation
+   • Use their specific words or examples
+
+3. DIG DEEPER (1-2 sentences)
+   • Ask a natural follow-up about {follow_up_area}
+   • Show authentic curiosity
+   • Make it feel like a real conversation, not an interrogation
+
+IMPORTANT: Do NOT include section labels. Flow naturally from thought to thought.
+
+EXAMPLE (one of many possible responses):
+
+Their response: "I guess I like art. Is that useful for jobs?"
+
+Your response: "Definitely! Creative skills are actually in demand across a lot of different fields.
+
+It sounds like art's something you're drawn to.
+
+What kind of creative work do you find yourself doing? Are you more into traditional stuff like drawing, or do you mess around with digital design, or something totally different?"
+
+HOW TO SOUND NATURAL:
+• Vary your responses - don't use the same validation every time
+• Mirror their language style (if they're casual, be casual; if thoughtful, be thoughtful)
+• Reference specific things they mentioned
+• Sound genuinely interested, not like you're reading from a script
+• Keep it conversational and age-appropriate
+
+Generate your natural follow-up response:"""
 
         try:
             response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
@@ -1248,6 +1604,9 @@ Generate ONE complete, properly formatted follow-up question:"""
                 raise ValueError("Empty response from LLM")
 
             question_text = response.content.strip()
+
+            # Strip structural markers that should not appear in user-facing output
+            question_text = self._strip_structural_markers(question_text)
 
             # CRITICAL: Remove any "undefined" text that might be appended
             # Use robust regex to catch all variations (case-insensitive, multiple occurrences, different positions)

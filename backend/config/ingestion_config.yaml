@@ -1,0 +1,579 @@
+# Automatic Data Ingestion System Configuration
+# This file controls the behavior of the automatic data ingestion pipeline
+
+# ==============================================================================
+# FILE MONITORING CONFIGURATION
+# ==============================================================================
+monitoring:
+  # Enable/disable the file monitoring service
+  enabled: true
+
+  # Directories to monitor for changes
+  watch_directories:
+    # Academic knowledge sources
+    - path: data/academic
+      collection: academic_knowledge
+      file_patterns:
+        - "*.pdf"
+        - "*.json"
+        - "*.yaml"
+        - "*.yml"
+        - "*.docx"
+        - "*.txt"
+        - "*.md"
+      recursive: true
+      description: "Academic institutions, programs, and pathways"
+
+    # Skills and certification sources
+    - path: data/skills
+      collection: skill_knowledge
+      file_patterns:
+        - "*.pdf"
+        - "*.json"
+        - "*.yaml"
+        - "*.yml"
+        - "*.docx"
+        - "*.txt"
+        - "*.md"
+      recursive: true
+      description: "Skills, certifications, and training programs"
+
+    # General career knowledge
+    - path: data/general
+      collection: general_knowledge
+      file_patterns:
+        - "*.pdf"
+        - "*.json"
+        - "*.yaml"
+        - "*.yml"
+        - "*.docx"
+        - "*.txt"
+        - "*.md"
+      recursive: true
+      description: "General career information and resources"
+
+    # Web scraped content
+    - path: data/web_scraped
+      collection: web_scraped_knowledge
+      file_patterns:
+        - "*.md"
+        - "*.json"
+      recursive: true
+      description: "Content scraped from websites"
+
+  # Debounce settings - wait this long after last change before processing
+  debounce_seconds: 5
+
+  # File size limits (in MB) - skip files larger than this
+  max_file_size_mb: 50
+
+  # Ignore patterns - files matching these patterns will be ignored
+  ignore_patterns:
+    - "*.tmp"
+    - "*.swp"
+    - "*~"
+    - ".DS_Store"
+    - "Thumbs.db"
+    - "*.lock"
+    - "__pycache__"
+    - ".git"
+
+# ==============================================================================
+# SCHEDULED VALIDATION CONFIGURATION
+# ==============================================================================
+validation:
+  # Enable/disable scheduled validation
+  enabled: true
+
+  # Cron-style schedule for validation runs
+  # Format: "minute hour day month day_of_week"
+  # Examples:
+  #   "0 */6 * * *" - Every 6 hours
+  #   "0 0 * * *"   - Daily at midnight
+  #   "0 2 * * 0"   - Weekly on Sunday at 2 AM
+  schedule: "0 */6 * * *"  # Every 6 hours
+
+  # Automatically fix inconsistencies found during validation
+  auto_fix: true
+
+  # Delete orphaned chunks (data in vector DB but file no longer exists)
+  delete_orphans: true
+
+  # Re-ingest files with mismatched hashes
+  auto_reingest_on_mismatch: true
+
+  # Validation timeout (seconds) - abort if validation takes longer
+  timeout_seconds: 3600  # 1 hour
+
+# ==============================================================================
+# VERSIONING AND BACKUP CONFIGURATION
+# ==============================================================================
+versioning:
+  # Enable/disable versioning system
+  enabled: true
+
+  # Create a snapshot before replacing collection data
+  snapshot_before_replace: true
+
+  # Snapshot storage location (relative to backend/)
+  snapshot_directory: "knowledge_base/snapshots"
+
+  # Retention policy
+  retention:
+    # Maximum number of versions to keep per collection
+    max_versions_per_collection: 10
+
+    # Automatically delete versions older than this (days)
+    max_age_days: 30
+
+    # Minimum versions to keep regardless of age
+    min_versions_to_keep: 3
+
+  # Compression for snapshots (reduces storage space)
+  compress_snapshots: true
+
+  # Include metadata in snapshots
+  include_metadata: true
+
+# ==============================================================================
+# WEB SCRAPING CONFIGURATION
+# ==============================================================================
+web_scraping:
+  # Enable/disable web scraping
+  enabled: true
+
+  # Load additional scraping targets from separate file
+  targets_config_file: "config/scraping_targets.yaml"
+
+  # Quick start targets (for initial setup)
+  quick_targets:
+    # Sri Lankan University Grants Commission
+    - url: "https://www.ugc.ac.lk/en/universities.html"
+      collection: academic_knowledge
+      name: "UGC Universities List"
+      schedule: "0 0 * * 0"  # Weekly on Sunday
+      selectors:
+        content: ".entry-content"
+      enabled: true
+
+    # National Apprentice and Industrial Training Authority
+    - url: "https://www.naita.gov.lk/"
+      collection: skill_knowledge
+      name: "NAITA Training Programs"
+      schedule: "0 0 * * 0"  # Weekly on Sunday
+      selectors:
+        content: ".main-content"
+      enabled: false  # Disabled by default until selectors are verified
+
+  # Browser settings
+  browser:
+    # Use headless browser (no GUI)
+    headless: true
+
+    # Browser timeout (seconds)
+    timeout: 30
+
+    # User agent string
+    user_agent: "CareerPlanningBot/1.0 (+https://github.com/career-planning-system)"
+
+    # Wait for JavaScript to execute (seconds)
+    js_wait_time: 3
+
+  # Scraping behavior
+  behavior:
+    # Respect robots.txt
+    respect_robots_txt: true
+
+    # Delay between requests (seconds) - be polite!
+    request_delay: 2
+
+    # Maximum retries on failure
+    max_retries: 3
+
+    # Retry delay (seconds)
+    retry_delay: 5
+
+  # Content processing
+  processing:
+    # Convert HTML to markdown for better vector search
+    convert_to_markdown: true
+
+    # Remove HTML comments
+    remove_comments: true
+
+    # Clean whitespace
+    normalize_whitespace: true
+
+    # Extract metadata (title, description, keywords)
+    extract_metadata: true
+
+  # Storage settings
+  storage:
+    # Directory for scraped content (relative to backend/)
+    output_directory: "data/web_scraped"
+
+    # File naming pattern: {name}_{timestamp}.md
+    filename_pattern: "{name}_{date}"
+
+    # Keep history of scraped versions
+    keep_history: true
+
+    # Maximum history versions per target
+    max_history_versions: 5
+
+# ==============================================================================
+# DOCUMENT PROCESSING CONFIGURATION
+# ==============================================================================
+processing:
+  # Maximum number of concurrent workers for ingestion
+  max_concurrent_workers: 3
+
+  # Chunk size for text splitting (characters)
+  chunk_size: 1000
+
+  # Overlap between chunks (characters)
+  chunk_overlap: 200
+
+  # Batch size for embedding generation
+  embedding_batch_size: 50
+
+  # Maximum chunk size in tokens (for embedding model limits)
+  max_chunk_tokens: 8000
+
+  # Skip empty documents
+  skip_empty: true
+
+  # Minimum document length (characters) - skip shorter documents
+  min_document_length: 50
+
+  # PDF processing
+  pdf:
+    # Extract images from PDFs
+    extract_images: false
+
+    # Extract tables from PDFs
+    extract_tables: true
+
+    # OCR for scanned PDFs (requires tesseract)
+    ocr_enabled: false
+
+  # DOCX processing
+  docx:
+    # Extract images
+    extract_images: false
+
+    # Extract tables
+    extract_tables: true
+
+    # Include document properties
+    include_properties: true
+
+  # JSON/YAML processing
+  structured:
+    # Flatten nested structures
+    flatten: true
+
+    # Maximum nesting depth
+    max_depth: 10
+
+    # Convert to readable text format
+    humanize: true
+
+# ==============================================================================
+# EMBEDDING CONFIGURATION
+# ==============================================================================
+embeddings:
+  # Embedding model provider
+  provider: "openai"  # Options: openai, huggingface, cohere
+
+  # OpenAI settings
+  openai:
+    model: "text-embedding-3-small"
+    dimensions: 1536
+    batch_size: 100
+
+  # Fallback to smaller batches on rate limit
+  adaptive_batching: true
+
+  # Retry on embedding failure
+  max_retries: 3
+  retry_delay: 2
+
+# ==============================================================================
+# VECTOR DATABASE CONFIGURATION
+# ==============================================================================
+vector_db:
+  # Database type
+  type: "chromadb"
+
+  # Database location (relative to backend/)
+  persist_directory: "knowledge_base/chroma"
+
+  # Collection settings
+  collections:
+    academic_knowledge:
+      description: "Academic institutions, programs, and pathways"
+      metadata_fields: ["source", "file_type", "ingestion_date", "version"]
+
+    skill_knowledge:
+      description: "Skills, certifications, and training programs"
+      metadata_fields: ["source", "file_type", "ingestion_date", "version"]
+
+    general_knowledge:
+      description: "General career information and resources"
+      metadata_fields: ["source", "file_type", "ingestion_date", "version"]
+
+    web_scraped_knowledge:
+      description: "Content scraped from websites"
+      metadata_fields: ["source", "url", "scrape_date", "version"]
+
+  # Distance metric for similarity search
+  distance_metric: "cosine"  # Options: cosine, euclidean, dot
+
+  # Index settings
+  index:
+    # Rebuild index after this many insertions
+    rebuild_threshold: 1000
+
+# ==============================================================================
+# INGESTION REGISTRY CONFIGURATION
+# ==============================================================================
+registry:
+  # Database location (relative to backend/)
+  database_path: "knowledge_base/ingestion_registry.db"
+
+  # Track detailed ingestion history
+  track_history: true
+
+  # Maximum history entries per file
+  max_history_per_file: 20
+
+  # Cleanup old history entries (days)
+  history_retention_days: 90
+
+# ==============================================================================
+# METRICS AND MONITORING CONFIGURATION
+# ==============================================================================
+metrics:
+  # Enable metrics collection
+  enabled: true
+
+  # Metrics storage (in-memory with periodic persistence)
+  persist_to_file: true
+  metrics_file: "logs/metrics.json"
+
+  # Update interval (seconds) - how often to persist metrics
+  persist_interval: 300  # 5 minutes
+
+  # Track these metrics
+  tracked_metrics:
+    - documents_processed
+    - chunks_created
+    - ingestion_duration
+    - embedding_duration
+    - error_count
+    - file_monitor_events
+    - validation_runs
+    - scraping_success_rate
+
+  # Prometheus export (optional)
+  prometheus:
+    enabled: false
+    port: 9090
+    endpoint: "/metrics"
+
+# ==============================================================================
+# ALERTING CONFIGURATION
+# ==============================================================================
+alerting:
+  # Enable/disable alerting
+  enabled: true
+
+  # Alert channels (multiple can be enabled)
+  channels:
+    # Email alerts
+    email:
+      enabled: false
+      smtp_host: "smtp.gmail.com"
+      smtp_port: 587
+      use_tls: true
+      username: "${SMTP_USERNAME}"  # Load from environment
+      password: "${SMTP_PASSWORD}"  # Load from environment
+      from_address: "career-planning-bot@example.com"
+      recipients:
+        - "admin@example.com"
+
+    # Slack alerts
+    slack:
+      enabled: false
+      webhook_url: "${SLACK_WEBHOOK_URL}"  # Load from environment
+      channel: "#career-planning-alerts"
+      username: "Career Planning Bot"
+      icon_emoji: ":robot_face:"
+
+    # Generic webhook (for Discord, Microsoft Teams, etc.)
+    webhook:
+      enabled: false
+      url: "${ALERT_WEBHOOK_URL}"  # Load from environment
+      method: "POST"
+      headers:
+        Content-Type: "application/json"
+
+    # Log-only mode (for development)
+    log:
+      enabled: true
+      log_file: "logs/alerts.log"
+      log_level: "WARNING"
+
+  # Alert rules
+  rules:
+    # Alert on ingestion failure
+    ingestion_failure:
+      enabled: true
+      threshold: 1  # Alert after 1 failure
+      throttle_minutes: 60
+      severity: "high"
+      message_template: "Ingestion failed for file: {file_path}. Error: {error_message}"
+
+    # Alert on validation inconsistencies
+    validation_issues:
+      enabled: true
+      threshold: 5  # Alert if 5+ issues found
+      throttle_minutes: 360  # 6 hours
+      severity: "medium"
+      message_template: "Validation found {issue_count} inconsistencies. Auto-fix: {auto_fixed}"
+
+    # Alert on scraping failures
+    scraping_failure:
+      enabled: true
+      threshold: 3  # Alert after 3 consecutive failures
+      throttle_minutes: 180  # 3 hours
+      severity: "medium"
+      message_template: "Web scraping failed for {url}. Error: {error_message}"
+
+    # Alert on vector DB connection issues
+    vector_db_error:
+      enabled: true
+      threshold: 1
+      throttle_minutes: 30
+      severity: "critical"
+      message_template: "Vector database connection error: {error_message}"
+
+    # Alert on high error rate
+    high_error_rate:
+      enabled: true
+      threshold: 10  # Alert if 10+ errors in window
+      time_window_minutes: 60
+      throttle_minutes: 120
+      severity: "high"
+      message_template: "High error rate detected: {error_count} errors in {time_window} minutes"
+
+# ==============================================================================
+# LOGGING CONFIGURATION
+# ==============================================================================
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  level: "INFO"
+
+  # Log format
+  format: "json"  # Options: json, text
+
+  # Log files
+  files:
+    ingestion: "logs/ingestion.log"
+    file_monitor: "logs/file_monitor.log"
+    web_scraper: "logs/web_scraper.log"
+    validation: "logs/validation.log"
+    errors: "logs/errors.log"
+    alerts: "logs/alerts.log"
+
+  # Log rotation
+  rotation:
+    max_bytes: 10485760  # 10 MB
+    backup_count: 5
+
+  # Console output
+  console:
+    enabled: true
+    level: "INFO"
+
+# ==============================================================================
+# OPENTELEMETRY TRACING CONFIGURATION
+# ==============================================================================
+tracing:
+  # Enable/disable OpenTelemetry tracing for ingestion
+  enabled: true
+
+  # Service name for ingestion traces
+  service_name: "career-planning-ingestion"
+
+  # Trace these operations
+  trace_operations:
+    - file_monitoring
+    - document_loading
+    - text_chunking
+    - embedding_generation
+    - vector_db_insertion
+    - web_scraping
+    - validation
+    - snapshot_creation
+
+  # Sampling rate (0.0 to 1.0) - 1.0 traces everything
+  sampling_rate: 1.0
+
+# ==============================================================================
+# PERFORMANCE AND RESOURCE LIMITS
+# ==============================================================================
+performance:
+  # Memory limits
+  max_memory_mb: 2048  # 2 GB
+
+  # Disk space checks
+  min_free_space_gb: 5  # Stop ingestion if less than 5 GB free
+
+  # Timeout settings
+  file_processing_timeout: 300  # 5 minutes per file
+  embedding_timeout: 60  # 1 minute per batch
+  vector_db_operation_timeout: 30  # 30 seconds
+
+  # Queue sizes
+  file_monitor_queue_size: 1000
+  ingestion_queue_size: 100
+
+  # Graceful shutdown timeout
+  shutdown_timeout: 60  # Wait 60 seconds for in-progress tasks
+
+# ==============================================================================
+# FEATURE FLAGS
+# ==============================================================================
+features:
+  # Enable experimental features
+  experimental:
+    # Use adaptive chunking based on document structure
+    adaptive_chunking: false
+
+    # Semantic deduplication of similar chunks
+    semantic_deduplication: false
+
+    # Automatic quality scoring for chunks
+    quality_scoring: false
+
+    # Multi-language support
+    multi_language: false
+
+# ==============================================================================
+# DEVELOPMENT AND DEBUGGING
+# ==============================================================================
+development:
+  # Enable debug mode (more verbose logging, no throttling)
+  debug_mode: false
+
+  # Dry run mode (simulate ingestion without actual DB writes)
+  dry_run: false
+
+  # Skip validation during ingestion (faster but less safe)
+  skip_validation: false
+
+  # Enable profiling
+  enable_profiling: false
+  profiling_output: "logs/profiling"

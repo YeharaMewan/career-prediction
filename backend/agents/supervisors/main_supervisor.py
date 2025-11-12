@@ -156,7 +156,7 @@ QUALITY STANDARDS:
 
 Your goal is to deliver exceptional career guidance through both efficient batch processing and engaging interactive conversations."""
 
-    def process_task(self, state: AgentState) -> TaskResult:
+    async def process_task(self, state: AgentState) -> TaskResult:
         """
         Enhanced task processing with session management support.
         """
@@ -168,7 +168,7 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         try:
             # Determine processing mode
             if state.interaction_mode == "interactive":
-                return self._handle_interactive_workflow(state, session_id)
+                return await self._handle_interactive_workflow(state, session_id)
             else:
                 return self._handle_batch_workflow(state, session_id)
 
@@ -183,7 +183,7 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 processing_time=processing_time
             )
 
-    def _handle_interactive_workflow(self, state: AgentState, session_id: str) -> TaskResult:
+    async def _handle_interactive_workflow(self, state: AgentState, session_id: str) -> TaskResult:
         """Handle interactive conversation workflow."""
 
         # Initialize or retrieve session
@@ -199,7 +199,7 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         if current_stage == "profiling":
             return self._handle_interactive_profiling(state, session_id)
         elif current_stage == "career_selection_awaiting":
-            return self._handle_career_selection(state, session_id)
+            return await self._handle_career_selection(state, session_id)
         elif current_stage == "career_planning":
             return self._handle_career_planning_stage(state, session_id)
         elif current_stage == "completion":
@@ -432,14 +432,32 @@ Your goal is to deliver exceptional career guidance through both efficient batch
 
         # Prepare career selection question - ensure it's properly formatted
         try:
-            career_list = "\n".join([f"{i+1}. {pred.get('title', 'Career Option')}" for i, pred in enumerate(career_predictions)])
+            # Build organized markdown format for career predictions
+            career_sections = []
+            for i, pred in enumerate(career_predictions):
+                title = pred.get('title', 'Career Option')
+                match_score = pred.get('confidence_score', 0.0) * 100  # Convert to percentage
+                description = pred.get('description', 'No description available')
+                why_fit = pred.get('why_good_fit', 'Based on your profile and interests')
+
+                career_section = f"""### {i+1}. **{title}**
+- **Match Score:** {match_score:.0f}%
+- **Description:** {description}
+- **Why it fits you:** {why_fit}"""
+                career_sections.append(career_section)
+
+            career_list = "\n\n".join(career_sections)
             first_career_title = career_predictions[0].get('title', 'your preferred career') if career_predictions else 'your preferred career'
 
-            selection_message = f"""Perfect! Based on our conversation, I've identified some great career matches for you. Here are my recommendations:
+            selection_message = f"""## 🎯 Your Career Recommendations
+
+Based on our conversation, here are 5 careers that match your profile:
 
 {career_list}
 
-If you choose one of the above careers, I would like to provide an agent response that will help you with your future plans, including the career path you need and the relevant skills.
+---
+
+**Next Step:** Choose a career number (1-5) to get a detailed action plan with academic pathways and skill development roadmap.
 
 Please respond with the career you'd like to pursue (e.g., "I want to pursue {first_career_title}")"""
         except Exception as e:
@@ -472,7 +490,7 @@ Please respond with the career you'd like to pursue (e.g., "I want to pursue {fi
             }
         )
 
-    def _handle_career_selection(self, state: AgentState, session_id: str) -> TaskResult:
+    async def _handle_career_selection(self, state: AgentState, session_id: str) -> TaskResult:
         """Handle user's career selection and route to career planning supervisor."""
 
         session_info = self.active_sessions[session_id]
@@ -522,7 +540,7 @@ Please respond with the career you'd like to pursue (e.g., "I want to pursue {fi
 
             # Route to career planning supervisor (it will execute both agents in parallel)
             self.logger.info(f"🔄 Routing to career planning supervisor for: {selected_career.career_title}")
-            planning_result = self.career_planning_supervisor.process_task(planning_state)
+            planning_result = await self.career_planning_supervisor.process_task(planning_state)
 
             if planning_result.success:
                 # Update session state with results
@@ -1601,7 +1619,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         self.logger.info(f"🚀 Starting interactive career planning session: {session_id}")
         return initial_state
 
-    def process_user_response(self, session_id: str, user_response: str) -> TaskResult:
+    async def process_user_response(self, session_id: str, user_response: str) -> TaskResult:
         """
         Process a user response for an active session.
         """
@@ -1616,7 +1634,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         session_state.pending_user_response = user_response
         session_state.response_processed = False
 
-        return self.process_task(session_state)
+        return await self.process_task(session_state)
 
     def get_session_status(self, session_id: str) -> Dict[str, Any]:
         """

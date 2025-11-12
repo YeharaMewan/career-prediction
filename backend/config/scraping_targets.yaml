@@ -1,0 +1,329 @@
+# Web Scraping Targets Configuration
+# Define specific websites to scrape for career planning data
+
+# ==============================================================================
+# SRI LANKAN ACADEMIC INSTITUTIONS
+# ==============================================================================
+
+# University Grants Commission - Official university list
+- name: "UGC_Universities"
+  url: "https://www.ugc.ac.lk/en/universities.html"
+  collection: "academic_knowledge"
+  enabled: true
+  schedule: "0 0 * * 0"  # Weekly on Sunday at midnight
+
+  selectors:
+    # CSS selectors for content extraction
+    main_content: ".entry-content"
+    title: "h1, .entry-title"
+    links: "a[href*='university']"
+
+  extraction_rules:
+    # Extract university names and links
+    extract_links: true
+    follow_links: false
+    link_depth: 0
+
+  processing:
+    convert_to_markdown: true
+    clean_html: true
+    remove_navigation: true
+
+  metadata:
+    source_type: "government_website"
+    country: "Sri Lanka"
+    category: "universities"
+    reliability: "high"
+
+# University of Colombo
+- name: "University_of_Colombo"
+  url: "https://cmb.ac.lk/faculties/"
+  collection: "academic_knowledge"
+  enabled: true
+  schedule: "0 2 * * 1"  # Weekly on Monday at 2 AM
+
+  selectors:
+    main_content: ".faculty-content, .main-content"
+    title: "h1, h2.faculty-name"
+
+  metadata:
+    institution: "University of Colombo"
+    source_type: "university_website"
+    category: "faculties"
+
+# University of Peradeniya
+- name: "University_of_Peradeniya"
+  url: "https://www.pdn.ac.lk/academics/faculties.php"
+  collection: "academic_knowledge"
+  enabled: true
+  schedule: "0 2 * * 1"
+
+  selectors:
+    main_content: ".content, #main-content"
+
+  metadata:
+    institution: "University of Peradeniya"
+    source_type: "university_website"
+
+# University of Moratuwa
+- name: "University_of_Moratuwa"
+  url: "https://www.mrt.ac.lk/web/academics"
+  collection: "academic_knowledge"
+  enabled: true
+  schedule: "0 2 * * 1"
+
+  selectors:
+    main_content: ".page-content, .academics-content"
+
+  metadata:
+    institution: "University of Moratuwa"
+    source_type: "university_website"
+    specialization: "technology_engineering"
+
+# ==============================================================================
+# VOCATIONAL AND TECHNICAL TRAINING
+# ==============================================================================
+
+# NAITA - National Apprentice and Industrial Training Authority
+- name: "NAITA_Courses"
+  url: "https://www.naita.gov.lk/courses/"
+  collection: "skill_knowledge"
+  enabled: true
+  schedule: "0 3 * * 2"  # Weekly on Tuesday at 3 AM
+
+  selectors:
+    main_content: ".courses-list, .main-content"
+    course_items: ".course-item, .training-program"
+
+  extraction_rules:
+    extract_tables: true
+    extract_lists: true
+
+  metadata:
+    source_type: "government_website"
+    category: "vocational_training"
+    target_audience: "technical_skills"
+
+# National Youth Services Council
+- name: "NYSC_Programs"
+  url: "https://www.nysc.gov.lk/"
+  collection: "skill_knowledge"
+  enabled: false  # Disabled until selectors verified
+  schedule: "0 3 * * 2"
+
+  selectors:
+    main_content: ".programs, .training-content"
+
+  metadata:
+    source_type: "government_website"
+    category: "youth_programs"
+
+# ==============================================================================
+# PROFESSIONAL CERTIFICATION BODIES
+# ==============================================================================
+
+# Institute of Chartered Accountants of Sri Lanka
+- name: "CA_Sri_Lanka"
+  url: "https://www.casrilanka.com/casl/index.php?option=com_content&view=article&id=26&Itemid=155"
+  collection: "skill_knowledge"
+  enabled: true
+  schedule: "0 4 * * 3"  # Weekly on Wednesday at 4 AM
+
+  selectors:
+    main_content: ".article-content, .component-content"
+
+  metadata:
+    source_type: "professional_body"
+    category: "accounting_certification"
+    qualification_level: "professional"
+
+# Computer Society of Sri Lanka
+- name: "CSSL_Certifications"
+  url: "https://www.computer.org/csdl/home"
+  collection: "skill_knowledge"
+  enabled: false  # External site, may need different approach
+  schedule: "0 4 * * 3"
+
+  metadata:
+    source_type: "professional_body"
+    category: "it_certifications"
+
+# ==============================================================================
+# GOVERNMENT CAREER SERVICES
+# ==============================================================================
+
+# Department of Labour
+- name: "Labour_Department"
+  url: "https://www.labour.gov.lk/"
+  collection: "general_knowledge"
+  enabled: false  # Disabled until selectors verified
+  schedule: "0 5 * * 4"  # Weekly on Thursday at 5 AM
+
+  selectors:
+    main_content: ".main-content"
+
+  metadata:
+    source_type: "government_website"
+    category: "labour_market"
+
+# Public Service Commission
+- name: "Public_Service_Jobs"
+  url: "https://www.psc.gov.lk/"
+  collection: "general_knowledge"
+  enabled: false
+  schedule: "0 5 * * 5"  # Weekly on Friday
+
+  metadata:
+    source_type: "government_website"
+    category: "public_sector_careers"
+
+# ==============================================================================
+# SCHOLARSHIP AND FUNDING OPPORTUNITIES
+# ==============================================================================
+
+# Study in Sri Lanka - Scholarships
+- name: "Study_SL_Scholarships"
+  url: "https://www.studyinlanka.lk/scholarships"
+  collection: "academic_knowledge"
+  enabled: false
+  schedule: "0 6 * * 6"  # Weekly on Saturday
+
+  selectors:
+    main_content: ".scholarships-list, .content"
+
+  extraction_rules:
+    extract_links: true
+    follow_links: false
+
+  metadata:
+    source_type: "education_portal"
+    category: "scholarships"
+
+# ==============================================================================
+# INTERNATIONAL RESOURCES (for comparison and context)
+# ==============================================================================
+
+# LinkedIn Skills - Popular skills data
+- name: "LinkedIn_Skills"
+  url: "https://www.linkedin.com/pulse/top-skills-2024"
+  collection: "skill_knowledge"
+  enabled: false  # Requires authentication/API
+  schedule: "0 0 1 * *"  # Monthly on 1st
+
+  browser_required: true
+  requires_javascript: true
+
+  metadata:
+    source_type: "professional_network"
+    category: "market_trends"
+    geography: "global"
+
+# ==============================================================================
+# CUSTOM SCRAPING CONFIGURATIONS
+# ==============================================================================
+
+# Example: Dynamic content with JavaScript
+- name: "Example_JS_Site"
+  url: "https://example.com/careers"
+  collection: "general_knowledge"
+  enabled: false
+  schedule: "0 0 * * 0"
+
+  # Browser automation required for JavaScript-heavy sites
+  browser_required: true
+  requires_javascript: true
+
+  # Wait for specific elements to load
+  wait_for_selector: ".content-loaded"
+  wait_timeout: 10
+
+  # Scroll to load lazy content
+  scroll_to_bottom: true
+  scroll_pause: 2
+
+  selectors:
+    main_content: ".dynamic-content"
+
+  # Authentication (if required)
+  authentication:
+    type: "none"  # Options: none, basic, oauth, session
+    # credentials loaded from environment variables if needed
+
+# Example: Paginated content
+- name: "Example_Paginated_Site"
+  url: "https://example.com/courses?page=1"
+  collection: "skill_knowledge"
+  enabled: false
+  schedule: "0 0 * * 0"
+
+  pagination:
+    enabled: true
+    next_page_selector: "a.next-page"
+    max_pages: 10
+    url_pattern: "https://example.com/courses?page={page}"
+
+  selectors:
+    main_content: ".course-list"
+    item_selector: ".course-item"
+
+# ==============================================================================
+# SCRAPING BEHAVIOR TEMPLATES
+# ==============================================================================
+
+# Default configuration for all targets (can be overridden)
+default_config:
+  browser:
+    headless: true
+    timeout: 30
+    user_agent: "CareerPlanningBot/1.0 (+https://github.com/career-planning)"
+
+  behavior:
+    respect_robots_txt: true
+    request_delay: 2
+    max_retries: 3
+    retry_delay: 5
+
+  processing:
+    convert_to_markdown: true
+    remove_comments: true
+    normalize_whitespace: true
+    extract_metadata: true
+
+  error_handling:
+    skip_on_error: true
+    log_errors: true
+    alert_on_consecutive_failures: 3
+
+# ==============================================================================
+# NOTES FOR CONFIGURATION
+# ==============================================================================
+#
+# Schedule Format (Cron):
+#   - "minute hour day month day_of_week"
+#   - Examples:
+#     - "0 0 * * 0" = Weekly on Sunday at midnight
+#     - "0 */6 * * *" = Every 6 hours
+#     - "0 2 * * 1-5" = Monday-Friday at 2 AM
+#     - "0 0 1 * *" = Monthly on the 1st
+#
+# Selectors:
+#   - Use CSS selectors for content extraction
+#   - Multiple selectors can be comma-separated
+#   - Use browser dev tools to find the right selectors
+#
+# Metadata:
+#   - All metadata is stored with scraped content
+#   - Used for filtering and context in vector search
+#   - Custom fields can be added as needed
+#
+# Enabling/Disabling Targets:
+#   - Set "enabled: false" to disable a target
+#   - Useful for testing or when sites change structure
+#   - Disabled targets won't be scheduled
+#
+# Testing New Targets:
+#   1. Add configuration with enabled: false
+#   2. Test manually: python scripts/manage_ingestion.py scrape --target <name>
+#   3. Verify output in data/web_scraped/
+#   4. Enable in config once verified
+#

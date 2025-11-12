@@ -5,6 +5,7 @@ This module provides the foundational classes for supervisor and worker agents
 in the hierarchical multi-agent architecture.
 """
 import os
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Callable, TYPE_CHECKING
 
@@ -87,10 +88,12 @@ class BaseAgent(ABC):
         self.tools = []
         
     @abstractmethod
-    def process_task(self, state: AgentState) -> TaskResult:
+    async def process_task(self, state: AgentState) -> TaskResult:
         """
         Process a task and return the result.
         Must be implemented by all concrete agent classes.
+
+        This is an async method to support parallel execution of multiple agents.
         """
         pass
     
@@ -303,9 +306,12 @@ class WorkerAgent(BaseAgent):
             prompt=self.system_prompt
         )
     
-    def invoke_with_prompt(self, user_message: str) -> str:
+    async def invoke_with_prompt(self, user_message: str) -> str:
         """
         Invoke the agent with a user message and return the response.
+
+        This is an async method that runs the react agent in a thread pool
+        to avoid blocking the event loop.
         """
         try:
             self._log_task_start("agent_invocation", f"with message: {user_message[:100]}...")
@@ -324,8 +330,8 @@ class WorkerAgent(BaseAgent):
                     span.set_attribute("agent.type", "worker")
                     span.set_attribute("llm.model", self.model)
 
-                    # Invoke react agent
-                    result = self.react_agent.invoke(input_state)
+                    # Invoke react agent in thread pool (non-blocking)
+                    result = await asyncio.to_thread(self.react_agent.invoke, input_state)
 
                     # Extract token usage from result if available
                     if result.get("messages"):
@@ -346,8 +352,8 @@ class WorkerAgent(BaseAgent):
 
                     span.set_attribute("agent.status", "success")
             else:
-                # No tracing available, just invoke
-                result = self.react_agent.invoke(input_state)
+                # No tracing available, just invoke in thread pool
+                result = await asyncio.to_thread(self.react_agent.invoke, input_state)
 
             # Extract the final message
             if result.get("messages"):
@@ -364,23 +370,25 @@ class WorkerAgent(BaseAgent):
             self._log_task_completion("agent_invocation", False, f"Error: {str(e)}")
             return f"I encountered an error while processing your request: {str(e)}"
     
-    def process_simple_task(self, task_description: str) -> TaskResult:
+    async def process_simple_task(self, task_description: str) -> TaskResult:
         """
         Process a simple task with just a description.
+
+        This is an async method to support non-blocking execution.
         """
         start_time = datetime.now()
-        
+
         try:
-            response = self.invoke_with_prompt(task_description)
+            response = await self.invoke_with_prompt(task_description)
             processing_time = (datetime.now() - start_time).total_seconds()
-            
+
             return self._create_task_result(
                 task_type="simple_task",
                 success=True,
                 result_data={"response": response},
                 processing_time=processing_time
             )
-            
+
         except Exception as e:
             processing_time = (datetime.now() - start_time).total_seconds()
             return self._create_task_result(
@@ -426,12 +434,14 @@ class SupervisorAgent(BaseAgent):
         """Get list of managed agent names."""
         return list(self.managed_agents.keys())
     
-    def delegate_task(self, agent_name: str, task: str) -> TaskResult:
+    async def delegate_task(self, agent_name: str, task: str) -> TaskResult:
         """
         Delegate a task to a specific managed agent.
+
+        This is an async method to support non-blocking delegation.
         """
         self._log_task_start("task_delegation", f"to {agent_name}")
-        
+
         agent = self.get_managed_agent(agent_name)
         if not agent:
             error_msg = f"Agent '{agent_name}' not found in managed agents"
@@ -441,22 +451,22 @@ class SupervisorAgent(BaseAgent):
                 success=False,
                 error_message=error_msg
             )
-        
+
         try:
             # Delegate the task
             if isinstance(agent, WorkerAgent):
-                result = agent.process_simple_task(task)
+                result = await agent.process_simple_task(task)
             else:
                 # For other supervisors, create a state and process
                 state = AgentState(
                     messages=[HumanMessage(content=task)],
                     current_step="delegated_task"
                 )
-                result = agent.process_task(state)
-            
+                result = await agent.process_task(state)
+
             self._log_task_completion("task_delegation", result.success, f"to {agent_name}")
             return result
-            
+
         except Exception as e:
             error_msg = f"Error delegating task to {agent_name}: {str(e)}"
             self._log_task_completion("task_delegation", False, error_msg)
@@ -466,23 +476,66 @@ class SupervisorAgent(BaseAgent):
                 error_message=error_msg
             )
     
-    def coordinate_agents(self, tasks: Dict[str, str]) -> Dict[str, TaskResult]:
+    async def coordinate_agents(self, tasks: Dict[str, str]) -> Dict[str, TaskResult]:
         """
         Coordinate multiple agents by assigning tasks to each.
         Returns a dictionary of agent_name -> TaskResult.
+
+        This method executes tasks sequentially. For parallel execution,
+        use coordinate_agents_parallel instead.
         """
         self._log_task_start("agent_coordination", f"with {len(tasks)} tasks")
         results = {}
-        
+
         for agent_name, task in tasks.items():
-            result = self.delegate_task(agent_name, task)
+            result = await self.delegate_task(agent_name, task)
             results[agent_name] = result
-        
+
         successful_tasks = sum(1 for r in results.values() if r.success)
         self._log_task_completion(
-            "agent_coordination", 
+            "agent_coordination",
             successful_tasks == len(tasks),
             f"{successful_tasks}/{len(tasks)} tasks successful"
         )
-        
+
+        return results
+
+    async def coordinate_agents_parallel(self, tasks: Dict[str, str]) -> Dict[str, TaskResult]:
+        """
+        Coordinate multiple agents by assigning tasks to each IN PARALLEL.
+        Returns a dictionary of agent_name -> TaskResult.
+
+        This is the recommended method for executing independent tasks concurrently.
+        """
+        self._log_task_start("agent_coordination_parallel", f"with {len(tasks)} tasks")
+
+        # Create async tasks for all agents
+        async_tasks = {
+            agent_name: self.delegate_task(agent_name, task)
+            for agent_name, task in tasks.items()
+        }
+
+        # Execute all tasks in parallel
+        results_list = await asyncio.gather(*async_tasks.values(), return_exceptions=True)
+
+        # Map results back to agent names
+        results = {}
+        for agent_name, result in zip(async_tasks.keys(), results_list):
+            if isinstance(result, Exception):
+                # Handle exceptions from failed tasks
+                results[agent_name] = self._create_task_result(
+                    task_type="task_delegation",
+                    success=False,
+                    error_message=str(result)
+                )
+            else:
+                results[agent_name] = result
+
+        successful_tasks = sum(1 for r in results.values() if r.success)
+        self._log_task_completion(
+            "agent_coordination_parallel",
+            successful_tasks == len(tasks),
+            f"{successful_tasks}/{len(tasks)} tasks successful"
+        )
+
         return results

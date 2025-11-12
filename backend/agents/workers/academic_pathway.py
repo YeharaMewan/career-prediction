@@ -33,6 +33,17 @@ from utils.langsmith_config import get_traced_run_config, log_agent_execution
 # Import Web Search Tool
 from utils.web_search_tool import WebSearchTool
 
+# Import RAG System for knowledge base retrieval
+from rag.retriever import AgenticRAGRetriever
+
+# Import Prompt Templates for optimization
+from utils.prompt_templates import (
+    PromptTemplates,
+    build_structured_messages,
+    format_student_context,
+    estimate_tokens
+)
+
 
 class AcademicPathwayAgent(WorkerAgent):
     """
@@ -45,8 +56,9 @@ class AcademicPathwayAgent(WorkerAgent):
     """
 
     def __init__(self, **kwargs):
-        system_prompt = self._create_system_prompt()
-        
+        # Use optimized system prompt template (650 tokens vs 1,200)
+        system_prompt = PromptTemplates.academic_pathway_system()
+
         super().__init__(
             name="academic_pathway_agent",
             description="Specialist in creating comprehensive educational roadmaps for career preparation in Sri Lankan and international contexts",
@@ -54,7 +66,7 @@ class AcademicPathwayAgent(WorkerAgent):
             system_prompt=system_prompt,
             **kwargs
         )
-        
+
         # Agent capabilities
         self.capabilities.extend([
             "educational_pathway_design",
@@ -66,194 +78,64 @@ class AcademicPathwayAgent(WorkerAgent):
             "cost_estimation",
             "career_level_assessment"
         ])
-        
-        # Initialize education databases
-        self.sri_lankan_institutions = self._initialize_sri_lankan_institutions()
+
+        # Load institutions data from JSON file (instead of including in prompts)
+        self.sri_lankan_institutions = self._load_institutions_data()
         self.international_options = self._initialize_international_options()
         self.career_level_matrix = self._initialize_career_level_matrix()
 
         # Initialize web search tool for real-time information
         self.web_search = WebSearchTool(cache_duration_minutes=120)
 
+        # Initialize RAG retriever for knowledge base (academic collection)
+        try:
+            self.rag_retriever = AgenticRAGRetriever(
+                collection_type="academic",
+                similarity_threshold=0.7,
+                top_k=3
+            )
+            self.rag_enabled = True
+            self.logger.info("✅ RAG retriever initialized for academic knowledge base")
+        except Exception as e:
+            self.logger.warning(f"RAG retriever initialization failed: {e}. Continuing without RAG.")
+            self.rag_enabled = False
+
         self.logger = logging.getLogger(f"agent.{self.name}")
 
-    def _create_system_prompt(self) -> str:
-        """Create the specialized system prompt for academic pathway planning."""
-        return """You are an expert Academic Pathway Agent specializing in educational roadmap design for Sri Lankan students pursuing various careers.
+        # Log token optimization
+        self.logger.info(f"✅ Academic Pathway Agent initialized with optimized prompts")
+        self.logger.info(f"   System prompt: ~{estimate_tokens(system_prompt)} tokens (was ~1200)")
 
-YOUR ROLE:
-You are a specialist in the Career Planning team, working under the Career Planning Supervisor.
-Your specific responsibility is to create detailed, actionable educational pathways for identified careers, with expertise in both Sri Lankan and international education systems.
+    def _load_institutions_data(self) -> Dict[str, Any]:
+        """
+        Load Sri Lankan institutions data from JSON file.
 
-KEY CAPABILITY:
-You have access to REAL-TIME WEB SEARCH to gather current information about universities, programs, scholarships, and educational opportunities. You will receive search results and MUST use them to provide accurate, current, and specific recommendations with URLs and contact information.
+        This replaces the old approach of including institution lists in prompts,
+        saving ~300 tokens per prompt.
 
-CORE COMPETENCIES:
-1. Career Level Assessment: Determine student's current academic/professional level
-2. Sri Lankan Education System: Deep knowledge of local universities, institutes, and pathways
-3. International Education: Global university options and pathways
-4. Entry Requirements: Academic prerequisites, examinations, and qualifications
-5. Institution Matching: Recommend best-fit educational institutions
-6. Timeline Planning: Create realistic academic progression schedules
-7. Cost Analysis: Estimate education costs and financing options
+        Returns:
+            Dictionary with institution data
+        """
+        import os
 
-CAREER LEVEL ASSESSMENT FRAMEWORK:
+        try:
+            # Get path to institutions JSON file
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            backend_dir = os.path.dirname(os.path.dirname(current_dir))
+            json_path = os.path.join(backend_dir, "prompts", "sri_lankan_institutions.json")
 
-**Student Levels:**
-- **O/L Student** (GCE Ordinary Level): Ages 15-16, planning A/L subjects
-- **A/L Student** (GCE Advanced Level): Ages 17-18, preparing for university
-- **Fresh A/L Graduate**: Recently completed A/L, seeking university admission
-- **Gap Year Student**: Taking time off, considering options
+            # Load data
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-**Professional Levels:**
-- **Entry-Level Professional**: 0-2 years experience, considering further education
-- **Mid-Level Professional**: 3-7 years experience, seeking career advancement
-- **Senior Professional**: 8+ years experience, considering specialization/leadership roles
+            self.logger.info(f"✅ Loaded institutions data from {json_path}")
+            return data
 
-**Educational Pathways Types:**
-
-1. **UNDERGRADUATE PATHWAYS:**
-   - State Universities (Sri Lanka)
-   - Private Universities (Sri Lanka)
-   - International Universities
-   - Online Degree Programs
-   - Foundation/Diploma to Degree programs
-
-2. **POSTGRADUATE PATHWAYS:**
-   - Master's Degrees (Local & International)
-   - MBA Programs
-   - Professional Postgraduate Diplomas
-   - PhD/Research Programs
-
-3. **PROFESSIONAL CERTIFICATIONS:**
-   - Industry-specific certifications
-   - Professional body memberships
-   - Short-term specialized courses
-   - Online certification programs
-
-4. **VOCATIONAL TRAINING:**
-   - Technical colleges
-   - Specialized institutes
-   - Apprenticeship programs
-   - Skill development programs
-
-**Sri Lankan Education System Focus:**
-
-**State Universities:**
-- University of Colombo, University of Ruhuna, University of Peradeniya, University of Moratuwa
-- University of Sri Jayewardenepura, University of Kelaniya
-- Specialized universities (OUSL, SLIIT affiliations)
-
-**Private Institutions:**
-- SLIIT, NSBM, IIT, Informatics Institute
-- APIIT, ANC Education, Esoft Metro Campus
-- International branch campuses
-
-**Professional Institutes:**
-- Institute of Chartered Accountants (CA Sri Lanka)
-- Computer Society of Sri Lanka (CSSL)
-- Institution of Engineers Sri Lanka (IESL)
-- Chartered Institute of Management Accountants (CIMA)
-
-**Entry Requirements Analysis:**
-- Z-score requirements for state universities
-- A/L subject combinations
-- English proficiency requirements
-- Portfolio/interview requirements
-- Work experience prerequisites
-
-**RESPONSE FORMAT:**
-
-Create a comprehensive JSON structure:
-
-{
-  "career_title": "Target career name",
-  "student_assessment": {
-    "current_level": "Detected level (O/L Student, A/L Student, etc.)",
-    "academic_background": "Current education status",
-    "recommended_timeline": "Suggested timeframe to career readiness"
-  },
-  "pathway_options": [
-    {
-      "pathway_type": "Primary/Alternative",
-      "education_level": "Undergraduate/Postgraduate/Professional",
-      "sri_lankan_options": [
-        {
-          "institution_name": "Name",
-          "program_name": "Degree/Diploma name",
-          "duration": "Years",
-          "entry_requirements": ["Requirement 1", "Requirement 2"],
-          "approximate_cost": "LKR amount or fee structure",
-          "application_timeline": "When to apply",
-          "additional_notes": "Special considerations"
-        }
-      ],
-      "international_options": [
-        {
-          "country": "Country name",
-          "institution_examples": ["Uni 1", "Uni 2"],
-          "program_type": "Degree type",
-          "duration": "Years",
-          "entry_requirements": ["Requirements"],
-          "approximate_cost": "USD/local currency",
-          "scholarship_opportunities": ["Scholarship options"],
-          "notes": "Additional information"
-        }
-      ]
-    }
-  ],
-  "step_by_step_plan": [
-    {
-      "phase": "Phase name",
-      "timeframe": "Duration",
-      "actions": ["Action 1", "Action 2"],
-      "milestones": ["Milestone 1", "Milestone 2"],
-      "key_decisions": ["Decision points"]
-    }
-  ],
-  "financial_planning": {
-    "total_estimated_cost_lkr": "LKR amount",
-    "breakdown": {
-      "tuition_fees": "Amount",
-      "living_expenses": "Amount",
-      "additional_costs": "Amount"
-    },
-    "funding_options": ["Scholarships", "Loans", "Part-time work"],
-    "cost_saving_tips": ["Tip 1", "Tip 2"]
-  },
-  "alternative_pathways": [
-    {
-      "pathway_description": "Alternative route description",
-      "advantages": ["Advantage 1", "Advantage 2"],
-      "considerations": ["Consideration 1", "Consideration 2"]
-    }
-  ],
-  "next_immediate_steps": [
-    "Step 1: Immediate action needed",
-    "Step 2: Next action",
-    "Step 3: Following action"
-  ]
-}
-
-**QUALITY STANDARDS:**
-1. Accurate Sri Lankan education system information
-2. Realistic timelines and cost estimates
-3. Multiple pathway options (local + international)
-4. Specific entry requirements and application processes
-5. Actionable immediate next steps
-6. Consider student's current level and background
-7. Include both traditional and modern education options
-8. Factor in career market demands and industry requirements
-
-**SPECIAL CONSIDERATIONS:**
-- A/L subject combinations for specific careers
-- Z-score requirements and competition levels
-- English proficiency needs for international options
-- Work-study balance for working professionals
-- Financial constraints and scholarship opportunities
-- Industry-university partnerships and placement opportunities
-
-Remember: Your academic pathway should transform career aspirations into concrete, achievable educational plans that respect Sri Lankan educational realities while providing global opportunities."""
+        except Exception as e:
+            self.logger.warning(f"⚠️ Could not load institutions data: {e}")
+            self.logger.warning("   Using fallback institution data")
+            # Return minimal fallback data
+            return self._get_fallback_institutions()
 
     def _initialize_sri_lankan_institutions(self) -> Dict[str, Dict[str, Any]]:
         """Initialize comprehensive Sri Lankan education institution database."""
@@ -626,23 +508,25 @@ Remember: Your academic pathway should transform career aspirations into concret
             self.logger.error(f"Admission requirements search failed: {e}")
             return "Admission requirements search unavailable."
 
-    def process_task(self, state: AgentState) -> TaskResult:
+    async def process_task(self, state: AgentState) -> TaskResult:
         """
         Main task processing: Create academic pathway for a career.
-        
+
+        This is an async method to support parallel execution with other agents.
+
         Expected input in state:
         - career_title: Name of the career
-        - career_description: Brief description  
+        - career_description: Brief description
         - student_profile: StudentProfile object for personalization
-        
+
         Returns:
         - TaskResult with complete academic pathway plan
         """
         start_time = datetime.now()
         session_id = state.session_id or "academic_pathway_session"
-        
+
         self._log_task_start("academic_pathway_planning", f"session: {session_id}")
-        
+
         # Get tracing configuration
         run_config = get_traced_run_config(
             session_type="academic_pathway",
@@ -653,37 +537,37 @@ Remember: Your academic pathway should transform career aspirations into concret
                 "career_blueprints_count": len(state.career_blueprints) if state.career_blueprints else 0
             }
         )
-        
+
         try:
             # Extract career information from state
             career_info = self._extract_career_info(state)
-            
+
             if not career_info:
                 return self._create_task_result(
                     task_type="academic_pathway",
                     success=False,
                     error_message="No career information found in state"
                 )
-            
+
             career_title = career_info.get("title")
             self.logger.info(f"Creating academic pathway for: {career_title}")
-            
+
             # Assess student's current level
             student_level_assessment = self._assess_student_level(state.student_profile)
-            
-            # Create academic pathway plan
-            academic_plan = self._create_academic_pathway_plan(
+
+            # Create academic pathway plan (async call)
+            academic_plan = await self._create_academic_pathway_plan(
                 career_title=career_title,
                 career_description=career_info.get("description"),
                 student_profile=state.student_profile,
                 student_level=student_level_assessment
             )
-            
+
             # Update the career blueprint with academic plan
             updated_state = self._update_state_with_academic_plan(state, career_title, academic_plan)
-            
+
             processing_time = (datetime.now() - start_time).total_seconds()
-            
+
             # Log execution
             log_agent_execution(
                 self.name,
@@ -691,13 +575,13 @@ Remember: Your academic pathway should transform career aspirations into concret
                 f"Created plan for {student_level_assessment['current_level']} level student",
                 processing_time
             )
-            
+
             self._log_task_completion(
                 "academic_pathway_planning",
                 True,
                 f"for {career_title} in {processing_time:.2f}s"
             )
-            
+
             return self._create_task_result(
                 task_type="academic_pathway",
                 success=True,
@@ -710,11 +594,11 @@ Remember: Your academic pathway should transform career aspirations into concret
                 processing_time=processing_time,
                 updated_state=updated_state
             )
-            
+
         except Exception as e:
             processing_time = (datetime.now() - start_time).total_seconds()
             self._log_task_completion("academic_pathway_planning", False, f"Error: {str(e)}")
-            
+
             # Log error execution
             log_agent_execution(
                 self.name,
@@ -722,7 +606,7 @@ Remember: Your academic pathway should transform career aspirations into concret
                 f"Failed: {str(e)}",
                 processing_time
             )
-            
+
             return self._create_task_result(
                 task_type="academic_pathway",
                 success=False,
@@ -804,7 +688,7 @@ Remember: Your academic pathway should transform career aspirations into concret
             "assessment_confidence": "high" if education_level else "medium"
         }
 
-    def _create_academic_pathway_plan(
+    async def _create_academic_pathway_plan(
         self,
         career_title: str,
         career_description: Optional[str] = None,
@@ -813,18 +697,20 @@ Remember: Your academic pathway should transform career aspirations into concret
     ) -> Dict[str, Any]:
         """
         Create comprehensive academic pathway plan using LLM.
+
+        This is an async method to support non-blocking LLM invocation.
         """
         # Build prompt with career details and student context
         prompt = self._build_academic_planning_prompt(
             career_title, career_description, student_profile, student_level
         )
-        
-        # Invoke LLM with structured output request
-        response = self.invoke_with_prompt(prompt)
-        
+
+        # Invoke LLM with structured output request (async)
+        response = await self.invoke_with_prompt(prompt)
+
         # Parse and structure the response
         academic_plan = self._parse_academic_plan_response(response, career_title, student_level)
-        
+
         return academic_plan
 
     def _build_academic_planning_prompt(
@@ -834,7 +720,22 @@ Remember: Your academic pathway should transform career aspirations into concret
         student_profile: Optional[StudentProfile],
         student_level: Optional[Dict[str, Any]]
     ) -> str:
-        """Build comprehensive prompt for academic pathway planning with web search results."""
+        """Build comprehensive prompt for academic pathway planning with RAG and web search results."""
+
+        # Perform RAG retrieval from knowledge base
+        rag_context = ""
+        if self.rag_enabled:
+            self.logger.info(f"Retrieving knowledge base information for {career_title}")
+            # Optimized query: shorter, keyword-focused for better semantic matching
+            rag_state = self.rag_retriever.retrieve(
+                query=f"{career_title} education degrees programs institutions training Sri Lanka",
+                include_citations=True
+            )
+            if rag_state.context:
+                rag_context = rag_state.context
+                self.logger.info(f"RAG retrieved {len(rag_state.retrieved_documents)} relevant documents")
+            else:
+                self.logger.info("No relevant documents found in knowledge base")
 
         # Perform web searches for current information
         self.logger.info(f"Gathering real-time information for {career_title}")
@@ -855,6 +756,17 @@ Remember: Your academic pathway should transform career aspirations into concret
         if career_description:
             prompt_parts.append(f"Career Description: {career_description}")
             prompt_parts.append("")
+
+        # Add RAG knowledge base context if available
+        if rag_context:
+            prompt_parts.extend([
+                "=" * 80,
+                "KNOWLEDGE BASE INFORMATION (Verified academic data from PDFs):",
+                "=" * 80,
+                "",
+                rag_context,
+                ""
+            ])
 
         # Add web search results
         prompt_parts.extend([
