@@ -396,9 +396,9 @@ async def chat_endpoint(chat_message: ChatMessage):
 
                     # Send progress update
                     yield f"data: {json.dumps({'type': 'progress', 'step': current_state.current_step, 'count': step_count})}\n\n"
-                    
+
                     # Process current task
-                    result = main_supervisor.process_task(current_state)
+                    result = await main_supervisor.process_task(current_state)
                     
                     # Send intermediate result
                     if result.success:
@@ -545,7 +545,7 @@ async def initialize_agent_session():
         )
 
         # Process the initial state to get the agent's first greeting
-        result = main_supervisor.process_task(initial_state)
+        result = await main_supervisor.process_task(initial_state)
 
         if result.success:
             result_data = result.result_data
@@ -587,7 +587,7 @@ async def start_interactive_session(request: SessionStartRequest):
         )
 
         # Process the initial state to get the first question
-        result = main_supervisor.process_task(initial_state)
+        result = await main_supervisor.process_task(initial_state)
 
         if result.success:
             result_data = result.result_data
@@ -620,7 +620,7 @@ async def send_user_response(session_id: str, user_response: UserResponse):
 
     try:
         # Process user response
-        result = main_supervisor.process_user_response(session_id, user_response.response)
+        result = await main_supervisor.process_user_response(session_id, user_response.response)
 
         if result and hasattr(result, 'success') and result.success:
             result_data = result.result_data or {}

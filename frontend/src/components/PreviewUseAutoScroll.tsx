@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
 import { autoScrollListRef } from "../hooks/use-auto-scroll";
-import { useNavigate } from "react-router-dom";
 import apiService from "../services/api";
 import type { Message } from "../types/chat";
 import ReactMarkdown from "react-markdown";
@@ -26,10 +25,9 @@ const PreviewUseAutoScroll = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
-  const navigate = useNavigate();
-  const userMessagesCount = messages.filter((msg) => msg.sender === "user").length;
 
   const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Initialize session when component mounts
   useEffect(() => {
@@ -100,6 +98,23 @@ const PreviewUseAutoScroll = () => {
     }, 100);
   };
 
+  // Auto-resize textarea as user types
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Reset height to get accurate scrollHeight
+    textarea.style.height = 'auto';
+
+    // Calculate the height based on content
+    const lineHeight = 24; // Approximate line height in pixels
+    const maxLines = 8;
+    const maxHeight = lineHeight * maxLines;
+
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  }, [input]);
+
   const sendMessage = async () => {
     const trimmedInput = input.trim();
     if (trimmedInput === "" || isLoading) {
@@ -110,6 +125,12 @@ const PreviewUseAutoScroll = () => {
     const userMessage: Message = { sender: "user", text: trimmedInput };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+
+    // Reset textarea height after sending
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -207,8 +228,11 @@ const PreviewUseAutoScroll = () => {
     }
   };
 
-  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !isLoading) {
+  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Shift+Enter: Add new line (default behavior)
+    // Enter alone: Send message
+    if (e.key === "Enter" && !e.shiftKey && !isLoading) {
+      e.preventDefault(); // Prevent adding a new line
       sendMessage();
     }
   };
@@ -239,35 +263,27 @@ const PreviewUseAutoScroll = () => {
       <MessageList messages={messages} isLoading={isLoading} />
 
       {/* Input stays pinned at bottom */}
-      <div className="mt-auto flex space-x-2 pt-2">
-        <input
-          type="text"
+      <div className="mt-auto flex items-end space-x-2 pt-2">
+        <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyPress}
           placeholder={isLoading ? "Waiting for response..." : "Type your message..."}
           disabled={isLoading || isCompleted}
-          className="font-fredoka w-full rounded-lg border border-neutral-400/20 bg-neutral-400/20 p-3 text-white placeholder:text-white disabled:opacity-50"
+          rows={1}
+          className="font-fredoka w-full rounded-lg border border-neutral-400/20 bg-neutral-400/20 p-3 text-white placeholder:text-white disabled:opacity-50 resize-none overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-neutral-700/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-500/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-neutral-400/70"
+          style={{ minHeight: '48px', maxHeight: '192px' }}
         />
         <button
           type="button"
           onClick={sendMessage}
           disabled={isLoading || isCompleted || !input.trim()}
-          className="font-fredoka rounded-lg border border-neutral-400/20 bg-neutral-400/20 px-4 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          className="font-fredoka rounded-lg border border-neutral-400/20 bg-neutral-400/20 px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed h-[48px]"
         >
           {isLoading ? "..." : "Send"}
         </button>
       </div>
-
-      {/* Show prediction button when completed or after 2+ user messages */}
-      {(isCompleted || userMessagesCount >= 2) && (
-        <button
-          onClick={() => navigate("/prediction")}
-          className="chat-button font-fredoka mt-6 w-full rounded-lg p-3 font-bold text-white"
-        >
-          Prediction is Ready
-        </button>
-      )}
     </div>
   );
 };

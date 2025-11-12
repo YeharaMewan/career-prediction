@@ -15,6 +15,9 @@ from utils.langsmith_config import get_traced_run_config, log_agent_execution
 # Import Web Search Tool
 from utils.web_search_tool import WebSearchTool
 
+# Import RAG System for knowledge base retrieval
+from rag.retriever import AgenticRAGRetriever
+
 
 class SkillDevelopmentAgent(WorkerAgent):
     """
@@ -51,6 +54,19 @@ class SkillDevelopmentAgent(WorkerAgent):
 
         # Initialize web search tool for real-time information
         self.web_search = WebSearchTool(cache_duration_minutes=120)
+
+        # Initialize RAG retriever for knowledge base (skill collection)
+        try:
+            self.rag_retriever = AgenticRAGRetriever(
+                collection_type="skill",
+                similarity_threshold=0.7,
+                top_k=3
+            )
+            self.rag_enabled = True
+            self.logger.info("✅ RAG retriever initialized for skill knowledge base")
+        except Exception as e:
+            self.logger.warning(f"RAG retriever initialization failed: {e}. Continuing without RAG.")
+            self.rag_enabled = False
 
         self.logger = logging.getLogger(f"agent.{self.name}")
 
@@ -435,23 +451,25 @@ from their current state to career readiness. Be comprehensive yet realistic."""
             self.logger.error(f"Learning platform search failed: {e}")
             return "Learning platform search unavailable."
 
-    def process_task(self, state: AgentState) -> TaskResult:
+    async def process_task(self, state: AgentState) -> TaskResult:
         """
         Main task processing: Create skill development roadmap for a career.
-        
+
+        This is an async method to support parallel execution with other agents.
+
         Expected input in state:
         - career_title: Name of the career
         - career_description: Brief description
         - student_profile: StudentProfile object (optional, for personalization)
-        
+
         Returns:
         - TaskResult with complete skill development plan
         """
         start_time = datetime.now()
         session_id = state.session_id or "skill_dev_session"
-        
+
         self._log_task_start("skill_development_planning", f"session: {session_id}")
-        
+
         # Get tracing configuration
         run_config = get_traced_run_config(
             session_type="skill_development",
@@ -462,33 +480,33 @@ from their current state to career readiness. Be comprehensive yet realistic."""
                 "career_blueprints_count": len(state.career_blueprints) if state.career_blueprints else 0
             }
         )
-        
+
         try:
             # Extract career information from state
             career_info = self._extract_career_info(state)
-            
+
             if not career_info:
                 return self._create_task_result(
                     task_type="skill_development",
                     success=False,
                     error_message="No career information found in state"
                 )
-            
+
             career_title = career_info.get("title")
             self.logger.info(f"Creating skill development plan for: {career_title}")
-            
-            # Create skill development plan
-            skill_plan = self._create_skill_development_plan(
+
+            # Create skill development plan (async call)
+            skill_plan = await self._create_skill_development_plan(
                 career_title=career_title,
                 career_description=career_info.get("description"),
                 student_profile=state.student_profile
             )
-            
+
             # Update the career blueprint with skill plan
             updated_state = self._update_state_with_skill_plan(state, career_title, skill_plan)
-            
+
             processing_time = (datetime.now() - start_time).total_seconds()
-            
+
             # Log execution
             log_agent_execution(
                 self.name,
@@ -496,13 +514,13 @@ from their current state to career readiness. Be comprehensive yet realistic."""
                 f"Created plan with {len(skill_plan.get('technical_skills', {}).get('core_skills', []))} core skills",
                 processing_time
             )
-            
+
             self._log_task_completion(
                 "skill_development_planning",
                 True,
                 f"for {career_title} in {processing_time:.2f}s"
             )
-            
+
             return self._create_task_result(
                 task_type="skill_development",
                 success=True,
@@ -514,11 +532,11 @@ from their current state to career readiness. Be comprehensive yet realistic."""
                 processing_time=processing_time,
                 updated_state=updated_state
             )
-            
+
         except Exception as e:
             processing_time = (datetime.now() - start_time).total_seconds()
             self._log_task_completion("skill_development_planning", False, f"Error: {str(e)}")
-            
+
             # Log error execution
             log_agent_execution(
                 self.name,
@@ -526,7 +544,7 @@ from their current state to career readiness. Be comprehensive yet realistic."""
                 f"Failed: {str(e)}",
                 processing_time
             )
-            
+
             return self._create_task_result(
                 task_type="skill_development",
                 success=False,
@@ -558,7 +576,7 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         
         return None
 
-    def _create_skill_development_plan(
+    async def _create_skill_development_plan(
         self,
         career_title: str,
         career_description: Optional[str] = None,
@@ -566,18 +584,20 @@ from their current state to career readiness. Be comprehensive yet realistic."""
     ) -> Dict[str, Any]:
         """
         Create comprehensive skill development plan using LLM.
+
+        This is an async method to support non-blocking LLM invocation.
         """
         # Build prompt with career details and student context
         prompt = self._build_skill_planning_prompt(
             career_title, career_description, student_profile
         )
-        
-        # Invoke LLM with structured output request
-        response = self.invoke_with_prompt(prompt)
-        
+
+        # Invoke LLM with structured output request (async)
+        response = await self.invoke_with_prompt(prompt)
+
         # Parse and structure the response
         skill_plan = self._parse_skill_plan_response(response, career_title)
-        
+
         return skill_plan
 
     def _build_skill_planning_prompt(
@@ -586,7 +606,22 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         career_description: Optional[str],
         student_profile: Optional[Any]
     ) -> str:
-        """Build comprehensive prompt for skill planning with web search results."""
+        """Build comprehensive prompt for skill planning with RAG and web search results."""
+
+        # Perform RAG retrieval from knowledge base
+        rag_context = ""
+        if self.rag_enabled:
+            self.logger.info(f"Retrieving skill knowledge base information for {career_title}")
+            # Optimized query: shorter, keyword-focused for better semantic matching
+            rag_state = self.rag_retriever.retrieve(
+                query=f"{career_title} skills courses certifications training learning resources",
+                include_citations=True
+            )
+            if rag_state.context:
+                rag_context = rag_state.context
+                self.logger.info(f"RAG retrieved {len(rag_state.retrieved_documents)} relevant documents")
+            else:
+                self.logger.info("No relevant documents found in skill knowledge base")
 
         # Perform web searches for current information
         self.logger.info(f"Gathering real-time skill information for {career_title}")
@@ -605,6 +640,17 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         if career_description:
             prompt_parts.append(f"Career Description: {career_description}")
             prompt_parts.append("")
+
+        # Add RAG knowledge base context if available
+        if rag_context:
+            prompt_parts.extend([
+                "=" * 80,
+                "KNOWLEDGE BASE INFORMATION (Verified skill data from PDFs):",
+                "=" * 80,
+                "",
+                rag_context,
+                ""
+            ])
 
         # Add web search results
         prompt_parts.extend([
