@@ -837,25 +837,38 @@ class AcademicPathwayAgent(WorkerAgent):
             "",
             "## 2. LOCAL PATHWAYS (Sri Lankan Options)",
             "",
-            "### A. STATE UNIVERSITIES",
-            "List 5-8 state universities with specific programs:",
+            "### A. GOVERNMENT UNIVERSITIES (FREE EDUCATION)",
+            "List 5-8 government/state universities with specific programs:",
+            "**NOTE: Government universities in Sri Lanka offer FREE education. Students only pay minimal registration/exam fees (LKR 30,000-100,000 per year).**",
+            "",
             "- **[University Name]** - [Specific Program Name]",
             "  - Program: [Full degree/diploma name]",
             "  - Duration: [X years]",
             "  - Entry Requirements: [Z-score, A/L subjects]",
-            "  - Approximate Cost: [LKR amount]",
+            "  - Cost: LKR 30,000-100,000/year (registration fees only - FREE EDUCATION)",
             "  - Application Period: [Specific months]",
             "  - Website: [URL if available]",
             "",
-            "### B. PRIVATE UNIVERSITIES/INSTITUTES",
+            "### B. PRIVATE UNIVERSITIES (PAID EDUCATION)",
             "List 5-8 private institutions with specific programs:",
+            "**NOTE: For EACH private university, include a FINANCIAL PLANNING section.**",
+            "",
             "- **[Institution Name]** - [Specific Program Name]",
             "  - Program: [Full degree/diploma name]",
             "  - Duration: [X years]",
             "  - Entry Requirements: [Specific requirements]",
-            "  - Approximate Cost: [LKR amount per year]",
+            "  - Cost per Year: LKR [amount] per year",
+            "  - Total Program Cost: LKR [amount] for [X] years",
             "  - International Partnerships: [Partner universities if any]",
             "  - Website: [URL if available]",
+            "  ",
+            "  **FINANCIAL PLANNING FOR [Institution Name]:**",
+            "  - Total Cost: LKR [total amount]",
+            "  - Payment Options: [Semester/annual installments]",
+            "  - Institution Scholarships: [Merit-based, need-based scholarships offered by this university]",
+            "  - Loan Options: [Bank loans, student financing available]",
+            "  - Part-time Work: [On-campus/nearby opportunities]",
+            "",
             "",
             "### C. PROFESSIONAL INSTITUTES",
             "List relevant professional certifications:",
@@ -905,22 +918,12 @@ class AcademicPathwayAgent(WorkerAgent):
             "- [Milestone 2]",
             "- [Milestone 3]",
             "",
-            "## 5. FINANCIAL PLANNING",
-            "- **Total Estimated Cost (Local):** LKR [amount] for [X] years",
-            "- **Total Estimated Cost (International):** $[amount] for [X] years",
-            "",
-            "**Funding Options:**",
-            "- [Specific scholarship 1] - [Brief details]",
-            "- [Specific scholarship 2] - [Brief details]",
-            "- [Loan option 1]",
-            "- [Other funding sources]",
-            "",
-            "## 6. ALTERNATIVE PATHWAYS",
+            "## 5. ALTERNATIVE PATHWAYS",
             "- **Online Programs:** [List 2-3 specific online degree programs with names and providers]",
             "- **Bootcamps:** [List relevant bootcamps/intensive programs]",
             "- **Bridge Programs:** [List foundation/bridge courses]",
             "",
-            "## 7. IMMEDIATE NEXT STEPS",
+            "## 6. IMMEDIATE NEXT STEPS",
             "1. [Most urgent action with timeline]",
             "2. [Second action with timeline]",
             "3. [Third action with timeline]",
@@ -930,10 +933,14 @@ class AcademicPathwayAgent(WorkerAgent):
             "CRITICAL REQUIREMENTS:",
             "1. USE WEB SEARCH RESULTS - Extract and include specific names, programs, and URLs",
             "2. PROVIDE SPECIFIC DETAILS - No generic terms like 'related program' or 'various universities'",
-            "3. INCLUDE COSTS - Actual LKR and USD amounts, not ranges like 'varies'",
-            "4. LOCAL FIRST - Prioritize Sri Lankan options with the most detail",
-            "5. MULTIPLE OPTIONS - At least 5-8 institutions per major category",
-            "6. ACTIONABLE - Each step should be specific and executable",
+            "3. INCLUDE COSTS:",
+            "   - Government universities: LKR 30,000-100,000/year (FREE EDUCATION - registration fees only)",
+            "   - Private universities: Actual LKR amounts per year AND total program cost",
+            "4. FINANCIAL PLANNING - Include ONLY for PRIVATE universities (embedded in each private university listing)",
+            "5. NO GLOBAL FUNDING SECTION - Financial details are institution-specific for private universities",
+            "6. LOCAL FIRST - Prioritize Sri Lankan options with the most detail",
+            "7. MULTIPLE OPTIONS - At least 5-8 government universities AND 5-8 private universities",
+            "8. ACTIONABLE - Each step should be specific and executable",
             "",
             "Write the complete plan following this exact structure."
         ])
@@ -985,18 +992,22 @@ class AcademicPathwayAgent(WorkerAgent):
                         current_pathway = {
                             "pathway_type": "Local (Sri Lankan)",
                             "education_level": "Undergraduate/Postgraduate",
-                            "sri_lankan_options": [],
+                            "government_universities": [],
+                            "private_universities": [],
+                            "professional_institutes": [],
                             "international_options": []
                         }
                 elif "international pathway" in line_lower:
                     current_section = "international_pathways"
                     # Save current pathway before starting international
-                    if current_pathway and current_pathway["sri_lankan_options"]:
+                    if current_pathway and (current_pathway["government_universities"] or current_pathway["private_universities"]):
                         academic_plan["pathway_options"].append(current_pathway)
                         current_pathway = {
                             "pathway_type": "International",
                             "education_level": "Undergraduate/Postgraduate",
-                            "sri_lankan_options": [],
+                            "government_universities": [],
+                            "private_universities": [],
+                            "professional_institutes": [],
                             "international_options": []
                         }
                 elif "implementation plan" in line_lower or "step-by-step" in line_lower:
@@ -1016,9 +1027,9 @@ class AcademicPathwayAgent(WorkerAgent):
 
             # Detect subsections (### headers)
             elif line_clean.startswith('###'):
-                if "state universit" in line_lower:
-                    current_section = "state_universities"
-                elif "private" in line_lower and ("universit" in line_lower or "institute" in line_lower):
+                if "government universit" in line_lower or "state universit" in line_lower or "free education" in line_lower:
+                    current_section = "government_universities"
+                elif ("private" in line_lower or "paid education" in line_lower) and ("universit" in line_lower or "institute" in line_lower):
                     current_section = "private_universities"
                 elif "professional institute" in line_lower:
                     current_section = "professional_institutes"
@@ -1058,13 +1069,19 @@ class AcademicPathwayAgent(WorkerAgent):
                     }
 
             # Extract structured institution data
-            if current_section in ["state_universities", "private_universities", "professional_institutes"]:
+            if current_section in ["government_universities", "private_universities", "professional_institutes"]:
                 # Look for institution entries starting with bold markers or dashes
                 if line_clean.startswith(('- **', '* **', '• **')) or (line_clean.startswith('-') and '**' in line_clean):
                     # Extract institution and program from line
-                    inst_info = self._extract_institution_details(line_clean, lines[i:min(i+10, len(lines))])
+                    inst_info = self._extract_institution_details(line_clean, lines[i:min(i+10, len(lines))], is_private=(current_section == "private_universities"))
                     if inst_info and current_pathway:
-                        current_pathway["sri_lankan_options"].append(inst_info)
+                        # Add to appropriate array based on section
+                        if current_section == "government_universities":
+                            current_pathway["government_universities"].append(inst_info)
+                        elif current_section == "private_universities":
+                            current_pathway["private_universities"].append(inst_info)
+                        elif current_section == "professional_institutes":
+                            current_pathway["professional_institutes"].append(inst_info)
 
             elif current_section in ["international_uk", "international_usa", "international_australia"]:
                 if line_clean.startswith(('- **', '* **', '• **')) or (line_clean.startswith('-') and '**' in line_clean):
@@ -1081,12 +1098,6 @@ class AcademicPathwayAgent(WorkerAgent):
                             academic_plan["student_assessment"]["current_level"] = item
                         elif "timeline" in line_lower:
                             academic_plan["student_assessment"]["recommended_timeline"] = item
-                    elif current_section == "financial":
-                        if "scholarship" in line_lower or "funding" in line_lower or "loan" in line_lower:
-                            academic_plan["financial_planning"]["funding_options"].append(item)
-                        elif "lkr" in line_lower or "estimated cost" in line_lower:
-                            if "local" in line_lower:
-                                academic_plan["financial_planning"]["total_estimated_cost_lkr"] = item
                     elif current_section == "alternatives":
                         academic_plan["alternative_pathways"].append({
                             "pathway_description": item,
@@ -1099,7 +1110,7 @@ class AcademicPathwayAgent(WorkerAgent):
                         current_phase["actions"].append(item)
 
         # Add remaining data
-        if current_pathway and (current_pathway["sri_lankan_options"] or current_pathway["international_options"]):
+        if current_pathway and (current_pathway["government_universities"] or current_pathway["private_universities"] or current_pathway["international_options"]):
             academic_plan["pathway_options"].append(current_pathway)
         if current_phase:
             academic_plan["step_by_step_plan"].append(current_phase)
@@ -1127,7 +1138,7 @@ class AcademicPathwayAgent(WorkerAgent):
             return match.group(1)
         return "Variable duration"
 
-    def _extract_institution_details(self, line: str, following_lines: List[str]) -> Optional[Dict[str, Any]]:
+    def _extract_institution_details(self, line: str, following_lines: List[str], is_private: bool = False) -> Optional[Dict[str, Any]]:
         """Extract institution details from markdown-formatted text."""
         # Extract institution name and program from bold text
         inst_match = re.search(r'\*\*(.*?)\*\*(?:\s*-\s*(.*))?', line)
@@ -1145,8 +1156,19 @@ class AcademicPathwayAgent(WorkerAgent):
             "entry_requirements": [],
             "approximate_cost": "Contact institution for details",
             "application_timeline": "Check university website",
-            "additional_notes": ""
+            "additional_notes": "",
+            "is_free": not is_private  # Government universities are free
         }
+
+        # For private universities, add financial planning structure
+        if is_private:
+            details["financial_planning"] = {
+                "total_cost": "To be determined",
+                "payment_options": [],
+                "institution_scholarships": [],
+                "loan_options": [],
+                "part_time_work_opportunities": []
+            }
 
         for follow_line in following_lines[:8]:  # Check next 8 lines for details
             follow_clean = follow_line.strip()
@@ -1168,6 +1190,22 @@ class AcademicPathwayAgent(WorkerAgent):
                     details["application_timeline"] = self._extract_field_value(follow_clean, "application")
                 elif "website:" in follow_lower or "url:" in follow_lower:
                     details["additional_notes"] = f"Website: {self._extract_field_value(follow_clean, 'website', 'url')}"
+
+                # Extract financial planning for private universities
+                elif is_private and "financial planning" in follow_lower:
+                    # This indicates start of financial planning section for this institution
+                    pass
+                elif is_private and details.get("financial_planning"):
+                    if "total cost:" in follow_lower:
+                        details["financial_planning"]["total_cost"] = self._extract_field_value(follow_clean, "total cost")
+                    elif "payment option" in follow_lower:
+                        details["financial_planning"]["payment_options"].append(self._extract_field_value(follow_clean, "payment option"))
+                    elif "scholarship" in follow_lower and "institution scholarship" in follow_lower:
+                        details["financial_planning"]["institution_scholarships"].append(self._extract_field_value(follow_clean, "institution scholarship", "scholarship"))
+                    elif "loan" in follow_lower:
+                        details["financial_planning"]["loan_options"].append(self._extract_field_value(follow_clean, "loan"))
+                    elif "part-time work" in follow_lower or "part time work" in follow_lower:
+                        details["financial_planning"]["part_time_work_opportunities"].append(self._extract_field_value(follow_clean, "part-time work", "part time work"))
 
         return details
 
