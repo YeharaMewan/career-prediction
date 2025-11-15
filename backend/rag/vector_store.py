@@ -341,7 +341,7 @@ if __name__ == "__main__":
     print("\n=== Test Query ===")
     query = "What universities offer computer science programs?"
     query_embedding = embedding_manager.embed_query(query)
-    results = vector_store.query(query_embedding, "academic", top_k=3)
+    results = vector_store.query(query_embedding, "academic", top_k=10)
     print(f"Query: {query}")
     print(f"Found {results['count']} results:")
     for i, (doc, sim) in enumerate(zip(results["documents"], results["similarities"])):

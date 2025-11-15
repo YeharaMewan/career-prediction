@@ -234,7 +234,7 @@ def validate_and_clean_response_fields(result_data: Dict[str, Any]) -> Dict[str,
             # Use robust regex to catch all variations (case-insensitive, multiple occurrences, different positions)
             original_question = question
             question = re.sub(r'\s*undefined\s*', ' ', question, flags=re.IGNORECASE)
-            question = re.sub(r'\s+', ' ', question).strip()  # Clean up multiple spaces
+            question = re.sub(r'[ \t]+', ' ', question).strip()  # Clean up multiple spaces (preserve newlines)
 
             if original_question != question:
                 logger.warning(f"Removed 'undefined' from question. Original length: {len(original_question)}, New length: {len(question)}")

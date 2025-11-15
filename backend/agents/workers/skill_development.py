@@ -59,8 +59,8 @@ class SkillDevelopmentAgent(WorkerAgent):
         try:
             self.rag_retriever = AgenticRAGRetriever(
                 collection_type="skill",
-                similarity_threshold=0.7,
-                top_k=3
+                similarity_threshold=0.35,
+                top_k=10
             )
             self.rag_enabled = True
             self.logger.info("✅ RAG retriever initialized for skill knowledge base")
