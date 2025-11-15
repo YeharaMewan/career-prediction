@@ -1353,24 +1353,66 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 pathway_type = pathway.get("pathway_type", "Option")
                 message_parts.append(f"**{idx}. {pathway_type} Pathway**")
 
-                # Sri Lankan Options
-                sri_lankan_options = pathway.get("sri_lankan_options", [])
-                if sri_lankan_options:
+                # Government Universities (Free Education)
+                government_universities = pathway.get("government_universities", [])
+                if government_universities:
                     message_parts.append("")
-                    message_parts.append("**🇱🇰 Sri Lankan Institutions:**")
+                    message_parts.append("**🎓 GOVERNMENT UNIVERSITIES (FREE EDUCATION)**")
                     message_parts.append("")
-                    for option in sri_lankan_options[:10]:  # Show up to 10 options
+                    for option in government_universities[:10]:  # Show up to 10 options
                         inst_name = option.get("institution_name", "Institution")
                         program = option.get("program_name", "Related program")
                         duration = option.get("duration", "")
-                        cost = option.get("approximate_cost", "")
+                        cost = option.get("approximate_cost", "LKR 30,000-100,000/year (registration fees only)")
                         message_parts.append(f"**• {inst_name}**")
                         message_parts.append("")
                         message_parts.append(f"- **Program:** {program}")
                         if duration:
                             message_parts.append(f"- **Duration:** {duration}")
-                        if cost:
-                            message_parts.append(f"- **Cost:** {cost}")
+                        message_parts.append(f"- **Cost:** {cost}")
+                        message_parts.append("")  # Blank line after each institution
+                    message_parts.append("")
+
+                # Private Universities (Paid Education)
+                private_universities = pathway.get("private_universities", [])
+                if private_universities:
+                    message_parts.append("**🏢 PRIVATE UNIVERSITIES**")
+                    message_parts.append("")
+                    for option in private_universities[:10]:  # Show up to 10 options
+                        inst_name = option.get("institution_name", "Institution")
+                        program = option.get("program_name", "Related program")
+                        duration = option.get("duration", "")
+                        cost = option.get("approximate_cost", "Contact institution")
+                        message_parts.append(f"**• {inst_name}**")
+                        message_parts.append("")
+                        message_parts.append(f"- **Program:** {program}")
+                        if duration:
+                            message_parts.append(f"- **Duration:** {duration}")
+                        message_parts.append(f"- **Cost:** {cost}")
+
+                        # Financial Planning for Private University
+                        financial_planning = option.get("financial_planning", {})
+                        if financial_planning and any(financial_planning.values()):
+                            message_parts.append("")
+                            message_parts.append(f"**💰 Financial Planning for {inst_name}:**")
+                            message_parts.append("")
+
+                            total_cost = financial_planning.get("total_cost", "")
+                            if total_cost and total_cost != "To be determined":
+                                message_parts.append(f"- **Total Cost:** {total_cost}")
+
+                            payment_options = financial_planning.get("payment_options", [])
+                            if payment_options:
+                                message_parts.append(f"- **Payment Options:** {', '.join(payment_options)}")
+
+                            scholarships = financial_planning.get("institution_scholarships", [])
+                            if scholarships:
+                                message_parts.append(f"- **Scholarships:** {', '.join(scholarships[:3])}")
+
+                            loans = financial_planning.get("loan_options", [])
+                            if loans:
+                                message_parts.append(f"- **Loan Options:** {', '.join(loans[:2])}")
+
                         message_parts.append("")  # Blank line after each institution
                     message_parts.append("")
 
@@ -1410,24 +1452,6 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                     for action in actions[:5]:  # Show up to 5 actions per phase
                         message_parts.append(f"- {action}")
                 message_parts.append("")
-
-        # Financial Planning
-        financial = academic_plan.get("financial_planning", {})
-        if financial:
-            message_parts.append("💰 **FINANCIAL PLANNING**")
-            message_parts.append("")
-            total_cost = financial.get("total_estimated_cost_lkr", "")
-            if total_cost and total_cost != "To be determined":
-                message_parts.append(f"- **Estimated Total Cost:** {total_cost}")
-
-            funding_options = financial.get("funding_options", [])
-            if funding_options:
-                message_parts.append("")
-                message_parts.append("**Funding Options:**")
-                message_parts.append("")  # Blank line after subheader
-                for option in funding_options[:5]:
-                    message_parts.append(f"- {option}")
-            message_parts.append("")
 
         # Next Immediate Steps
         next_steps = academic_plan.get("next_immediate_steps", [])
