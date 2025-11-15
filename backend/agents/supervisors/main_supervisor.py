@@ -440,26 +440,27 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 description = pred.get('description', 'No description available')
                 why_fit = pred.get('why_good_fit', 'Based on your profile and interests')
 
-                career_section = f"""### {i+1}. **{title}**
-- **Match Score:** {match_score:.0f}%
-- **Description:** {description}
-- **Why it fits you:** {why_fit}"""
+                # Format each career with proper line breaks (single newlines between list items)
+                career_section = (
+                    f"{i+1}. **{title}**\n\n"
+                    f"- **Match Score:** {match_score:.0f}%\n"
+                    f"- **Description:** {description}\n"
+                    f"- **Why it fits you:** {why_fit}"
+                )
                 career_sections.append(career_section)
 
             career_list = "\n\n".join(career_sections)
             first_career_title = career_predictions[0].get('title', 'your preferred career') if career_predictions else 'your preferred career'
 
-            selection_message = f"""## 🎯 Your Career Recommendations
-
-Based on our conversation, here are 5 careers that match your profile:
-
-{career_list}
-
----
-
-**Next Step:** Choose a career number (1-5) to get a detailed action plan with academic pathways and skill development roadmap.
-
-Please respond with the career you'd like to pursue (e.g., "I want to pursue {first_career_title}")"""
+            # Build selection message with explicit double newlines for proper markdown rendering
+            selection_message = (
+                f"🎯 **Your Career Recommendations**\n\n"
+                f"Based on our conversation, here are 5 careers that match your profile:\n\n"
+                f"{career_list}\n\n"
+                f"---\n\n"
+                f"**Next Step:** Choose a career number (1-5) to get a detailed action plan with academic pathways and skill development roadmap.\n\n"
+                f"Please respond with the career you'd like to pursue (e.g., \"I want to pursue {first_career_title}\")"
+            )
         except Exception as e:
             logging.error(f"Error formatting career selection message: {e}")
             selection_message = "I've identified some great career matches for you. Which career would you like to explore further?"
@@ -1328,22 +1329,25 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             return f"📚 **Academic Pathway for {career_title}**\n\nDetailed plan is being generated..."
 
         message_parts = []
-        message_parts.append(f"📚 **ACADEMIC PATHWAY FOR {career_title.upper()}**\n")
+        message_parts.append(f"📚 **ACADEMIC PATHWAY FOR {career_title.upper()}**")
+        message_parts.append("")  # Blank line after title
 
         # Student Assessment
         student_assessment = academic_plan.get("student_assessment", {})
         if student_assessment:
             message_parts.append("🎓 **STUDENT ASSESSMENT**")
+            message_parts.append("")  # Blank line after section header
             if student_assessment.get("current_level"):
-                message_parts.append(f"• Current Level: {student_assessment.get('current_level', 'Not specified')}")
+                message_parts.append(f"• **Current Level:** {student_assessment.get('current_level', 'Not specified')}")
             if student_assessment.get("recommended_timeline"):
-                message_parts.append(f"• Timeline to Career: {student_assessment.get('recommended_timeline', 'Varies')}")
-            message_parts.append("")
+                message_parts.append(f"• **Timeline to Career:** {student_assessment.get('recommended_timeline', 'Varies')}")
+            message_parts.append("")  # Blank line after section
 
         # Pathway Options - This is the main content!
         pathway_options = academic_plan.get("pathway_options", [])
         if pathway_options:
-            message_parts.append("📍 **EDUCATIONAL PATHWAY OPTIONS**\n")
+            message_parts.append("📍 **EDUCATIONAL PATHWAY OPTIONS**")
+            message_parts.append("")  # Blank line after section header
 
             for idx, pathway in enumerate(pathway_options, 1):
                 pathway_type = pathway.get("pathway_type", "Option")
@@ -1352,70 +1356,84 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 # Sri Lankan Options
                 sri_lankan_options = pathway.get("sri_lankan_options", [])
                 if sri_lankan_options:
-                    message_parts.append("\n**🇱🇰 Sri Lankan Institutions:**")
+                    message_parts.append("")
+                    message_parts.append("**🇱🇰 Sri Lankan Institutions:**")
+                    message_parts.append("")
                     for option in sri_lankan_options[:10]:  # Show up to 10 options
                         inst_name = option.get("institution_name", "Institution")
                         program = option.get("program_name", "Related program")
                         duration = option.get("duration", "")
                         cost = option.get("approximate_cost", "")
-                        message_parts.append(f"• **{inst_name}**")
-                        message_parts.append(f"  - Program: {program}")
+                        message_parts.append(f"**• {inst_name}**")
+                        message_parts.append("")
+                        message_parts.append(f"- **Program:** {program}")
                         if duration:
-                            message_parts.append(f"  - Duration: {duration}")
+                            message_parts.append(f"- **Duration:** {duration}")
                         if cost:
-                            message_parts.append(f"  - Cost: {cost}")
+                            message_parts.append(f"- **Cost:** {cost}")
+                        message_parts.append("")  # Blank line after each institution
                     message_parts.append("")
 
                 # International Options
                 international_options = pathway.get("international_options", [])
                 if international_options:
                     message_parts.append("**🌍 International Options:**")
+                    message_parts.append("")
                     for option in international_options[:10]:  # Show up to 10 options
                         country = option.get("country", "Country")
                         program_type = option.get("program_type", "Degree program")
                         duration = option.get("duration", "")
                         cost = option.get("approximate_cost", "")
-                        message_parts.append(f"• **{country}** - {program_type}")
+                        message_parts.append(f"**• {country}**")
+                        message_parts.append("")
+                        message_parts.append(f"- **Program:** {program_type}")
                         if duration:
-                            message_parts.append(f"  - Duration: {duration}")
+                            message_parts.append(f"- **Duration:** {duration}")
                         if cost:
-                            message_parts.append(f"  - Cost: {cost}")
+                            message_parts.append(f"- **Cost:** {cost}")
+                        message_parts.append("")  # Blank line after each option
                     message_parts.append("")
 
         # Step-by-step Implementation Plan
         step_plan = academic_plan.get("step_by_step_plan", [])
         if step_plan:
-            message_parts.append("📋 **IMPLEMENTATION ROADMAP**\n")
+            message_parts.append("📋 **IMPLEMENTATION ROADMAP**")
+            message_parts.append("")
             for phase in step_plan[:3]:  # Show up to 3 phases
                 phase_name = phase.get("phase", "Phase")
                 timeframe = phase.get("timeframe", "")
                 actions = phase.get("actions", [])
 
                 message_parts.append(f"**{phase_name}** ({timeframe})")
+                message_parts.append("")  # Blank line after phase header
                 if actions:
                     for action in actions[:5]:  # Show up to 5 actions per phase
-                        message_parts.append(f"  • {action}")
+                        message_parts.append(f"- {action}")
                 message_parts.append("")
 
         # Financial Planning
         financial = academic_plan.get("financial_planning", {})
         if financial:
             message_parts.append("💰 **FINANCIAL PLANNING**")
+            message_parts.append("")
             total_cost = financial.get("total_estimated_cost_lkr", "")
             if total_cost and total_cost != "To be determined":
-                message_parts.append(f"• Estimated Total Cost: {total_cost}")
+                message_parts.append(f"- **Estimated Total Cost:** {total_cost}")
 
             funding_options = financial.get("funding_options", [])
             if funding_options:
-                message_parts.append("\n**Funding Options:**")
+                message_parts.append("")
+                message_parts.append("**Funding Options:**")
+                message_parts.append("")  # Blank line after subheader
                 for option in funding_options[:5]:
-                    message_parts.append(f"  • {option}")
+                    message_parts.append(f"- {option}")
             message_parts.append("")
 
         # Next Immediate Steps
         next_steps = academic_plan.get("next_immediate_steps", [])
         if next_steps:
             message_parts.append("🎯 **NEXT IMMEDIATE STEPS**")
+            message_parts.append("")
             for idx, step in enumerate(next_steps[:5], 1):
                 message_parts.append(f"{idx}. {step}")
             message_parts.append("")
@@ -1424,6 +1442,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         alternatives = academic_plan.get("alternative_pathways", [])
         if alternatives:
             message_parts.append("🔄 **ALTERNATIVE PATHWAYS**")
+            message_parts.append("")
             for alt in alternatives[:3]:
                 desc = alt.get("pathway_description", "")
                 if desc:
@@ -1441,62 +1460,71 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             return f"🎯 **Skill Development Plan for {career_title}**\n\nDetailed plan is being generated..."
 
         message_parts = []
-        message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**\n")
+        message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**")
+        message_parts.append("")  # Blank line after title
 
         # Technical Skills
         technical_skills = skill_plan.get("technical_skills", {})
         if technical_skills:
-            message_parts.append("💻 **TECHNICAL SKILLS**\n")
+            message_parts.append("💻 **TECHNICAL SKILLS**")
+            message_parts.append("")  # Blank line after section header
 
             # Core Skills
             core_skills = technical_skills.get("core_skills", [])
             if core_skills:
                 message_parts.append("**Core Skills (Must-Have):**")
+                message_parts.append("")  # Blank line after subheader
                 for skill in core_skills:
-                    message_parts.append(f"• {skill}")
+                    message_parts.append(f"- {skill}")
                 message_parts.append("")
 
             # Advanced Skills
             advanced_skills = technical_skills.get("advanced_skills", [])
             if advanced_skills:
                 message_parts.append("**Advanced Skills:**")
+                message_parts.append("")  # Blank line after subheader
                 for skill in advanced_skills:
-                    message_parts.append(f"• {skill}")
+                    message_parts.append(f"- {skill}")
                 message_parts.append("")
 
             # Tools & Technologies
             tools = technical_skills.get("tools_technologies", [])
             if tools:
                 message_parts.append("**Tools & Technologies:**")
+                message_parts.append("")  # Blank line after subheader
                 for tool in tools:
-                    message_parts.append(f"• {tool}")
+                    message_parts.append(f"- {tool}")
                 message_parts.append("")
 
         # Soft Skills
         soft_skills = skill_plan.get("soft_skills", {})
         if soft_skills:
-            message_parts.append("🤝 **SOFT SKILLS**\n")
+            message_parts.append("🤝 **SOFT SKILLS**")
+            message_parts.append("")  # Blank line after section header
 
             # Essential
             essential = soft_skills.get("essential", [])
             if essential:
                 message_parts.append("**Essential:**")
+                message_parts.append("")  # Blank line after subheader
                 for skill in essential:
-                    message_parts.append(f"• {skill}")
+                    message_parts.append(f"- {skill}")
                 message_parts.append("")
 
             # Recommended
             recommended = soft_skills.get("recommended", [])
             if recommended:
                 message_parts.append("**Recommended:**")
+                message_parts.append("")  # Blank line after subheader
                 for skill in recommended:
-                    message_parts.append(f"• {skill}")
+                    message_parts.append(f"- {skill}")
                 message_parts.append("")
 
         # Learning Phases
         learning_phases = skill_plan.get("learning_phases", [])
         if learning_phases:
-            message_parts.append("📚 **LEARNING PHASES**\n")
+            message_parts.append("📚 **LEARNING PHASES**")
+            message_parts.append("")  # Blank line after section header
 
             for phase in learning_phases:
                 phase_name = phase.get("phase", "Phase")
@@ -1506,36 +1534,43 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 milestones = phase.get("milestones", [])
 
                 message_parts.append(f"**{phase_name}** ({duration})")
+                message_parts.append("")  # Blank line after phase name
 
                 if skills_focus:
-                    message_parts.append("Skills to Master:")
+                    message_parts.append("**Skills to Master:**")
+                    message_parts.append("")  # Blank line after subheader
                     for skill in skills_focus[:5]:
-                        message_parts.append(f"  • {skill}")
+                        message_parts.append(f"- {skill}")
+                    message_parts.append("")
 
                 if resources:
-                    message_parts.append("Learning Resources:")
+                    message_parts.append("**Learning Resources:**")
+                    message_parts.append("")  # Blank line after subheader
                     for resource in resources[:5]:
-                        message_parts.append(f"  • {resource}")
+                        message_parts.append(f"- {resource}")
+                    message_parts.append("")
 
                 if milestones:
-                    message_parts.append("Milestones:")
+                    message_parts.append("**Milestones:**")
+                    message_parts.append("")  # Blank line after subheader
                     for milestone in milestones[:3]:
-                        message_parts.append(f"  ✓ {milestone}")
-
-                message_parts.append("")
+                        message_parts.append(f"- ✓ {milestone}")
+                    message_parts.append("")
 
         # Certifications
         certifications = skill_plan.get("certifications", [])
         if certifications:
             message_parts.append("🎓 **RECOMMENDED CERTIFICATIONS**")
+            message_parts.append("")
             for cert in certifications[:10]:
-                message_parts.append(f"• {cert}")
+                message_parts.append(f"- {cert}")
             message_parts.append("")
 
         # Estimated Timeline
         total_time = skill_plan.get("estimated_total_time", "")
         if total_time:
-            message_parts.append(f"⏱️ **Estimated Timeline:** {total_time}\n")
+            message_parts.append(f"⏱️ **Estimated Timeline:** {total_time}")
+            message_parts.append("")
 
         return "\n".join(message_parts)
 

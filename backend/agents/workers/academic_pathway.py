@@ -91,8 +91,8 @@ class AcademicPathwayAgent(WorkerAgent):
         try:
             self.rag_retriever = AgenticRAGRetriever(
                 collection_type="academic",
-                similarity_threshold=0.7,
-                top_k=3
+                similarity_threshold=0.35,
+                top_k=10
             )
             self.rag_enabled = True
             self.logger.info("✅ RAG retriever initialized for academic knowledge base")

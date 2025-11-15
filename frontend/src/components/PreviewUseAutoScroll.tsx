@@ -4,6 +4,7 @@ import apiService from "../services/api";
 import type { Message } from "../types/chat";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 // Helper function to remove "undefined" text from messages (final safety net)
 const cleanUndefinedText = (text: string): string => {
@@ -12,8 +13,8 @@ const cleanUndefinedText = (text: string): string => {
   // Remove "undefined" (case-insensitive) with surrounding whitespace
   let cleaned = text.replace(/\s*undefined\s*/gi, ' ');
 
-  // Clean up multiple spaces
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  // Clean up multiple spaces/tabs (preserve newlines for markdown formatting)
+  cleaned = cleaned.replace(/[ \t]+/g, ' ').trim();
 
   return cleaned;
 };
@@ -60,16 +61,29 @@ const PreviewUseAutoScroll = () => {
   const typeOutMessage = (text: string) => {
     // Clean any "undefined" text as a final safety net
     const cleanedText = cleanUndefinedText(text);
-    // Filter out empty strings to prevent undefined from being displayed
-    const words = cleanedText.split(" ").filter(word => word.length > 0);
-    let currentWordIndex = 0;
+
+    // Split by spaces while preserving newlines as separate tokens
+    // This regex splits on spaces but keeps newlines intact
+    const tokens: string[] = [];
+    const lines = cleanedText.split('\n');
+
+    lines.forEach((line, lineIndex) => {
+      const words = line.split(' ').filter(word => word.length > 0);
+      tokens.push(...words);
+      // Add newline token after each line except the last
+      if (lineIndex < lines.length - 1) {
+        tokens.push('\n');
+      }
+    });
+
+    let currentTokenIndex = 0;
 
     // Add empty AI message first - this will be at the end of the messages array
     setMessages((prev) => [...prev, { sender: "ai", text: "" }]);
 
-    // Type out each word at a fixed interval
+    // Type out each token at a fixed interval
     typingIntervalRef.current = setInterval(() => {
-      if (currentWordIndex >= words.length) {
+      if (currentTokenIndex >= tokens.length) {
         if (typingIntervalRef.current) {
           clearInterval(typingIntervalRef.current);
           typingIntervalRef.current = null;
@@ -83,18 +97,23 @@ const PreviewUseAutoScroll = () => {
 
         // Update the last message (which should be the AI message we just added)
         if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === "ai") {
-          const word = words[currentWordIndex];
-          // Safety check: only add word if it exists and is not empty
-          if (word !== undefined && word !== "") {
-            updatedMessages[lastMessageIndex].text +=
-              (updatedMessages[lastMessageIndex].text ? " " : "") + word;
+          const token = tokens[currentTokenIndex];
+          // Safety check: only add token if it exists and is not empty
+          if (token !== undefined && token !== "") {
+            // If token is a newline, add it directly; otherwise add with space
+            if (token === '\n') {
+              updatedMessages[lastMessageIndex].text += '\n';
+            } else {
+              updatedMessages[lastMessageIndex].text +=
+                (updatedMessages[lastMessageIndex].text && !updatedMessages[lastMessageIndex].text.endsWith('\n') ? " " : "") + token;
+            }
           }
         }
 
         return updatedMessages;
       });
 
-      currentWordIndex++;
+      currentTokenIndex++;
     }, 100);
   };
 
@@ -323,7 +342,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
     >
       <div className="markdown-content">
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkBreaks]}
           components={{
             // Style headings
             h1: ({node, ...props}) => <h1 className="text-2xl font-bold mb-3 mt-4 text-sky-400" {...props} />,

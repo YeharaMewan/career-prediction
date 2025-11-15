@@ -111,8 +111,8 @@ from rag.retriever import AgenticRAGRetriever
 # Initialize retriever
 retriever = AgenticRAGRetriever(
     collection_type="academic",
-    similarity_threshold=0.7,
-    top_k=3
+    similarity_threshold=0.35,
+    top_k=10
 )
 
 # Retrieve with agentic decision-making
@@ -141,7 +141,7 @@ CHUNK_SIZE = 1000  # Characters per chunk
 CHUNK_OVERLAP = 200  # Overlap for context
 
 # Retrieval settings
-SIMILARITY_THRESHOLD = 0.7  # Min similarity (0-1)
+SIMILARITY_THRESHOLD = 0.35  # Min similarity (0-1)
 TOP_K_RESULTS = 3  # Number of chunks to retrieve
 MAX_CONTEXT_LENGTH = 4000  # Max chars in context
 
@@ -339,7 +339,7 @@ print(f"Cost: ${stats['estimated_cost_usd']}")
 ```python
 retriever = AgenticRAGRetriever(
     collection_type="academic",
-    similarity_threshold=0.6,  # Lower = more results
+    similarity_threshold=0.35,  # Lower = more results
     top_k=5  # More documents
 )
 ```
