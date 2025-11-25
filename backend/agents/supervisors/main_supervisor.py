@@ -226,7 +226,8 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             interaction_mode="interactive",
             current_step="interactive_profiling",
             student_request=state.student_request,
-            awaiting_user_response=False
+            awaiting_user_response=False,
+            preferred_language=state.preferred_language  # Preserve language preference
         )
 
         # Store session
@@ -237,8 +238,8 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         if not self.user_profiler:
             self.user_profiler = UserProfilerAgent()
 
-        # Start interactive profiling session
-        profiler_result = self.user_profiler.start_interactive_session(session_id)
+        # Start interactive profiling session (pass state with language)
+        profiler_result = self.user_profiler.start_interactive_session(session_id, session_state)
 
         if profiler_result.success:
             session_info["total_interactions"] += 1
@@ -563,10 +564,22 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                     academic_plan
                 ) if academic_plan else None
 
+                # Log message length for debugging
+                if academic_message:
+                    self.logger.info(f"📚 Academic message length: {len(academic_message)} chars")
+                else:
+                    self.logger.warning("⚠️ Academic message is None")
+
                 skill_message = self._format_skill_plan_message(
                     selected_career.career_title,
                     skill_plan
                 ) if skill_plan else None
+
+                # Log message length for debugging
+                if skill_message:
+                    self.logger.info(f"🎯 Skill message length: {len(skill_message)} chars")
+                else:
+                    self.logger.warning("⚠️ Skill message is None")
 
                 return self._create_task_result(
                     task_type="career_planning_complete",
@@ -574,8 +587,6 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                     result_data={
                         "session_id": session_id,
                         "career_title": selected_career.career_title,
-                        "academic_plan": academic_plan,
-                        "skill_plan": skill_plan,
                         "academic_message": academic_message,
                         "skill_message": skill_message,
                         "completed": True,
@@ -849,7 +860,8 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         try:
             from langchain_core.messages import HumanMessage
 
-            response = self.llm.invoke([HumanMessage(content=prompt)])
+            # Use llm_wrapper.invoke() to enable automatic fallback to Gemini
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
 
             if not response or not response.content:
                 logging.warning("Empty LLM response for career generation")
@@ -1323,11 +1335,28 @@ Return ONLY a valid JSON array (no markdown, no extra text):
     def _format_academic_plan_message(self, career_title: str, academic_plan: Dict[str, Any]) -> str:
         """
         Format the complete academic pathway plan into a detailed, readable message.
-        Shows all pathway options, institutions, costs, and next steps.
+        Uses the raw_plan (LLM-generated markdown) which includes all sections:
+        - Student Assessment (with actual education level)
+        - Local Pathways (Government + Private universities)
+        - International Pathways
+        - Implementation Plan
+        - Next Immediate Steps (with exams and documents)
+        - Alternative Pathways
         """
         if not academic_plan:
             return f"📚 **Academic Pathway for {career_title}**\n\nDetailed plan is being generated..."
 
+        # Use the raw_plan directly - it contains the complete, formatted response from the LLM
+        raw_plan = academic_plan.get("raw_plan", "")
+        if raw_plan:
+            # Add header and return the complete plan
+            message_parts = []
+            message_parts.append(f"📚 **ACADEMIC PATHWAY FOR {career_title.upper()}**")
+            message_parts.append("")
+            message_parts.append(raw_plan)
+            return "\n".join(message_parts)
+
+        # Fallback: Use structured extraction if raw_plan is not available
         message_parts = []
         message_parts.append(f"📚 **ACADEMIC PATHWAY FOR {career_title.upper()}**")
         message_parts.append("")  # Blank line after title
@@ -1478,11 +1507,41 @@ Return ONLY a valid JSON array (no markdown, no extra text):
     def _format_skill_plan_message(self, career_title: str, skill_plan: Dict[str, Any]) -> str:
         """
         Format the complete skill development plan into a detailed, readable message.
-        Shows all technical skills, soft skills, learning phases, and certifications.
+        Uses the raw_plan (LLM-generated markdown) which includes all sections:
+        - Technical Skills (Core, Advanced, Tools)
+        - Soft Skills
+        - Learning Phases (Foundation, Intermediate, Advanced)
+        - Certifications
+        - Learning Resources
         """
+        # DEBUG LOGGING
         if not skill_plan:
+            self.logger.warning(f"⚠️ Skill plan is None or empty for {career_title}")
             return f"🎯 **Skill Development Plan for {career_title}**\n\nDetailed plan is being generated..."
 
+        self.logger.info(f"🔍 Formatting skill plan for {career_title}")
+        self.logger.info(f"   Skill plan keys: {list(skill_plan.keys())}")
+
+        # Use the raw_plan directly - it contains the complete, formatted response from the LLM
+        raw_plan = skill_plan.get("raw_plan", "")
+
+        # DEBUG LOGGING
+        if raw_plan:
+            self.logger.info(f"   ✅ raw_plan found: {len(raw_plan)} characters")
+        else:
+            self.logger.warning(f"   ⚠️ raw_plan is empty or missing, using fallback formatting")
+
+        if raw_plan:
+            # Add header and return the complete plan
+            message_parts = []
+            message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**")
+            message_parts.append("")
+            message_parts.append(raw_plan)
+            formatted_message = "\n".join(message_parts)
+            self.logger.info(f"   📝 Formatted skill message: {len(formatted_message)} characters")
+            return formatted_message
+
+        # Fallback: Use structured extraction if raw_plan is not available
         message_parts = []
         message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**")
         message_parts.append("")  # Blank line after title
@@ -1596,7 +1655,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             message_parts.append(f"⏱️ **Estimated Timeline:** {total_time}")
             message_parts.append("")
 
-        return "\n".join(message_parts)
+        fallback_message = "\n".join(message_parts)
+        self.logger.info(f"   📝 Formatted skill message (FALLBACK): {len(fallback_message)} characters")
+        return fallback_message
 
     # Include original batch processing methods for backward compatibility
     def _handle_student_request(self, state: AgentState) -> TaskResult:
@@ -1658,9 +1719,14 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         )
 
     # Public interface methods for interactive sessions
-    def start_interactive_career_planning(self, student_request: str, session_id: Optional[str] = None) -> AgentState:
+    def start_interactive_career_planning(self, student_request: str, session_id: Optional[str] = None, language: str = "en") -> AgentState:
         """
         Start an interactive career planning session.
+
+        Args:
+            student_request: Initial user request
+            session_id: Optional session ID
+            language: User's preferred language ("en" or "si")
         """
         if not session_id:
             session_id = f"interactive_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -1672,15 +1738,21 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             timestamp=datetime.now().isoformat(),
             interaction_mode="interactive",
             awaiting_user_response=False,
+            preferred_language=language,
             messages=[HumanMessage(content=student_request)]
         )
 
         self.logger.info(f"🚀 Starting interactive career planning session: {session_id}")
         return initial_state
 
-    async def process_user_response(self, session_id: str, user_response: str) -> TaskResult:
+    async def process_user_response(self, session_id: str, user_response: str, language: str = "en") -> TaskResult:
         """
         Process a user response for an active session.
+
+        Args:
+            session_id: Session identifier
+            user_response: User's response text
+            language: User's preferred language ("en" or "si")
         """
         if session_id not in self.session_states:
             return self._create_task_result(
@@ -1692,6 +1764,11 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         session_state = self.session_states[session_id]
         session_state.pending_user_response = user_response
         session_state.response_processed = False
+        session_state.preferred_language = language  # Update language preference
+
+        # Update session language if session exists
+        if session_id in self.active_sessions:
+            self.active_sessions[session_id]["language"] = language
 
         return await self.process_task(session_state)
 

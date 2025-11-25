@@ -185,11 +185,15 @@ Thumbs.db
 data/raw/
 data/processed/
 *.csv
-*.json
-*.xlsx
+# *.json - REMOVED: This was ignoring ALL json files including package.json, tsconfig.json, etc.
+# Only ignore specific json files with sensitive data:
+secrets.json
+# *.xlsx
 
-# Output files
-outputs/
+# Output files - Only ignore generated outputs, not the directory structure
+outputs/*.txt
+outputs/*.csv
+outputs/*.json
 results/
 reports/
 
@@ -203,7 +207,7 @@ reports/
 .env.local
 .env.production
 secrets.json
-config.json
+# config.json - REMOVED: Allow config files, only ignore files with actual secrets
 
 # Specific file mentioned by user
 agent_supervisor.md

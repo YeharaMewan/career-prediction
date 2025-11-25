@@ -1,0 +1,218 @@
+{
+  "universities": {
+    "public": [
+      {
+        "name": "University of Colombo",
+        "type": "Public University",
+        "location": "Colombo",
+        "specializations": ["Arts", "Science", "Management", "Law", "Medicine"],
+        "website": "https://cmb.ac.lk",
+        "admission": "Z-score based (A/L results)"
+      },
+      {
+        "name": "University of Peradeniya",
+        "type": "Public University",
+        "location": "Kandy",
+        "specializations": ["Engineering", "Science", "Arts", "Agriculture", "Medicine"],
+        "website": "https://pdn.ac.lk",
+        "admission": "Z-score based"
+      },
+      {
+        "name": "University of Moratuwa",
+        "type": "Public University",
+        "location": "Moratuwa",
+        "specializations": ["Engineering", "IT", "Architecture", "Business"],
+        "website": "https://uom.lk",
+        "admission": "Z-score based"
+      },
+      {
+        "name": "University of Sri Jayewardenepura",
+        "type": "Public University",
+        "location": "Nugegoda",
+        "specializations": ["Management", "Science", "Humanities", "Medical Sciences"],
+        "website": "https://sjp.ac.lk",
+        "admission": "Z-score based"
+      },
+      {
+        "name": "University of Kelaniya",
+        "type": "Public University",
+        "location": "Kelaniya",
+        "specializations": ["Humanities", "Science", "Commerce", "Medicine"],
+        "website": "https://kln.ac.lk",
+        "admission": "Z-score based"
+      },
+      {
+        "name": "University of Ruhuna",
+        "type": "Public University",
+        "location": "Matara",
+        "specializations": ["Engineering", "Science", "Humanities", "Medicine", "Agriculture"],
+        "website": "https://ruh.ac.lk",
+        "admission": "Z-score based"
+      }
+    ],
+    "private": [
+      {
+        "name": "SLIIT (Sri Lanka Institute of Information Technology)",
+        "type": "Private Institution",
+        "location": "Malabe",
+        "specializations": ["IT", "Engineering", "Business"],
+        "website": "https://sliit.lk",
+        "admission": "Application + interview"
+      },
+      {
+        "name": "NSBM Green University",
+        "type": "Private University",
+        "location": "Homagama",
+        "specializations": ["Business", "Computing", "Engineering"],
+        "website": "https://nsbm.ac.lk",
+        "admission": "Application based"
+      },
+      {
+        "name": "IIT (Informatics Institute of Technology)",
+        "type": "Private Institution",
+        "location": "Colombo",
+        "specializations": ["IT", "Engineering", "Business"],
+        "website": "https://iit.ac.lk",
+        "admission": "Application based"
+      }
+    ]
+  },
+
+  "technical_colleges": [
+    {
+      "name": "Ceylon German Technical Training Institute",
+      "type": "Technical College",
+      "location": "Moratuwa",
+      "programs": ["Engineering", "Automotive", "Mechatronics"],
+      "website": "https://cgtti.edu.lk",
+      "duration": "2-3 years"
+    },
+    {
+      "name": "National Apprentice and Industrial Training Authority (NAITA)",
+      "type": "Vocational Training",
+      "location": "Multiple locations",
+      "programs": ["Technical trades", "Construction", "Manufacturing"],
+      "website": "https://naita.gov.lk",
+      "duration": "1-2 years"
+    }
+  ],
+
+  "online_platforms": [
+    {
+      "name": "Open University of Sri Lanka",
+      "type": "Distance Learning",
+      "location": "Nugegoda",
+      "programs": ["Various degrees and diplomas"],
+      "website": "https://ou.ac.lk",
+      "format": "Online + study centers"
+    }
+  ],
+
+  "international_pathways": {
+    "scholarships": [
+      {
+        "name": "Commonwealth Scholarships",
+        "countries": ["UK", "Canada", "Australia"],
+        "level": "Masters, PhD",
+        "website": "https://cscuk.fcdo.gov.uk"
+      },
+      {
+        "name": "Chevening Scholarships",
+        "countries": ["UK"],
+        "level": "Masters",
+        "website": "https://www.chevening.org"
+      },
+      {
+        "name": "Fulbright Program",
+        "countries": ["USA"],
+        "level": "Masters, PhD, Research",
+        "website": "https://foreign.fulbrightonline.org"
+      }
+    ],
+    "popular_destinations": [
+      {
+        "country": "UK",
+        "benefits": "Strong education system, 1-year Masters programs",
+        "requirements": "IELTS 6.5+, Bachelor's degree"
+      },
+      {
+        "country": "Australia",
+        "benefits": "Work opportunities, immigration pathways",
+        "requirements": "IELTS 6.5+, Bachelor's degree"
+      },
+      {
+        "country": "USA",
+        "benefits": "Top universities, research opportunities",
+        "requirements": "TOEFL/IELTS, GRE, Bachelor's degree"
+      },
+      {
+        "country": "Canada",
+        "benefits": "Immigration-friendly, affordable education",
+        "requirements": "IELTS 6.5+, Bachelor's degree"
+      }
+    ]
+  },
+
+  "vocational_training": [
+    {
+      "name": "Tertiary and Vocational Education Commission (TVEC)",
+      "type": "Vocational Training Authority",
+      "programs": ["Various vocational courses"],
+      "website": "https://tvec.gov.lk"
+    },
+    {
+      "name": "National Youth Services Council",
+      "type": "Youth Training",
+      "programs": ["Entrepreneurship", "Skills training"],
+      "website": "https://nysc.gov.lk"
+    }
+  ],
+
+  "career_level_requirements": {
+    "o_level": {
+      "description": "Completed O/L, exploring options",
+      "next_steps": ["A/L selection", "Vocational training", "Diplomas"]
+    },
+    "a_level": {
+      "description": "Completed A/L, awaiting results",
+      "next_steps": ["University (Z-score based)", "Private institutions", "Foreign universities"]
+    },
+    "diploma": {
+      "description": "Diploma/HND holder",
+      "next_steps": ["Bachelor's (advanced standing)", "Employment", "Specialized certifications"]
+    },
+    "bachelors": {
+      "description": "Bachelor's degree completed",
+      "next_steps": ["Masters", "Professional certifications", "Employment"]
+    },
+    "masters": {
+      "description": "Masters degree completed",
+      "next_steps": ["PhD", "Senior positions", "Specialization"]
+    }
+  },
+
+  "admission_requirements": {
+    "public_university": {
+      "requirement": "A/L Z-score (varies by program)",
+      "documents": ["A/L results", "O/L results", "Application form"],
+      "process": "Central admission via UGC"
+    },
+    "private_institution": {
+      "requirement": "A/L pass or equivalent",
+      "documents": ["Academic transcripts", "English proficiency", "Application form"],
+      "process": "Direct application to institution"
+    },
+    "international": {
+      "requirement": "Bachelor's degree + English proficiency",
+      "documents": ["Degree certificates", "Transcripts", "IELTS/TOEFL", "LOR", "SOP"],
+      "process": "Direct application + visa"
+    }
+  },
+
+  "notes": {
+    "purpose": "This file contains Sri Lankan education system data to avoid including it in every prompt",
+    "usage": "Load once at agent initialization, reference as needed",
+    "token_savings": "~300 tokens per prompt by externalizing this data",
+    "last_updated": "2025"
+  }
+}

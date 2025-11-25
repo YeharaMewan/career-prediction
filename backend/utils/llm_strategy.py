@@ -485,3 +485,19 @@ class LLMStrategyWrapper:
             stats.update(self.strategy.get_stats())
 
         return stats
+
+    def __getattr__(self, name):
+        """
+        Delegate all non-explicitly-defined methods to the underlying LLM.
+
+        This preserves compatibility with LangChain's full API surface
+        (bind_tools, stream, ainvoke, with_structured_output, etc.)
+        while maintaining custom fallback logic in invoke().
+
+        Args:
+            name: The attribute/method name being accessed
+
+        Returns:
+            The attribute/method from the underlying LLM instance
+        """
+        return getattr(self.llm, name)

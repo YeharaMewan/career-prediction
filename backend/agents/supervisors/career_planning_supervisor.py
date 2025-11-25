@@ -324,6 +324,21 @@ You coordinate these agents to deliver a complete career preparation package."""
         self.logger.info(f"   📚 Academic Pathway: {'✅ Success' if academic_result.success else '❌ Failed'}")
         self.logger.info(f"   🎯 Skill Development: {'✅ Success' if skill_result.success else '❌ Failed'}")
 
+        # Log result data details for debugging
+        if academic_result.result_data:
+            academic_keys = list(academic_result.result_data.keys())
+            self.logger.info(f"   📚 Academic result keys: {academic_keys}")
+            if 'raw_plan' in academic_result.result_data:
+                raw_plan_len = len(str(academic_result.result_data.get('raw_plan', '')))
+                self.logger.info(f"   📚 Academic raw_plan length: {raw_plan_len} chars")
+
+        if skill_result.result_data:
+            skill_keys = list(skill_result.result_data.keys())
+            self.logger.info(f"   🎯 Skill result keys: {skill_keys}")
+            if 'raw_plan' in skill_result.result_data:
+                raw_plan_len = len(str(skill_result.result_data.get('raw_plan', '')))
+                self.logger.info(f"   🎯 Skill raw_plan length: {raw_plan_len} chars")
+
         # Return in ORDERED sequence: Academic first, then Skill
         # This guarantees message delivery order to the user
         return academic_result, skill_result

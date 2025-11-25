@@ -178,10 +178,15 @@ class ChatMessage(BaseModel):
 
 class UserResponse(BaseModel):
     response: str
+    language: Optional[str] = "en"  # User's preferred language (en/si)
 
 class SessionStartRequest(BaseModel):
     initial_message: str
     mode: str = "interactive"  # "interactive" or "batch"
+    language: str = "en"  # User's preferred language (en/si)
+
+class SessionInitializeRequest(BaseModel):
+    language: str = "en"  # User's preferred language (en/si)
 
 class HealthResponse(BaseModel):
     status: str
@@ -269,6 +274,12 @@ def validate_and_clean_response_fields(result_data: Dict[str, Any]) -> Dict[str,
             elif value:  # Non-string, non-None value
                 logger.warning(f"Field '{field}' has unexpected type: {type(value)}")
                 cleaned_data[field] = str(value).strip()
+
+    # Log message lengths for debugging
+    if 'academic_message' in cleaned_data and cleaned_data['academic_message']:
+        logger.info(f"📚 API Response - Academic message: {len(cleaned_data['academic_message'])} chars")
+    if 'skill_message' in cleaned_data and cleaned_data['skill_message']:
+        logger.info(f"🎯 API Response - Skill message: {len(cleaned_data['skill_message'])} chars")
 
     return cleaned_data
 
@@ -529,7 +540,7 @@ async def get_career_plans(session_id: str):
 # Interactive Conversation Endpoints
 
 @app.post("/session/initialize", response_model=InteractiveResponse)
-async def initialize_agent_session():
+async def initialize_agent_session(request: SessionInitializeRequest):
     """Initialize a new agent-initiated career prediction session"""
     if not main_supervisor:
         raise HTTPException(status_code=503, detail="Main supervisor not available")
@@ -538,11 +549,16 @@ async def initialize_agent_session():
         # Generate session ID
         session_id = f"agent_init_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Start agent-initiated session with minimal user request
+        # Start agent-initiated session with minimal user request and language
         initial_state = main_supervisor.start_interactive_career_planning(
             student_request="I want career help",  # Minimal trigger
-            session_id=session_id
+            session_id=session_id,
+            language=request.language
         )
+
+        # Store language in session
+        if session_id in main_supervisor.active_sessions:
+            main_supervisor.active_sessions[session_id]["language"] = request.language
 
         # Process the initial state to get the agent's first greeting
         result = await main_supervisor.process_task(initial_state)
@@ -580,11 +596,16 @@ async def start_interactive_session(request: SessionStartRequest):
         # Generate session ID
         session_id = f"interactive_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Start interactive session
+        # Start interactive session with language
         initial_state = main_supervisor.start_interactive_career_planning(
             student_request=request.initial_message,
-            session_id=session_id
+            session_id=session_id,
+            language=request.language
         )
+
+        # Store language in session
+        if session_id in main_supervisor.active_sessions:
+            main_supervisor.active_sessions[session_id]["language"] = request.language
 
         # Process the initial state to get the first question
         result = await main_supervisor.process_task(initial_state)
@@ -619,8 +640,19 @@ async def send_user_response(session_id: str, user_response: UserResponse):
         raise HTTPException(status_code=503, detail="Main supervisor not available")
 
     try:
-        # Process user response
-        result = await main_supervisor.process_user_response(session_id, user_response.response)
+        # Get current or provided language
+        current_language = user_response.language or "en"
+
+        # Update session language if changed
+        if session_id in main_supervisor.active_sessions:
+            main_supervisor.active_sessions[session_id]["language"] = current_language
+
+        # Process user response with language
+        result = await main_supervisor.process_user_response(
+            session_id,
+            user_response.response,
+            language=current_language
+        )
 
         if result and hasattr(result, 'success') and result.success:
             result_data = result.result_data or {}
@@ -641,8 +673,6 @@ async def send_user_response(session_id: str, user_response: UserResponse):
                     career_predictions=cleaned_data.get("career_predictions"),
                     # Career planning results
                     career_title=cleaned_data.get("career_title"),
-                    academic_plan=cleaned_data.get("academic_plan"),
-                    skill_plan=cleaned_data.get("skill_plan"),
                     academic_message=cleaned_data.get("academic_message"),
                     skill_message=cleaned_data.get("skill_message"),
                     message=cleaned_data.get("message")
@@ -711,6 +741,37 @@ async def end_session(session_id: str):
 
     except Exception as e:
         logger.error(f"Error ending session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/sessions/{session_id}/language")
+async def update_session_language(session_id: str, request: Dict[str, Any]):
+    """Update language preference for active session"""
+    if not main_supervisor:
+        raise HTTPException(status_code=503, detail="Main supervisor not available")
+
+    try:
+        language = request.get("language", "en")
+
+        # Validate language
+        if language not in ["en", "si"]:
+            raise HTTPException(status_code=400, detail="Invalid language. Must be 'en' or 'si'")
+
+        # Update session
+        if session_id in main_supervisor.active_sessions:
+            main_supervisor.active_sessions[session_id]["language"] = language
+
+            # Update state if exists
+            if hasattr(main_supervisor, 'session_states') and session_id in main_supervisor.session_states:
+                main_supervisor.session_states[session_id].preferred_language = language
+
+            return {"success": True, "language": language}
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating language: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sessions")
