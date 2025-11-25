@@ -5,6 +5,7 @@ import type { Message } from "../types/chat";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import LanguageToggle from "./LanguageToggle";
 
 // Helper function to remove "undefined" text from messages (final safety net)
 const cleanUndefinedText = (text: string): string => {
@@ -27,6 +28,11 @@ const PreviewUseAutoScroll = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
 
+  // Language state with localStorage persistence
+  const [language, setLanguage] = useState<"en" | "si">(() => {
+    return (localStorage.getItem("preferredLanguage") as "en" | "si") || "en";
+  });
+
   const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -35,7 +41,7 @@ const PreviewUseAutoScroll = () => {
     const initializeChat = async () => {
       try {
         setIsLoading(true);
-        const response = await apiService.initializeSession();
+        const response = await apiService.initializeSession(language);
         setSessionId(response.session_id);
 
         // Add the agent's initial question
@@ -58,7 +64,7 @@ const PreviewUseAutoScroll = () => {
     initializeChat();
   }, []);
 
-  const typeOutMessage = (text: string) => {
+  const typeOutMessage = (text: string, onComplete?: () => void) => {
     // Clean any "undefined" text as a final safety net
     const cleanedText = cleanUndefinedText(text);
 
@@ -87,6 +93,10 @@ const PreviewUseAutoScroll = () => {
         if (typingIntervalRef.current) {
           clearInterval(typingIntervalRef.current);
           typingIntervalRef.current = null;
+        }
+        // Call the completion callback if provided
+        if (onComplete) {
+          onComplete();
         }
         return;
       }
@@ -134,6 +144,19 @@ const PreviewUseAutoScroll = () => {
     textarea.style.height = `${newHeight}px`;
   }, [input]);
 
+  // Handle language change
+  const handleLanguageChange = (newLang: "en" | "si") => {
+    setLanguage(newLang);
+    localStorage.setItem("preferredLanguage", newLang);
+
+    // Update backend session if exists
+    if (sessionId) {
+      apiService.updateLanguage(sessionId, newLang).catch((err) => {
+        console.error("Failed to update language:", err);
+      });
+    }
+  };
+
   const sendMessage = async () => {
     const trimmedInput = input.trim();
     if (trimmedInput === "" || isLoading) {
@@ -161,8 +184,8 @@ const PreviewUseAutoScroll = () => {
         response = await apiService.startSession(trimmedInput);
         setSessionId(response.session_id);
       } else {
-        // Send response to existing session
-        response = await apiService.sendResponse(sessionId, trimmedInput);
+        // Send response to existing session with language
+        response = await apiService.sendResponse(sessionId, trimmedInput, language);
       }
 
       // Helper function to calculate typing duration based on word count
@@ -204,22 +227,34 @@ const PreviewUseAutoScroll = () => {
           delay += calculateTypingDuration(fullPredictionsText);
         }
 
-        // CRITICAL FIX: Show academic_message with proper timing to prevent overlap
-        if (response.academic_message) {
-          const academicMsg = response.academic_message; // Type narrowed to string
+        // CRITICAL FIX: Show academic_message FIRST, then skill_message AFTER it completes
+        // Using callback chaining to ensure proper sequential order and prevent truncation
+        if (response.academic_message && response.skill_message) {
+          const academicMsg = response.academic_message;
+          const skillMsg = response.skill_message;
+
+          // Start academic message after calculated delay
+          setTimeout(() => {
+            // Type academic message, and when it completes, start skill message
+            typeOutMessage(academicMsg, () => {
+              // Academic is complete, now start skill message
+              setTimeout(() => {
+                typeOutMessage(skillMsg);
+              }, 1000); // 1 second delay between messages for better UX
+            });
+          }, delay);
+        } else if (response.academic_message) {
+          // Only academic message available
+          const academicMsg = response.academic_message;
           setTimeout(() => {
             typeOutMessage(academicMsg);
           }, delay);
-          delay += calculateTypingDuration(academicMsg);
-        }
-
-        // CRITICAL FIX: Show skill_message AFTER academic finishes
-        if (response.skill_message) {
-          const skillMsg = response.skill_message; // Type narrowed to string
+        } else if (response.skill_message) {
+          // Only skill message available
+          const skillMsg = response.skill_message;
           setTimeout(() => {
             typeOutMessage(skillMsg);
           }, delay);
-          // No need to update delay after last message
         }
       } else if (response.question) {
         // Agent asked a follow-up question
@@ -270,40 +305,49 @@ const PreviewUseAutoScroll = () => {
   }, [sessionId]);
 
   return (
-    <div className="mx-auto flex h-[70vh] w-full flex-col rounded-xl border border-neutral-400/20 bg-neutral-800 p-4 text-white">
-      {/* Error message */}
-      {error && (
-        <div className="mb-2 rounded-md border border-red-500/50 bg-red-500/10 p-2 text-sm text-red-400">
-          {error}
+    <>
+      {/* Language Toggle - positioned in page background */}
+      <LanguageToggle
+        currentLanguage={language}
+        onLanguageChange={handleLanguageChange}
+      />
+
+      {/* Chat Interface */}
+      <div className="mx-auto flex h-[70vh] w-full flex-col rounded-xl border border-neutral-400/20 bg-neutral-800 p-4 text-white">
+        {/* Error message */}
+        {error && (
+          <div className="mb-2 rounded-md border border-red-500/50 bg-red-500/10 p-2 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* Message list expands to fill available space */}
+        <MessageList messages={messages} isLoading={isLoading} />
+
+        {/* Input stays pinned at bottom */}
+        <div className="mt-auto flex items-end space-x-2 pt-2">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder={isLoading ? "Waiting for response..." : "Type your message..."}
+            disabled={isLoading || isCompleted}
+            rows={1}
+            className="font-fredoka w-full rounded-lg border border-neutral-400/20 bg-neutral-400/20 p-3 text-white placeholder:text-white disabled:opacity-50 resize-none overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-neutral-700/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-500/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-neutral-400/70"
+            style={{ minHeight: '48px', maxHeight: '192px' }}
+          />
+          <button
+            type="button"
+            onClick={sendMessage}
+            disabled={isLoading || isCompleted || !input.trim()}
+            className="font-fredoka rounded-lg border border-neutral-400/20 bg-neutral-400/20 px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed h-[48px]"
+          >
+            {isLoading ? "..." : "Send"}
+          </button>
         </div>
-      )}
-
-      {/* Message list expands to fill available space */}
-      <MessageList messages={messages} isLoading={isLoading} />
-
-      {/* Input stays pinned at bottom */}
-      <div className="mt-auto flex items-end space-x-2 pt-2">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyPress}
-          placeholder={isLoading ? "Waiting for response..." : "Type your message..."}
-          disabled={isLoading || isCompleted}
-          rows={1}
-          className="font-fredoka w-full rounded-lg border border-neutral-400/20 bg-neutral-400/20 p-3 text-white placeholder:text-white disabled:opacity-50 resize-none overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-neutral-700/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-500/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-neutral-400/70"
-          style={{ minHeight: '48px', maxHeight: '192px' }}
-        />
-        <button
-          type="button"
-          onClick={sendMessage}
-          disabled={isLoading || isCompleted || !input.trim()}
-          className="font-fredoka rounded-lg border border-neutral-400/20 bg-neutral-400/20 px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed h-[48px]"
-        >
-          {isLoading ? "..." : "Send"}
-        </button>
       </div>
-    </div>
+    </>
   );
 };
 

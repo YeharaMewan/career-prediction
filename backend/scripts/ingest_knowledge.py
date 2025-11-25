@@ -36,20 +36,30 @@ logger = logging.getLogger(__name__)
 class KnowledgeIngestionPipeline:
     """
     Complete pipeline for ingesting documents into RAG system.
+    Supports dual provider ingestion (OpenAI and Gemini).
     """
 
-    def __init__(self):
-        """Initialize all components."""
-        logger.info("Initializing Knowledge Ingestion Pipeline...")
+    def __init__(self, provider: str = "fallback"):
+        """
+        Initialize all components with specified provider.
 
+        Args:
+            provider: Embedding provider ("openai", "gemini", or "fallback")
+        """
+        logger.info(f"Initializing Knowledge Ingestion Pipeline (provider: {provider})...")
+
+        self.provider = provider
         self.doc_processor = DocumentProcessor()
-        self.embedding_manager = EmbeddingManager()
-        self.vector_store = VectorStoreManager()
+        self.embedding_manager = EmbeddingManager(provider=provider)
+        self.vector_store = VectorStoreManager(provider=provider)
 
         # Initialize collections
         self.vector_store.initialize_collections()
 
-        logger.info("Pipeline initialized successfully")
+        logger.info(
+            f"Pipeline initialized successfully "
+            f"[provider: {self.embedding_manager.get_active_provider()}]"
+        )
 
     def ingest_collection(
         self, data_dir: Path, collection_type: str, reset: bool = False
@@ -232,7 +242,13 @@ class KnowledgeIngestionPipeline:
 def main():
     """Main entry point for command-line usage."""
     parser = argparse.ArgumentParser(
-        description="Ingest PDF documents into RAG knowledge base"
+        description="Ingest PDF documents into RAG knowledge base with multi-provider support"
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["openai", "gemini", "fallback", "all"],
+        default="fallback",
+        help="Embedding provider (openai, gemini, fallback, or all for dual ingestion)",
     )
     parser.add_argument(
         "--collection",
@@ -254,25 +270,74 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Initialize pipeline
-        pipeline = KnowledgeIngestionPipeline()
+        # Handle dual provider ingestion
+        if args.provider == "all":
+            logger.info("\n" + "="*80)
+            logger.info("DUAL PROVIDER INGESTION (OpenAI + Gemini)")
+            logger.info("="*80 + "\n")
 
-        # Check status only
-        if args.status:
-            pipeline.check_status()
-            return
+            # Ingest with OpenAI
+            logger.info("\n>>> INGESTING TO OPENAI DATABASE <<<")
+            pipeline_openai = KnowledgeIngestionPipeline(provider="openai")
+            if args.collection == "all":
+                results_openai = pipeline_openai.ingest_all(reset=args.reset)
+            elif args.collection == "academic":
+                results_openai = pipeline_openai.ingest_collection(
+                    ACADEMIC_DATA_DIR, "academic", reset=args.reset
+                )
+            elif args.collection == "skill":
+                results_openai = pipeline_openai.ingest_collection(
+                    SKILL_DATA_DIR, "skill", reset=args.reset
+                )
 
-        # Ingest based on arguments
-        if args.collection == "all":
-            results = pipeline.ingest_all(reset=args.reset)
-        elif args.collection == "academic":
-            results = pipeline.ingest_collection(
-                ACADEMIC_DATA_DIR, "academic", reset=args.reset
-            )
-        elif args.collection == "skill":
-            results = pipeline.ingest_collection(
-                SKILL_DATA_DIR, "skill", reset=args.reset
-            )
+            # Ingest with Gemini
+            logger.info("\n>>> INGESTING TO GEMINI DATABASE <<<")
+            pipeline_gemini = KnowledgeIngestionPipeline(provider="gemini")
+            if args.collection == "all":
+                results_gemini = pipeline_gemini.ingest_all(reset=args.reset)
+            elif args.collection == "academic":
+                results_gemini = pipeline_gemini.ingest_collection(
+                    ACADEMIC_DATA_DIR, "academic", reset=args.reset
+                )
+            elif args.collection == "skill":
+                results_gemini = pipeline_gemini.ingest_collection(
+                    SKILL_DATA_DIR, "skill", reset=args.reset
+                )
+
+            # Combined summary
+            logger.info("\n" + "="*80)
+            logger.info("DUAL INGESTION COMPLETE")
+            logger.info("="*80)
+            logger.info("OpenAI Database:")
+            if isinstance(results_openai, dict) and "summary" in results_openai:
+                logger.info(f"  Total documents: {results_openai['summary']['total_in_database']}")
+                logger.info(f"  Total cost: ${results_openai['summary']['total_cost_usd']:.4f}")
+            logger.info("\nGemini Database:")
+            if isinstance(results_gemini, dict) and "summary" in results_gemini:
+                logger.info(f"  Total documents: {results_gemini['summary']['total_in_database']}")
+                logger.info(f"  Total cost: ${results_gemini['summary']['total_cost_usd']:.6f}")
+            logger.info("="*80 + "\n")
+
+        else:
+            # Single provider ingestion
+            pipeline = KnowledgeIngestionPipeline(provider=args.provider)
+
+            # Check status only
+            if args.status:
+                pipeline.check_status()
+                return
+
+            # Ingest based on arguments
+            if args.collection == "all":
+                results = pipeline.ingest_all(reset=args.reset)
+            elif args.collection == "academic":
+                results = pipeline.ingest_collection(
+                    ACADEMIC_DATA_DIR, "academic", reset=args.reset
+                )
+            elif args.collection == "skill":
+                results = pipeline.ingest_collection(
+                    SKILL_DATA_DIR, "skill", reset=args.reset
+                )
 
         logger.info("✓ Ingestion completed successfully")
 

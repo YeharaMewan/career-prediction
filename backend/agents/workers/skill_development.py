@@ -59,6 +59,7 @@ class SkillDevelopmentAgent(WorkerAgent):
         try:
             self.rag_retriever = AgenticRAGRetriever(
                 collection_type="skill",
+                provider="fallback",  # Automatically switches with LLM fallback
                 similarity_threshold=0.35,
                 top_k=10
             )
@@ -495,11 +496,12 @@ from their current state to career readiness. Be comprehensive yet realistic."""
             career_title = career_info.get("title")
             self.logger.info(f"Creating skill development plan for: {career_title}")
 
-            # Create skill development plan (async call)
+            # Create skill development plan (async call) with language support
             skill_plan = await self._create_skill_development_plan(
                 career_title=career_title,
                 career_description=career_info.get("description"),
-                student_profile=state.student_profile
+                student_profile=state.student_profile,
+                language=state.preferred_language or "en"
             )
 
             # Update the career blueprint with skill plan
@@ -580,7 +582,8 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         self,
         career_title: str,
         career_description: Optional[str] = None,
-        student_profile: Optional[Any] = None
+        student_profile: Optional[Any] = None,
+        language: str = "en"
     ) -> Dict[str, Any]:
         """
         Create comprehensive skill development plan using LLM.
@@ -589,7 +592,7 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         """
         # Build prompt with career details and student context
         prompt = self._build_skill_planning_prompt(
-            career_title, career_description, student_profile
+            career_title, career_description, student_profile, language
         )
 
         # Invoke LLM with structured output request (async)
@@ -604,9 +607,13 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         self,
         career_title: str,
         career_description: Optional[str],
-        student_profile: Optional[Any]
+        student_profile: Optional[Any],
+        language: str = "en"
     ) -> str:
         """Build comprehensive prompt for skill planning with RAG and web search results."""
+
+        # Import language helper
+        from utils.prompt_templates import get_language_instruction
 
         # Perform RAG retrieval from knowledge base
         rag_context = ""
@@ -632,8 +639,13 @@ from their current state to career readiness. Be comprehensive yet realistic."""
         job_requirements_info = self._search_job_requirements(career_title)
         learning_platforms_info = self._search_learning_platforms(career_title)
 
+        # Get language instruction
+        language_instruction = ""
+        if language != "en":
+            language_instruction = get_language_instruction(language, "skill_development") + "\n\n"
+
         prompt_parts = [
-            f"Create a comprehensive skill development roadmap for: {career_title}",
+            language_instruction + f"Create a comprehensive skill development roadmap for: {career_title}",
             ""
         ]
 
@@ -695,69 +707,151 @@ from their current state to career readiness. Be comprehensive yet realistic."""
             "- Include actual course names, platforms, URLs, and current information",
             "- Reference specific certifications found in searches with costs and providers",
             "- Use skill trends from job market to prioritize skills",
+            "- Follow the MARKDOWN FORMAT structure below exactly",
             "",
-            "REQUIRED OUTPUT:",
+            "OUTPUT FORMAT - Write a detailed, well-structured skill development plan with clear markdown headings:",
             "",
-            "1. TECHNICAL SKILLS BREAKDOWN:",
-            "   [Use skill trends and job requirements from search results]",
-            "   - Core Technical Skills (5-7 must-have foundational skills from job requirements)",
-            "   - Advanced Technical Skills (4-6 career progression skills from trends)",
-            "   - Tools & Technologies (specific tools mentioned in search results)",
+            "## 1. TECHNICAL SKILLS BREAKDOWN",
             "",
-            "2. SOFT SKILLS:",
-            "   [Use job requirements from search results]",
-            "   - Essential soft skills (top 5 from job postings)",
-            "   - Recommended soft skills (additional 3-5)",
+            "### Core Skills",
+            "List 5-7 must-have foundational skills from job requirements:",
+            "- [Skill 1]",
+            "- [Skill 2]",
+            "- [Skill 3]",
             "",
-            "3. LEARNING PHASES (Progressive roadmap with REAL resources):",
+            "### Advanced Skills",
+            "List 4-6 career progression skills from trends:",
+            "- [Skill 1]",
+            "- [Skill 2]",
             "",
-            "   PHASE 1 - FOUNDATION (0-6 months):",
-            "   - Skills to focus on (from job requirements)",
-            "   - Specific learning resources from search results (course names, URLs, platforms)",
-            "   - Milestones to achieve",
-            "   - Estimated time investment",
+            "### Tools & Technologies",
+            "List specific tools mentioned in search results:",
+            "- [Tool 1]",
+            "- [Tool 2]",
             "",
-            "   PHASE 2 - INTERMEDIATE (6-18 months):",
-            "   - Skills to focus on (from trends)",
-            "   - Specific learning resources from search results with URLs",
-            "   - Project-based learning suggestions",
-            "   - Milestones to achieve",
+            "## 2. SOFT SKILLS REQUIRED",
             "",
-            "   PHASE 3 - ADVANCED (18-36 months):",
-            "   - Skills to focus on (emerging trends)",
-            "   - Advanced resources from search results",
-            "   - Industry recognition opportunities",
-            "   - Milestones to achieve",
+            "### Essential Skills",
+            "Top 5 soft skills from job postings:",
+            "- [Skill 1]",
+            "- [Skill 2]",
             "",
-            "4. CERTIFICATIONS:",
-            "   [Use certifications from search results]",
-            "   - Specific certification names from search results",
-            "   - Priority order (most important first based on trends)",
-            "   - Actual cost and time investment from search results",
-            "   - Providers and URLs",
+            "### Recommended Skills",
+            "Additional 3-5 valuable soft skills:",
+            "- [Skill 1]",
+            "- [Skill 2]",
             "",
-            "5. LEARNING RESOURCES:",
-            "   [Use courses and platforms from search results]",
-            "   - Specific online course names with URLs (Coursera, Udemy, etc.)",
-            "   - Books mentioned in search results (top 3-5)",
-            "   - Specific practice platforms from search results",
-            "   - Communities mentioned in search results",
+            "## 3. LEARNING ROADMAP",
             "",
-            "6. SUCCESS METRICS:",
-            "   - How to measure progress based on industry standards",
-            "   - Portfolio/project suggestions aligned with job requirements",
-            "   - Skill assessment methods",
+            "### Phase 1: Foundation (0-6 months)",
+            "**Skills Focus:**",
+            "- [Skill 1]",
+            "- [Skill 2]",
             "",
-            "Make the plan:",
-            "1. USE THE WEB SEARCH RESULTS - Include specific names, URLs, and current information",
-            "2. Specific and actionable with real courses and certifications",
-            "3. Realistic with achievable timelines",
-            "4. Progressive (beginner → advanced) based on actual skill requirements",
-            "5. Resource-rich with concrete recommendations from search results",
-            "6. Measurable with clear milestones",
-            "7. Aligned with current job market demands from search results",
+            "**Learning Resources:**",
+            "- **[Course Name]** - [Platform]",
+            "  - URL: [actual URL from search results]",
+            "  - Cost: [price]",
+            "  - Duration: [time]",
             "",
-            "CRITICAL: Prioritize and reference the web search results provided above. Include real URLs, course names, certification programs, and current information."
+            "**Milestones:**",
+            "- [Milestone 1]",
+            "- [Milestone 2]",
+            "",
+            "**Time Investment:** [X hours per week]",
+            "",
+            "### Phase 2: Intermediate (6-18 months)",
+            "**Skills Focus:**",
+            "- [Skill 1]",
+            "- [Skill 2]",
+            "",
+            "**Learning Resources:**",
+            "- **[Course Name]** - [Platform]",
+            "  - URL: [actual URL]",
+            "  - Cost: [price]",
+            "",
+            "**Project-Based Learning:**",
+            "- [Project 1]",
+            "- [Project 2]",
+            "",
+            "**Milestones:**",
+            "- [Milestone 1]",
+            "- [Milestone 2]",
+            "",
+            "### Phase 3: Advanced (18-36 months)",
+            "**Skills Focus:**",
+            "- [Emerging skill 1]",
+            "- [Emerging skill 2]",
+            "",
+            "**Learning Resources:**",
+            "- **[Advanced Course]** - [Platform]",
+            "  - URL: [actual URL]",
+            "  - Cost: [price]",
+            "",
+            "**Industry Recognition:**",
+            "- [Opportunity 1]",
+            "- [Opportunity 2]",
+            "",
+            "**Milestones:**",
+            "- [Milestone 1]",
+            "- [Milestone 2]",
+            "",
+            "## 4. RECOMMENDED CERTIFICATIONS",
+            "",
+            "List certifications in priority order (most important first):",
+            "",
+            "1. **[Certification Name]**",
+            "   - Provider: [Organization]",
+            "   - Cost: [Amount]",
+            "   - Duration: [Time to complete]",
+            "   - URL: [Actual URL from search results]",
+            "",
+            "2. **[Certification Name]**",
+            "   - Provider: [Organization]",
+            "   - Cost: [Amount]",
+            "   - Duration: [Time]",
+            "   - URL: [URL]",
+            "",
+            "## 5. LEARNING RESOURCES",
+            "",
+            "### Online Courses",
+            "Specific courses with platforms and URLs:",
+            "- **[Course Name]** (Coursera/Udemy/etc.) - [URL]",
+            "- **[Course Name]** (Platform) - [URL]",
+            "",
+            "### Books",
+            "Top recommended books:",
+            "- [Book Title] by [Author]",
+            "- [Book Title] by [Author]",
+            "",
+            "### Practice Platforms",
+            "Hands-on learning platforms:",
+            "- [Platform Name]",
+            "- [Platform Name]",
+            "",
+            "### Communities",
+            "Professional communities and forums:",
+            "- [Community Name]",
+            "- [Forum/Group Name]",
+            "",
+            "## 6. SUCCESS METRICS & PORTFOLIO BUILDING",
+            "",
+            "### Progress Measurement",
+            "How to track your development:",
+            "- [Metric 1]",
+            "- [Metric 2]",
+            "",
+            "### Portfolio Suggestions",
+            "Projects to showcase your skills:",
+            "- [Project type 1]",
+            "- [Project type 2]",
+            "",
+            "### Skill Assessment",
+            "Methods to validate your skills:",
+            "- [Assessment method 1]",
+            "- [Assessment method 2]",
+            "",
+            "Write the complete skill development plan following this exact markdown structure. Use REAL course names, URLs, and current information from the web search results provided above."
         ])
         
         return "\n".join(prompt_parts)

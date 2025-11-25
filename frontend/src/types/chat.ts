@@ -8,10 +8,16 @@ export interface Message {
 export interface SessionStartRequest {
   initial_message: string;
   mode?: "interactive" | "batch";
+  language?: "en" | "si";  // User's preferred language
 }
 
 export interface UserResponse {
   response: string;
+  language?: "en" | "si";  // User's preferred language
+}
+
+export interface SessionInitializeRequest {
+  language?: "en" | "si";  // User's preferred language
 }
 
 export interface InteractiveResponse {

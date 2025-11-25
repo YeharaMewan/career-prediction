@@ -297,14 +297,23 @@ Remember: You're an adaptive counselor who helps students understand themselves 
     def _get_or_create_conversation_context(self, session_id: str, state: AgentState) -> ConversationContext:
         """Get existing conversation context or create new one."""
 
+        # Get language with null safety
+        language = "en"
+        if state and hasattr(state, 'preferred_language'):
+            language = state.preferred_language or "en"
+
         if session_id in self.active_sessions:
-            return self.active_sessions[session_id]
+            context = self.active_sessions[session_id]
+            # Update language if changed
+            context.session_metadata["language"] = language
+            return context
 
         # Create new conversation context
         context = create_initial_conversation_context()
         context.session_metadata["session_id"] = session_id
         context.session_metadata["created_at"] = datetime.now().isoformat()
         context.session_metadata["mode"] = "interactive"
+        context.session_metadata["language"] = language  # Store language
 
         self.active_sessions[session_id] = context
         return context
@@ -583,10 +592,11 @@ Remember: You're an adaptive counselor who helps students understand themselves 
         )
 
     # Public interface methods for interactive sessions
-    def start_interactive_session(self, session_id: str, initial_message: Optional[str] = None) -> TaskResult:
-        """Start a new interactive profiling session."""
+    def start_interactive_session(self, session_id: str, state: Optional[AgentState] = None) -> TaskResult:
+        """Start a new interactive profiling session with language context."""
 
-        context = self._get_or_create_conversation_context(session_id, None)
+        # Pass state to ensure language preference is preserved
+        context = self._get_or_create_conversation_context(session_id, state)
 
         # Generate greeting question
         return self._generate_next_question(context)

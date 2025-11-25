@@ -91,6 +91,7 @@ class AcademicPathwayAgent(WorkerAgent):
         try:
             self.rag_retriever = AgenticRAGRetriever(
                 collection_type="academic",
+                provider="fallback",  # Automatically switches with LLM fallback
                 similarity_threshold=0.35,
                 top_k=10
             )
@@ -555,12 +556,13 @@ class AcademicPathwayAgent(WorkerAgent):
             # Assess student's current level
             student_level_assessment = self._assess_student_level(state.student_profile)
 
-            # Create academic pathway plan (async call)
+            # Create academic pathway plan (async call) with language support
             academic_plan = await self._create_academic_pathway_plan(
                 career_title=career_title,
                 career_description=career_info.get("description"),
                 student_profile=state.student_profile,
-                student_level=student_level_assessment
+                student_level=student_level_assessment,
+                language=state.preferred_language or "en"
             )
 
             # Update the career blueprint with academic plan
@@ -693,7 +695,8 @@ class AcademicPathwayAgent(WorkerAgent):
         career_title: str,
         career_description: Optional[str] = None,
         student_profile: Optional[StudentProfile] = None,
-        student_level: Optional[Dict[str, Any]] = None
+        student_level: Optional[Dict[str, Any]] = None,
+        language: str = "en"
     ) -> Dict[str, Any]:
         """
         Create comprehensive academic pathway plan using LLM.
@@ -702,7 +705,7 @@ class AcademicPathwayAgent(WorkerAgent):
         """
         # Build prompt with career details and student context
         prompt = self._build_academic_planning_prompt(
-            career_title, career_description, student_profile, student_level
+            career_title, career_description, student_profile, student_level, language
         )
 
         # Invoke LLM with structured output request (async)
@@ -718,9 +721,13 @@ class AcademicPathwayAgent(WorkerAgent):
         career_title: str,
         career_description: Optional[str],
         student_profile: Optional[StudentProfile],
-        student_level: Optional[Dict[str, Any]]
+        student_level: Optional[Dict[str, Any]],
+        language: str = "en"
     ) -> str:
         """Build comprehensive prompt for academic pathway planning with RAG and web search results."""
+
+        # Import language helper
+        from utils.prompt_templates import get_language_instruction
 
         # Perform RAG retrieval from knowledge base
         rag_context = ""
@@ -733,9 +740,9 @@ class AcademicPathwayAgent(WorkerAgent):
             )
             if rag_state.context:
                 rag_context = rag_state.context
-                self.logger.info(f"RAG retrieved {len(rag_state.retrieved_documents)} relevant documents")
+                self.logger.info(f"✅ RAG retrieved {len(rag_state.retrieved_documents)} relevant documents, {len(rag_context)} chars of context")
             else:
-                self.logger.info("No relevant documents found in knowledge base")
+                self.logger.warning("⚠️ RAG retrieval returned no context - check vector database population")
 
         # Perform web searches for current information
         self.logger.info(f"Gathering real-time information for {career_title}")
@@ -748,8 +755,13 @@ class AcademicPathwayAgent(WorkerAgent):
         alternative_pathways_info = self._search_alternative_pathways(career_title)
         admission_requirements_info = self._search_admission_requirements(career_title)
 
+        # Get language instruction
+        language_instruction = ""
+        if language != "en":
+            language_instruction = get_language_instruction(language, "academic_pathway") + "\n\n"
+
         prompt_parts = [
-            f"Create a comprehensive academic pathway plan for: {career_title}",
+            language_instruction + f"Create a comprehensive academic pathway plan for: {career_title}",
             ""
         ]
 
@@ -822,20 +834,20 @@ class AcademicPathwayAgent(WorkerAgent):
         
         prompt_parts.extend([
             "IMPORTANT INSTRUCTIONS:",
+            "- **PRIORITIZE SRI LANKAN UNIVERSITIES** - Local options should be the most detailed and extensive",
             "- USE THE REAL-TIME WEB SEARCH RESULTS PROVIDED ABOVE",
+            "- USE THE KNOWLEDGE BASE (RAG) DATA - Extract Sri Lankan university information from the PDF documents provided",
             "- Include actual university names, programs, URLs, and current costs from search results",
             "- Reference specific scholarships and opportunities found in searches",
-            "- Follow the STRUCTURE: Local Pathways → International Pathways → Other Relevant Information",
-            "- Provide AT LEAST 5-8 specific institutions per category (Sri Lankan state, private, international)",
+            "- Follow the STRUCTURE: Local Pathways (MOST DETAILED) → International Pathways → Other Relevant Information",
+            "- Provide AT LEAST 5-8 specific Sri Lankan government universities AND 5-8 private universities",
+            "- Provide 3-5 international universities (as secondary options)",
             "- Include SPECIFIC degree program names (e.g., 'BSc (Hons) in Computer Science' not 'related degree')",
+            "- For Sri Lankan universities, include admission requirements, application deadlines, and specific program details",
             "",
             "OUTPUT FORMAT - Write a detailed, well-structured plan with clear section headings:",
             "",
-            "## 1. STUDENT ASSESSMENT",
-            "- **Current Level:** [Specify the student's level]",
-            "- **Timeline to Career:** [Realistic timeframe]",
-            "",
-            "## 2. LOCAL PATHWAYS (Sri Lankan Options)",
+            "## 1. LOCAL PATHWAYS (Sri Lankan Options)",
             "",
             "### A. GOVERNMENT UNIVERSITIES (FREE EDUCATION)",
             "List 5-8 government/state universities with specific programs:",
@@ -844,14 +856,11 @@ class AcademicPathwayAgent(WorkerAgent):
             "- **[University Name]** - [Specific Program Name]",
             "  - Program: [Full degree/diploma name]",
             "  - Duration: [X years]",
-            "  - Entry Requirements: [Z-score, A/L subjects]",
-            "  - Cost: LKR 30,000-100,000/year (registration fees only - FREE EDUCATION)",
-            "  - Application Period: [Specific months]",
+            "  - Entry Requirements: [A/L subjects and specific requirements]",
             "  - Website: [URL if available]",
             "",
             "### B. PRIVATE UNIVERSITIES (PAID EDUCATION)",
             "List 5-8 private institutions with specific programs:",
-            "**NOTE: For EACH private university, include a FINANCIAL PLANNING section.**",
             "",
             "- **[Institution Name]** - [Specific Program Name]",
             "  - Program: [Full degree/diploma name]",
@@ -861,14 +870,12 @@ class AcademicPathwayAgent(WorkerAgent):
             "  - Total Program Cost: LKR [amount] for [X] years",
             "  - International Partnerships: [Partner universities if any]",
             "  - Website: [URL if available]",
-            "  ",
-            "  **FINANCIAL PLANNING FOR [Institution Name]:**",
-            "  - Total Cost: LKR [total amount]",
-            "  - Payment Options: [Semester/annual installments]",
-            "  - Institution Scholarships: [Merit-based, need-based scholarships offered by this university]",
-            "  - Loan Options: [Bank loans, student financing available]",
-            "  - Part-time Work: [On-campus/nearby opportunities]",
             "",
+            "**FINANCIAL PLANNING FOR PRIVATE UNIVERSITIES:**",
+            "- Payment Options: Most private universities offer semester or annual installment plans",
+            "- Institution Scholarships: Merit-based and need-based scholarships available at most institutions",
+            "- Loan Options: Bank loans and student financing options available through major banks",
+            "- Part-time Work: Many institutions offer on-campus or nearby part-time work opportunities",
             "",
             "### C. PROFESSIONAL INSTITUTES",
             "List relevant professional certifications:",
@@ -878,7 +885,7 @@ class AcademicPathwayAgent(WorkerAgent):
             "  - Entry Requirements: [Requirements]",
             "  - Approximate Cost: [LKR amount]",
             "",
-            "## 3. INTERNATIONAL PATHWAY OPTIONS",
+            "## 2. INTERNATIONAL PATHWAY OPTIONS",
             "",
             "### United Kingdom",
             "List 3-5 universities:",
@@ -901,7 +908,7 @@ class AcademicPathwayAgent(WorkerAgent):
             "### Other Countries",
             "List options from Australia, Canada, Germany, or Singapore with similar details.",
             "",
-            "## 4. STEP-BY-STEP IMPLEMENTATION PLAN",
+            "## 3. STEP-BY-STEP IMPLEMENTATION PLAN",
             "",
             "### PHASE 1 - IMMEDIATE PREPARATION (Months 1-6)",
             "- [Specific action 1]",
@@ -918,31 +925,52 @@ class AcademicPathwayAgent(WorkerAgent):
             "- [Milestone 2]",
             "- [Milestone 3]",
             "",
-            "## 5. ALTERNATIVE PATHWAYS",
+            "## 4. ALTERNATIVE PATHWAYS",
             "- **Online Programs:** [List 2-3 specific online degree programs with names and providers]",
             "- **Bootcamps:** [List relevant bootcamps/intensive programs]",
             "- **Bridge Programs:** [List foundation/bridge courses]",
             "",
-            "## 6. IMMEDIATE NEXT STEPS",
-            "1. [Most urgent action with timeline]",
-            "2. [Second action with timeline]",
-            "3. [Third action with timeline]",
-            "4. [Fourth action]",
-            "5. [Fifth action]",
+            f"## 5. IMMEDIATE NEXT STEPS (For {student_level.get('description', 'Current Student') if student_level else 'Current Student'})",
             "",
-            "CRITICAL REQUIREMENTS:",
-            "1. USE WEB SEARCH RESULTS - Extract and include specific names, programs, and URLs",
-            "2. PROVIDE SPECIFIC DETAILS - No generic terms like 'related program' or 'various universities'",
-            "3. INCLUDE COSTS:",
-            "   - Government universities: LKR 30,000-100,000/year (FREE EDUCATION - registration fees only)",
-            "   - Private universities: Actual LKR amounts per year AND total program cost",
-            "4. FINANCIAL PLANNING - Include ONLY for PRIVATE universities (embedded in each private university listing)",
-            "5. NO GLOBAL FUNDING SECTION - Financial details are institution-specific for private universities",
-            "6. LOCAL FIRST - Prioritize Sri Lankan options with the most detail",
-            "7. MULTIPLE OPTIONS - At least 5-8 government universities AND 5-8 private universities",
-            "8. ACTIONABLE - Each step should be specific and executable",
+            "### A. REQUIRED EXAMS AND TESTS",
+            "List specific exams needed with registration timelines:",
+            "- **IELTS/TOEFL** (if applying internationally):",
+            "  - Registration: [Month/timeline]",
+            "  - Test dates: [Available dates]",
+            "  - Preparation time needed: 3-6 months",
+            "  - Cost: [LKR amount]",
+            "- **SAT/ACT** (for US universities):",
+            "  - Registration deadlines: [Dates]",
+            "  - Test dates: [Dates]",
+            "- **Local Entrance Exams** (Sri Lankan universities):",
+            "  - University-specific exams: [Names and dates]",
+            "  - Registration periods: [Timelines]",
             "",
-            "Write the complete plan following this exact structure."
+            "### B. DOCUMENT PREPARATION CHECKLIST",
+            "Essential documents to prepare now:",
+            "1. **Academic Transcripts**",
+            "   - Request certified copies from current institution",
+            "   - Timeline: 2-4 weeks processing",
+            "2. **Recommendation Letters**",
+            "   - Identify 2-3 teachers/supervisors",
+            "   - Request at least 1 month before deadline",
+            "3. **Personal Statement/Essay**",
+            "   - Draft and review (allow 3-4 weeks)",
+            "   - Specific to each university application",
+            "4. **Portfolio** (if applicable to {career_title})",
+            "   - Compile relevant projects and work samples",
+            "5. **Identification Documents**",
+            "   - Passport (if applying internationally)",
+            "   - National ID",
+            "   - Recent photographs",
+            "",
+            "### C. ACTION TIMELINE (Next 6 Months)",
+            "Month-by-month breakdown:",
+            "1. **Month 1-2:** [Specific actions based on student level]",
+            "2. **Month 3-4:** [Application preparation actions]",
+            "3. **Month 5-6:** [Final steps and submissions]",
+            "",
+            "Write the complete plan following this exact structure. Give maximum detail to Sri Lankan universities."
         ])
         
         return "\n".join(prompt_parts)

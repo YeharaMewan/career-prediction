@@ -8,8 +8,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-package-lock.json
-# yarn.lock - DO NOT EXCLUDE! Required for --frozen-lockfile in Dockerfile
+# package-lock.json - Keep this for npm consistency
+# yarn.lock - Keep this for yarn --frozen-lockfile in Dockerfile
 .pnpm-store
 
 # Build outputs - will be generated during build

@@ -20,10 +20,19 @@ import hashlib
 import json
 import yaml
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyMuPDFLoader
-from langchain.schema import Document
-from docx import Document as DocxDocument
+from langchain_core.documents import Document
+
+# Optional: python-docx for Word document support
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    DocxDocument = None
+    logger = logging.getLogger(__name__)
+    logger.warning("python-docx not installed. DOCX file support disabled.")
 
 from .config import (
     CHUNK_SIZE,
@@ -300,6 +309,11 @@ class DocumentProcessor:
         Returns:
             List of Document objects (one per paragraph or logical section)
         """
+        # Check if python-docx is available
+        if not DOCX_AVAILABLE:
+            logger.warning(f"Skipping {docx_path.name}: python-docx not installed. Install with: pip install python-docx")
+            return []
+
         self._validate_file(docx_path, 'docx')
 
         add_span_attributes({

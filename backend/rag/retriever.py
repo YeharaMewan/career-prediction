@@ -18,6 +18,7 @@ from .config import (
     TOP_K_RESULTS,
     MAX_CONTEXT_LENGTH,
     NEEDS_RETRIEVAL_KEYWORDS,
+    EMBEDDING_PROVIDER,
 )
 
 # Setup logging
@@ -44,46 +45,88 @@ class RetrievalState:
 
 class AgenticRAGRetriever:
     """
-    Agentic RAG retriever with decision-making logic.
+    Agentic RAG retriever with decision-making logic and multi-provider support.
 
     Workflow:
     1. decide_retrieval() - Determines if retrieval is needed
     2. retrieve_documents() - Retrieves relevant chunks if needed
     3. format_context() - Formats retrieved context for LLM
+
+    Features:
+    - Automatic provider switching (OpenAI ↔ Gemini)
+    - Dual vector database support
+    - Fallback-aware embedding generation
     """
 
     def __init__(
         self,
         collection_type: str,
+        provider: str = EMBEDDING_PROVIDER,
         similarity_threshold: float = SIMILARITY_THRESHOLD,
         top_k: int = TOP_K_RESULTS,
         max_context_length: int = MAX_CONTEXT_LENGTH,
     ):
         """
-        Initialize agentic RAG retriever.
+        Initialize agentic RAG retriever with provider support.
 
         Args:
             collection_type: "academic" or "skill"
+            provider: Embedding provider ("openai", "gemini", or "fallback")
             similarity_threshold: Minimum similarity score (0-1)
             top_k: Number of documents to retrieve
             max_context_length: Maximum characters in context
         """
         self.collection_type = collection_type
+        self.provider = provider
         self.similarity_threshold = similarity_threshold
         self.top_k = top_k
         self.max_context_length = max_context_length
 
-        # Initialize managers
-        self.embedding_manager = EmbeddingManager()
-        self.vector_store = VectorStoreManager()
+        # Initialize managers with provider support
+        self.embedding_manager = EmbeddingManager(provider=provider)
+        self.vector_store = VectorStoreManager(provider=provider)
+
+        # Track active provider (may change during fallback)
+        self.active_provider = self.embedding_manager.get_active_provider()
 
         # Ensure collection exists
         self.vector_store.get_collection(collection_type)
 
         logger.info(
             f"AgenticRAGRetriever initialized: collection={collection_type}, "
-            f"threshold={similarity_threshold}, top_k={top_k}"
+            f"provider={self.active_provider}, threshold={similarity_threshold}, top_k={top_k}"
         )
+
+    def get_active_provider(self) -> str:
+        """Get the currently active embedding provider"""
+        return self.embedding_manager.get_active_provider()
+
+    def switch_provider(self, new_provider: str):
+        """
+        Switch to a different embedding provider and vector database.
+
+        This is useful when LLM fallback occurs and we need to switch
+        the RAG system to use the corresponding embedding provider.
+
+        Args:
+            new_provider: "openai" or "gemini"
+        """
+        if new_provider == self.active_provider:
+            logger.info(f"Already using provider: {new_provider}")
+            return
+
+        logger.warning(f"Switching RAG provider: {self.active_provider} → {new_provider}")
+
+        # Reinitialize with new provider
+        self.provider = new_provider
+        self.embedding_manager = EmbeddingManager(provider=new_provider)
+        self.vector_store = VectorStoreManager(provider=new_provider)
+        self.active_provider = new_provider
+
+        # Ensure collection exists in new vector store
+        self.vector_store.get_collection(self.collection_type)
+
+        logger.info(f"Successfully switched to provider: {new_provider}")
 
     def decide_retrieval(self, query: str) -> tuple[bool, str]:
         """

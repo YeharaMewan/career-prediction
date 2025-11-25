@@ -1,5 +1,6 @@
 import type {
   SessionStartRequest,
+  SessionInitializeRequest,
   UserResponse,
   InteractiveResponse,
   SessionStatus,
@@ -29,13 +30,21 @@ class ApiService {
   /**
    * Initialize a new agent session
    * The agent will start the conversation
+   * @param language - User's preferred language ("en" or "si")
    */
-  async initializeSession(): Promise<InteractiveResponse> {
+  async initializeSession(
+    language: "en" | "si" = "en",
+  ): Promise<InteractiveResponse> {
+    const request: SessionInitializeRequest = {
+      language,
+    };
+
     const response = await fetch(`${this.baseUrl}/session/initialize`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify(request),
     });
     return this.handleResponse<InteractiveResponse>(response);
   }
@@ -66,13 +75,16 @@ class ApiService {
    * Send a user response to an active session
    * @param sessionId - The session ID
    * @param userResponse - The user's response
+   * @param language - User's preferred language ("en" or "si")
    */
   async sendResponse(
     sessionId: string,
     userResponse: string,
+    language: "en" | "si" = "en",
   ): Promise<InteractiveResponse> {
     const request: UserResponse = {
       response: userResponse,
+      language,
     };
 
     const response = await fetch(
@@ -86,6 +98,30 @@ class ApiService {
       },
     );
     return this.handleResponse<InteractiveResponse>(response);
+  }
+
+  /**
+   * Update language preference for an active session
+   * @param sessionId - The session ID
+   * @param language - New language preference ("en" or "si")
+   */
+  async updateLanguage(
+    sessionId: string,
+    language: "en" | "si",
+  ): Promise<{ success: boolean; language: string }> {
+    const response = await fetch(
+      `${this.baseUrl}/sessions/${sessionId}/language`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ language }),
+      },
+    );
+    return this.handleResponse<{ success: boolean; language: string }>(
+      response,
+    );
   }
 
   /**

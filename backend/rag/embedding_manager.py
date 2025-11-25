@@ -1,21 +1,31 @@
 """
 Embedding Manager
 
-Manages OpenAI embedding generation for documents and queries.
+Manages embedding generation for documents and queries with automatic fallback support.
+Supports OpenAI, Gemini, and automatic fallback between providers.
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import time
 
-from langchain_openai import OpenAIEmbeddings
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from .config import (
     EMBEDDING_MODEL,
     EMBEDDING_DIMENSIONS,
-    OPENAI_API_KEY,
     EMBEDDING_BATCH_SIZE,
+    EMBEDDING_PROVIDER,
+    ENABLE_EMBEDDING_FALLBACK,
+    OPENAI_EMBEDDING_MODEL,
+    OPENAI_EMBEDDING_DIMENSIONS,
+    GEMINI_EMBEDDING_MODEL,
+    GEMINI_EMBEDDING_DIMENSIONS,
+)
+from .embedding_strategy import (
+    create_embedding_strategy,
+    BaseEmbeddingStrategy,
+    FallbackEmbeddingStrategy,
 )
 
 # Setup logging
@@ -25,55 +35,75 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingManager:
     """
-    Manages embedding generation using OpenAI's embedding API.
+    Manages embedding generation with automatic fallback support.
 
     Features:
+    - Multi-provider support (OpenAI, Gemini)
+    - Automatic fallback when primary provider fails
     - Batch processing for efficiency
     - Error handling and retries
-    - Cost tracking
+    - Cost tracking per provider
     - Rate limiting awareness
     """
 
     def __init__(
         self,
-        model: str = EMBEDDING_MODEL,
+        provider: str = EMBEDDING_PROVIDER,
+        model: Optional[str] = None,
+        dimensions: Optional[int] = None,
         batch_size: int = EMBEDDING_BATCH_SIZE,
+        enable_fallback: bool = ENABLE_EMBEDDING_FALLBACK,
     ):
         """
-        Initialize embedding manager.
+        Initialize embedding manager with provider strategy.
 
         Args:
-            model: OpenAI embedding model name
+            provider: Embedding provider ("openai", "gemini", or "fallback")
+            model: Model name (uses config defaults if None)
+            dimensions: Embedding dimensions (uses config defaults if None)
             batch_size: Number of texts to embed per API call
+            enable_fallback: Whether to enable automatic fallback
         """
-        if not OPENAI_API_KEY:
-            raise ValueError(
-                "OPENAI_API_KEY not found. Please set it in .env file."
-            )
-
-        self.model = model
+        self.provider = provider
         self.batch_size = batch_size
-        self.dimensions = EMBEDDING_DIMENSIONS
+        self.enable_fallback = enable_fallback
 
-        # Initialize OpenAI Embeddings
-        self.embeddings = OpenAIEmbeddings(
-            model=self.model,
-            openai_api_key=OPENAI_API_KEY,
-        )
+        # Create embedding strategy
+        try:
+            self.strategy: BaseEmbeddingStrategy = create_embedding_strategy(
+                provider=provider,
+                model=model,
+                dimensions=dimensions,
+                enable_fallback=enable_fallback,
+                batch_size=batch_size,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create embedding strategy: {e}")
+            raise
+
+        # Get embeddings instance from strategy
+        self.embeddings = self.strategy.get_embeddings()
+
+        # Get active configuration
+        self.model = self.strategy.model
+        self.dimensions = self.strategy.dimensions
+        self.active_provider = self.strategy.provider_name
 
         # Track usage
         self.total_tokens = 0
         self.total_requests = 0
+        self.fallback_occurred = False
 
         logger.info(
-            f"EmbeddingManager initialized: model={model}, dimensions={self.dimensions}"
+            f"EmbeddingManager initialized: provider={self.active_provider}, "
+            f"model={self.model}, dimensions={self.dimensions}"
         )
 
     def embed_documents(
         self, documents: List[Document]
     ) -> tuple[List[Document], List[List[float]]]:
         """
-        Generate embeddings for a list of documents.
+        Generate embeddings for a list of documents with automatic fallback.
 
         Args:
             documents: List of LangChain Document objects
@@ -117,9 +147,21 @@ class EmbeddingManager:
 
             except Exception as e:
                 logger.error(f"Error embedding batch {batch_num}: {e}")
-                # Retry with smaller batch or skip
+
+                # Try fallback if available and not already fallen back
+                if self._try_fallback():
+                    logger.info(f"Retrying batch {batch_num} with fallback provider...")
+                    try:
+                        batch_embeddings = self.embeddings.embed_documents(batch_texts)
+                        all_embeddings.extend(batch_embeddings)
+                        self.total_requests += 1
+                        self.total_tokens += sum(len(text.split()) for text in batch_texts)
+                        continue
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback also failed: {fallback_error}")
+
+                # If fallback failed or unavailable, skip batch
                 logger.warning(f"Skipping batch {batch_num} due to error")
-                # Add None placeholders for failed embeddings
                 all_embeddings.extend([None] * len(batch_texts))
                 continue
 
@@ -143,7 +185,7 @@ class EmbeddingManager:
 
     def embed_query(self, query: str) -> List[float]:
         """
-        Generate embedding for a single query text.
+        Generate embedding for a single query text with automatic fallback.
 
         Args:
             query: Query string
@@ -161,14 +203,61 @@ class EmbeddingManager:
             return embedding
         except Exception as e:
             logger.error(f"Error embedding query: {e}")
-            raise
+
+            # Try fallback if available
+            if self._try_fallback():
+                logger.info("Retrying query embedding with fallback provider...")
+                try:
+                    embedding = self.embeddings.embed_query(query)
+                    self.total_requests += 1
+                    self.total_tokens += len(query.split())
+                    return embedding
+                except Exception as fallback_error:
+                    logger.error(f"Fallback also failed: {fallback_error}")
+                    raise fallback_error
+            else:
+                raise
+
+    def _try_fallback(self) -> bool:
+        """
+        Try to trigger fallback to secondary provider.
+
+        Returns:
+            True if fallback was triggered, False otherwise
+        """
+        if self.fallback_occurred:
+            # Already using fallback
+            return False
+
+        if not self.enable_fallback:
+            # Fallback disabled
+            return False
+
+        if not isinstance(self.strategy, FallbackEmbeddingStrategy):
+            # Not using fallback strategy
+            return False
+
+        # Trigger fallback
+        success = self.strategy.trigger_fallback()
+        if success:
+            self.fallback_occurred = True
+            self.embeddings = self.strategy.get_embeddings()
+            self.active_provider = self.strategy.get_active_provider()
+            self.dimensions = self.strategy.get_active_dimensions()
+            logger.warning(f"Switched to fallback provider: {self.active_provider}")
+            return True
+
+        return False
+
+    def get_active_provider(self) -> str:
+        """Get the currently active embedding provider"""
+        if isinstance(self.strategy, FallbackEmbeddingStrategy):
+            return self.strategy.get_active_provider()
+        return self.active_provider
 
     def estimate_cost(self, num_tokens: int = None) -> Dict[str, float]:
         """
-        Estimate embedding cost.
-
-        text-embedding-3-small: $0.02 per 1M tokens
-        text-embedding-3-large: $0.13 per 1M tokens
+        Estimate embedding cost using active provider pricing.
 
         Args:
             num_tokens: Number of tokens (uses tracked total if None)
@@ -178,26 +267,22 @@ class EmbeddingManager:
         """
         tokens = num_tokens or self.total_tokens
 
-        # Pricing per million tokens
-        pricing = {
-            "text-embedding-3-small": 0.02,
-            "text-embedding-3-large": 0.13,
-            "text-embedding-ada-002": 0.10,
-        }
-
-        cost_per_million = pricing.get(self.model, 0.02)
-        estimated_cost = (tokens / 1_000_000) * cost_per_million
+        # Get cost per token from active strategy
+        cost_per_token = self.strategy.get_cost_per_token()
+        estimated_cost = self.strategy.calculate_embedding_cost(tokens)
 
         return {
             "tokens": tokens,
-            "cost_usd": round(estimated_cost, 4),
+            "cost_usd": round(estimated_cost, 6),
             "model": self.model,
+            "provider": self.get_active_provider(),
             "requests": self.total_requests,
+            "fallback_occurred": self.fallback_occurred,
         }
 
     def get_stats(self) -> Dict[str, Any]:
         """
-        Get embedding generation statistics.
+        Get embedding generation statistics including provider info.
 
         Returns:
             Dictionary with statistics
@@ -205,12 +290,15 @@ class EmbeddingManager:
         cost_info = self.estimate_cost()
 
         stats = {
+            "provider": self.get_active_provider(),
             "model": self.model,
             "dimensions": self.dimensions,
             "total_requests": self.total_requests,
             "total_tokens": self.total_tokens,
             "estimated_cost_usd": cost_info["cost_usd"],
             "batch_size": self.batch_size,
+            "fallback_occurred": self.fallback_occurred,
+            "fallback_enabled": self.enable_fallback,
         }
 
         return stats

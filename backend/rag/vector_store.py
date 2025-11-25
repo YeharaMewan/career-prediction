@@ -12,15 +12,18 @@ import uuid
 
 import chromadb
 from chromadb.config import Settings
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from .config import (
     CHROMA_PERSIST_DIR,
+    CHROMA_PERSIST_DIR_OPENAI,
+    CHROMA_PERSIST_DIR_GEMINI,
     ACADEMIC_COLLECTION,
     SKILL_COLLECTION,
     CHROMA_SETTINGS,
     DISTANCE_METRIC,
     TOP_K_RESULTS,
+    EMBEDDING_PROVIDER,
 )
 
 # Setup logging
@@ -30,28 +33,40 @@ logger = logging.getLogger(__name__)
 
 class VectorStoreManager:
     """
-    Manages ChromaDB vector store with multiple collections.
+    Manages ChromaDB vector store with multiple collections and dual provider support.
 
     Features:
-    - Persistent storage to disk
-    - 2 specialized collections (academic, skill)
+    - Dual persistent storage (OpenAI and Gemini directories)
+    - 2 specialized collections per provider (academic, skill)
     - Add, query, delete operations
     - Metadata filtering
     - Similarity search with distance conversion
+    - Automatic provider-based directory selection
     """
 
-    def __init__(self, persist_directory: str = None):
+    def __init__(
+        self,
+        provider: str = EMBEDDING_PROVIDER,
+        persist_directory: Optional[str] = None
+    ):
         """
         Initialize ChromaDB client with persistence.
 
         Args:
-            persist_directory: Directory to persist ChromaDB data
+            provider: Embedding provider ("openai", "gemini", or "fallback")
+            persist_directory: Directory to persist ChromaDB data (overrides provider-based selection)
         """
-        self.persist_directory = persist_directory or str(CHROMA_PERSIST_DIR)
+        self.provider = provider
+
+        # Determine persist directory based on provider
+        if persist_directory:
+            self.persist_directory = persist_directory
+        else:
+            self.persist_directory = self._get_persist_directory_for_provider(provider)
 
         # Initialize persistent ChromaDB client
         self.client = chromadb.PersistentClient(
-            path=self.persist_directory,
+            path=str(self.persist_directory),
             settings=Settings(**CHROMA_SETTINGS),
         )
 
@@ -59,11 +74,33 @@ class VectorStoreManager:
         self.academic_collection = None
         self.skill_collection = None
 
-        logger.info(f"VectorStoreManager initialized: persist_dir={self.persist_directory}")
+        logger.info(
+            f"VectorStoreManager initialized: provider={self.provider}, "
+            f"persist_dir={self.persist_directory}"
+        )
+
+    def _get_persist_directory_for_provider(self, provider: str) -> str:
+        """
+        Get the appropriate persist directory for the given provider.
+
+        Args:
+            provider: "openai", "gemini", or "fallback"
+
+        Returns:
+            Path to persist directory
+        """
+        if provider in ["openai", "fallback"]:
+            # Fallback uses OpenAI directory by default
+            return str(CHROMA_PERSIST_DIR_OPENAI)
+        elif provider == "gemini":
+            return str(CHROMA_PERSIST_DIR_GEMINI)
+        else:
+            logger.warning(f"Unknown provider '{provider}', defaulting to OpenAI directory")
+            return str(CHROMA_PERSIST_DIR_OPENAI)
 
     def create_collection(self, collection_name: str) -> chromadb.Collection:
         """
-        Create or get a collection.
+        Create or get a collection with provider metadata.
 
         Args:
             collection_name: Name of the collection
@@ -74,9 +111,16 @@ class VectorStoreManager:
         try:
             collection = self.client.get_or_create_collection(
                 name=collection_name,
-                metadata={"hnsw:space": DISTANCE_METRIC},
+                metadata={
+                    "hnsw:space": DISTANCE_METRIC,
+                    "embedding_provider": self.provider,
+                    "persist_directory": str(self.persist_directory),
+                },
             )
-            logger.info(f"Collection '{collection_name}' ready ({collection.count()} documents)")
+            logger.info(
+                f"Collection '{collection_name}' ready ({collection.count()} documents) "
+                f"[provider: {self.provider}]"
+            )
             return collection
         except Exception as e:
             logger.error(f"Error creating collection {collection_name}: {e}")

@@ -217,9 +217,10 @@ class BaseAgent(ABC):
         This enables automatic span creation and token tracking for all LLM calls.
         """
         if not OTEL_AVAILABLE:
-            return self._original_llm
+            return self.llm_wrapper
 
-        original_llm = self._original_llm
+        # CRITICAL FIX: Wrap llm_wrapper (not _original_llm) to preserve fallback functionality
+        original_llm = self.llm_wrapper
         agent_name = self.name
         model_name = self.model
         logger = self.logger

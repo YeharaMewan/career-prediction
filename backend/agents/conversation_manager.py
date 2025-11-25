@@ -447,15 +447,11 @@ class ConversationManager:
         questions_asked = len(context.question_history)
         questions_remaining = 12 - questions_asked
 
-        # Build context from recent conversation
+        # Build context from recent conversation (only last response to keep questions concise)
         recent_context = ""
         if context.response_history:
             last_response = context.response_history[-1]
             recent_context = f"\nTheir most recent response: \"{last_response}\""
-
-        if len(context.response_history) >= 2:
-            previous_response = context.response_history[-2]
-            recent_context += f"\nPrevious response: \"{previous_response}\""
 
         # Get student's tone and energy to adapt response
         tone_context = ""
@@ -466,50 +462,38 @@ class ConversationManager:
 
             tone_context = f"\n\nSTUDENT'S COMMUNICATION STYLE:\n- Energy: {latest_tone}\n- Confidence: {confidence}\n- Match this tone: {suggested_personality}"
 
-        prompt = f"""You are a natural, adaptive career counselor having a real conversation with a HIGH SCHOOL STUDENT. Your responses should feel like talking to a supportive mentor, not a robot.{tone_context}
+        # Get language preference
+        language = context.session_metadata.get("language", "en")
+        language_instruction = ""
+        if language == "si":
+            language_instruction = """LANGUAGE REQUIREMENT: Generate your response in SINHALA (සිංහල භාෂාව).
+- Use natural, conversational Sinhala that a high school student would understand
+- Write entirely in Sinhala script (සිංහල අකුරු)
+- Be warm, encouraging, and conversational in Sinhala
+- Maintain the same tone and approach but in Sinhala language
+
+"""
+
+        prompt = f"""{language_instruction}You are a warm, supportive career counselor talking with a high school student.{tone_context}
 
 GOAL: {state_objective}
+{recent_context}
 
-THEIR RECENT RESPONSE:{recent_context}
-Questions asked: {questions_asked} of 12-15 total
+INSTRUCTIONS:
+- Brief acknowledgment (optional, 1 sentence max)
+- Ask ONE clear, conversational question about {state_objective.lower()}
+- Match their energy and tone
+- Keep total response to 2-3 sentences maximum
+- NO section labels, NO reasoning, NO explanations about your approach
+- Your output is shown DIRECTLY to the student - be natural and concise
 
-YOUR APPROACH - Respond naturally with 3 parts:
+CRITICAL: Return ONLY the conversational message. No prefixes like "Acknowledge:", "Question:", or "Response:". Just speak naturally.
 
-1. ACKNOWLEDGE & VALIDATE (1-2 sentences)
-   • If they asked a question, answer it directly and genuinely
-   • React naturally to what they shared - match their energy
-   • Be authentic - avoid repeating the same phrases
+Example:
+Student: "I love organizing events."
+You: "That's great! What kind of impact do you hope to make in your career?"
 
-2. CONNECT (1 sentence)
-   • Naturally link what they just said to where you're going next
-   • Reference specific things they mentioned
-   • Show you're actively listening
-
-3. ASK (1-2 sentences)
-   • Ask your next question about {state_objective.lower()}
-   • Use their language and examples
-   • Keep it conversational and high school appropriate
-
-IMPORTANT: Do NOT include section labels like [VALIDATION], [BRIDGE], or [QUESTION] in your response. Flow naturally.
-
-EXAMPLE (one of many possible styles):
-
-Their response: "I love organizing events. It felt really impactful, you know?"
-
-Your response: "Absolutely! There's something really satisfying about pulling together an event and watching it all come together. That takes real planning skills.
-
-It sounds like you get a kick out of seeing your ideas actually happen in the real world.
-
-When you imagine your ideal career, what kind of impact are you hoping to make? Are you thinking more short-term wins like events, or are you also drawn to longer-term projects?"
-
-HOW TO SOUND NATURAL (Vary your language!):
-• Match their enthusiasm level - if they're excited, be excited; if they're thoughtful, be thoughtful
-• Use different validation phrases naturally - don't repeat yourself
-• Reference specific details they mentioned
-• Sound like a real person having a conversation, not following a script
-• High school language level - clear and simple without being condescending
-
-Generate your natural, conversational response:"""
+Generate your brief, natural response:"""
 
         try:
             response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
@@ -591,43 +575,37 @@ Generate your natural, conversational response:"""
         session_id = context.session_metadata.get('session_id', 'unknown')
         current_time = datetime.now().strftime('%B %d, %Y')
 
-        prompt = f"""You are a friendly career counselor starting a natural conversation with a HIGH SCHOOL STUDENT. Create a warm, genuine opening that feels like talking to a supportive mentor.
+        # Get language preference
+        language = context.session_metadata.get("language", "en")
+        language_instruction = ""
+        if language == "si":
+            language_instruction = """LANGUAGE REQUIREMENT: Generate your greeting in SINHALA (සිංහල භාෂාව).
+- Use natural, conversational Sinhala that a high school student would understand
+- Write entirely in Sinhala script (සිංහල අකුරු)
+- Be warm, welcoming, and conversational in Sinhala
+- Maintain the same friendly tone but in Sinhala language
 
-CONTEXT:
-- You're talking with a high school student about their future
-- Be welcoming but authentic - not overly peppy or robotic
-- Make them feel comfortable and understood
-- 2-3 sentences + ONE question
+"""
 
-TASK: Write a natural opening that:
-1. Introduces yourself simply as their career counselor
-2. Shows genuine interest in helping them
-3. Feels like a real conversation, not a survey
-4. Ends with ONE engaging question
+        prompt = f"""{language_instruction}You are a friendly career counselor starting a conversation with a high school student.
 
-EXAMPLES OF VARIED NATURAL GREETINGS:
+TASK:
+Write a warm, brief greeting (2-3 sentences) that:
+- Introduces yourself as their career counselor
+- Shows genuine interest in helping
+- Ends with ONE engaging question
 
-- "Hey! I'm here to help you explore what careers might be a good match for you. We'll talk about the things you enjoy, what you're good at, and what matters to you going forward. So what's making you think about careers right now?"
+EXAMPLES:
+- "Hey! I'm here to help you explore careers that might fit you. We'll talk about what you enjoy and what you're good at. What's got you thinking about careers?"
+- "Hi! I help students discover career paths. We'll chat about your interests and strengths. What brings you here?"
 
-- "Hi there! I work with students to help them discover career paths that actually fit who they are. We're just going to have a conversation about your interests and strengths. What's been on your mind when you think about your future?"
+CRITICAL:
+- Keep it SHORT (2-3 sentences max)
+- Friendly but natural, not overly enthusiastic
+- Your output is shown DIRECTLY to the student
+- NO prefixes like "Greeting:" or "Response:"
 
-- "Hello! I'm your career counselor, and I'm glad we're doing this. We'll chat about what you care about and what you're naturally drawn to. What brings you here today?"
-
-- "Hey! I help students figure out career directions that make sense for them. We'll just talk through your interests, what you're good at, and where you might want to head. What got you interested in exploring this?"
-
-HOW TO SOUND NATURAL:
-• Friendly and approachable, but not fake-enthusiastic
-• Vary your word choice - don't sound scripted
-• High school appropriate - clear without being overly simple
-• Make it feel like the start of a real conversation
-
-AVOID:
-- Repeating the same greeting structure
-- Sounding like a bot or form letter
-- Multiple questions at once
-- Overly formal or academic language
-
-Generate a natural, varied greeting:"""
+Generate your brief greeting:"""
 
         try:
             response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
@@ -785,8 +763,8 @@ Does that sound about right? Anything important I missed?"""
             }
         )
 
-        # Create analysis prompt with Chain-of-Thought reasoning
-        analysis_prompt = f"""You are an expert career counselor analyzing a student's response. Use step-by-step reasoning.
+        # Create analysis prompt - concise format without verbose reasoning
+        analysis_prompt = f"""You are an expert career counselor analyzing a student's response.
 
 QUESTION ASKED: {question.question_text}
 TARGET AREA: {question.target_area}
@@ -800,21 +778,16 @@ FEW-SHOT EXAMPLES:
 {self._format_few_shot_examples()}
 
 ANALYSIS TASK:
-Step 1: Assess response completeness and quality (0.0-1.0)
-Step 2: Extract structured information relevant to career planning
-Step 3: Calculate RIASEC category scores based on response content
-Step 4: Identify any areas needing follow-up questions
-Step 5: Classify the user's intent and sentiment
+Analyze the response and provide structured assessment covering: completeness, extracted data, RIASEC scores, follow-up areas, intent, and sentiment.
 
-Provide analysis in this JSON format:
+Provide analysis in this JSON format (JSON only, no explanations):
 {{
     "completeness_score": 0.0-1.0,
     "extracted_data": {{"key": "value"}},
     "riasec_updates": {{"R": 0.0-1.0, "I": 0.0-1.0, "A": 0.0-1.0, "S": 0.0-1.0, "E": 0.0-1.0, "C": 0.0-1.0}},
     "follow_up_needed": ["area1", "area2"],
     "intent_classification": "description",
-    "sentiment": "positive/neutral/negative",
-    "reasoning": "step-by-step explanation"
+    "sentiment": "positive/neutral/negative"
 }}"""
 
         try:
@@ -943,29 +916,45 @@ Provide analysis in this JSON format:
 
     def _strip_structural_markers(self, text: str) -> str:
         """
-        Remove structural markers like [VALIDATION], [BRIDGE], [QUESTION] from LLM responses.
-        These markers are used in prompts for instruction but should never appear in user-facing output.
+        Remove structural markers, prefixes, and verbose agent output from LLM responses.
+        These are used in prompts for instruction but should never appear in user-facing output.
         """
         if not text:
             return text
 
-        # Remove all structural markers (case-insensitive)
+        # Remove all structural markers in brackets (case-insensitive)
         markers = [
             r'\[VALIDATION\]', r'\[BRIDGE\]', r'\[QUESTION\]',
             r'\[VALIDATE\]', r'\[EMPATHIZE\]', r'\[FOLLOW-UP QUESTION\]',
-            r'\[SUMMARY\]', r'\[TRANSITION\]'
+            r'\[SUMMARY\]', r'\[TRANSITION\]', r'\[ACKNOWLEDGE\]', r'\[CONNECT\]', r'\[ASK\]'
         ]
 
         cleaned_text = text
         for marker in markers:
             cleaned_text = re.sub(marker, '', cleaned_text, flags=re.IGNORECASE)
 
-        # Clean up any extra whitespace that might result from marker removal
+        # Remove common prefixes that indicate agent reasoning/structure
+        prefixes = [
+            r'^Acknowledge:\s*', r'^Connect:\s*', r'^Ask:\s*',
+            r'^Reasoning:\s*', r'^Analysis:\s*', r'^Response:\s*',
+            r'^Question:\s*', r'^Explanation:\s*', r'^Validation:\s*'
+        ]
+        for prefix in prefixes:
+            cleaned_text = re.sub(prefix, '', cleaned_text, flags=re.IGNORECASE | re.MULTILINE)
+
+        # Remove content in parentheses that looks like meta-commentary
+        # e.g., "(explanation)", "(reasoning)", "(acknowledging their response)"
+        cleaned_text = re.sub(r'\s*\([^)]*(?:explanation|reasoning|note|meta|thinking|analysis)[^)]*\)\s*', ' ', cleaned_text, flags=re.IGNORECASE)
+
+        # Remove verbose introductions like "Let me ask you..."
+        cleaned_text = re.sub(r'^Let me ask you[,:]?\s*', '', cleaned_text, flags=re.IGNORECASE)
+
+        # Clean up any extra whitespace that might result from removals
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
 
-        # Log if markers were found and removed
-        if cleaned_text != text:
-            logging.info(f"Stripped structural markers from response. Original length: {len(text)}, Cleaned length: {len(cleaned_text)}")
+        # Log if significant cleaning occurred
+        if len(text) - len(cleaned_text) > 20:
+            logging.info(f"Stripped verbose output from response. Original: {len(text)} chars, Cleaned: {len(cleaned_text)} chars")
 
         return cleaned_text
 

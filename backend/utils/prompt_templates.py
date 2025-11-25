@@ -159,6 +159,61 @@ FORMATTING_RULES = {
 
 
 # =============================================================================
+# LANGUAGE SUPPORT - Multi-language prompt generation
+# =============================================================================
+
+def get_language_instruction(language: str, agent_role: str = "general") -> str:
+    """
+    Get language-specific instruction for LLM prompts.
+
+    Args:
+        language: "en" (English) or "si" (Sinhala)
+        agent_role: Agent type for specialized instructions (general, career_counselor,
+                   academic_pathway, skill_development, response_analyst, career_predictor)
+
+    Returns:
+        Language instruction string to prepend to prompts
+    """
+    if language == "si":
+        instructions = {
+            "general": """LANGUAGE: Sinhala (සිංහල)
+Generate ALL content in natural, conversational Sinhala.
+Use Sinhala script for all text.""",
+
+            "career_counselor": """LANGUAGE: Sinhala (සිංහල)
+Generate questions and responses in natural Sinhala.
+Use simple language suitable for high school students.
+Write entirely in Sinhala script (සිංහල අකුරු).
+Be warm, encouraging, and conversational.""",
+
+            "academic_pathway": """LANGUAGE: Sinhala (සිංහල)
+Provide academic plans with Sinhala descriptions.
+JSON keys remain in English, but all text values must be in Sinhala.
+Transliterate institution names to Sinhala when appropriate.
+Example: {"degree": "තොරතුරු තාක්ෂණ උපාධිය", "duration": "අවුරුදු 4"}""",
+
+            "skill_development": """LANGUAGE: Sinhala (සිංහල)
+Provide skill plans with Sinhala descriptions.
+JSON keys remain in English, but all text values must be in Sinhala.
+Course names can be transliterated or kept in English if widely known.
+Example: {"skill": "Python Programming", "description": "ක්‍රමලේඛන භාෂාව"}""",
+
+            "response_analyst": """LANGUAGE: Sinhala (සිංහල)
+JSON keys remain in English, but "intent" field should be in Sinhala.
+Example: {"scores": {...}, "intent": "තාක්ෂණය සහ ප්‍රශ්න විසඳීම ගැන උනන්දුවක්"}""",
+
+            "career_predictor": """LANGUAGE: Sinhala (සිංහල)
+Career titles can remain in English or be translated (e.g., "Software Engineer" or "මෘදුකාංග ඉංජිනේරු").
+All descriptions and reasoning must be in natural Sinhala.
+JSON keys remain in English."""
+        }
+        return instructions.get(agent_role, instructions["general"])
+
+    # Default: English (no special instruction needed)
+    return "Language: English. Provide all content in English."
+
+
+# =============================================================================
 # TEMPLATE BUILDER FUNCTIONS
 # =============================================================================
 
@@ -195,7 +250,9 @@ def build_task_prompt(
     context_data: Dict[str, Any],
     output_schema_key: Optional[str] = None,
     include_quality_standards: bool = True,
-    web_search_results: Optional[str] = None
+    web_search_results: Optional[str] = None,
+    language: str = "en",
+    agent_role: str = "general"
 ) -> str:
     """
     Build optimized task prompt with context and output requirements.
@@ -206,11 +263,21 @@ def build_task_prompt(
         output_schema_key: Key from OUTPUT_SCHEMAS dict
         include_quality_standards: Whether to include quality guidelines
         web_search_results: Optional web search results to include
+        language: Response language ("en" or "si")
+        agent_role: Agent role for language-specific instructions
 
     Returns:
         Optimized task prompt string
     """
-    prompt_parts = [task_description, ""]
+    prompt_parts = []
+
+    # Add language instruction first if not English
+    if language != "en":
+        prompt_parts.append(get_language_instruction(language, agent_role))
+        prompt_parts.append("")
+
+    prompt_parts.append(task_description)
+    prompt_parts.append("")
 
     # Add context
     if context_data:
@@ -493,6 +560,9 @@ __all__ = [
     'build_system_prompt',
     'build_task_prompt',
     'build_structured_messages',
+
+    # Language support
+    'get_language_instruction',
 
     # Template class
     'PromptTemplates',

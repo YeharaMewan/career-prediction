@@ -41,6 +41,7 @@ class ConversationSession(BaseModel):
     Simplified to track question count and progress.
     """
     session_id: str = Field(..., description="Unique session identifier")
+    preferred_language: str = Field(default="en", description="User's preferred language for responses (en/si)")
     current_conversation_state: ConversationState = Field(default=ConversationState.GREETING, description="Current conversation state")
     riasec_scores: Dict[str, float] = Field(default_factory=dict, description="RIASEC category scores (R,I,A,S,E,C)")
     question_history: List[str] = Field(default_factory=list, description="Questions asked during session")
@@ -169,6 +170,7 @@ class AgentState(BaseModel):
     
     # Session information
     session_id: Optional[str] = Field(None, description="Unique session identifier")
+    preferred_language: str = Field(default="en", description="User's preferred language for responses (en/si)")
     timestamp: Optional[str] = Field(None, description="Request timestamp")
 
     # Human-in-the-loop conversation management
