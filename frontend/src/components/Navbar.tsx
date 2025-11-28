@@ -1,134 +1,82 @@
-// import React, { useState, useRef } from "react";
-// import Logo from "../assets/images/navbar/logo.png";
-
-// //import Profile from "../assets/images/profile.webp";
-// import useClickOutside from "../hooks/UseClickOutside";
-// import { AlignJustify, X } from "lucide-react";
-
-// interface NavbarProps {
-//   sectionRefs?: { [key: string]: React.RefObject<HTMLDivElement | null> };
-// }
-
-// const Navbar: React.FC<NavbarProps> = ({ sectionRefs }) => {
-//   const [isOpen, setIsOpen] = useState(false);
-//   const navbarRef = useRef<HTMLDivElement>(null);
-
-//   const toggleMenu = () => setIsOpen(!isOpen);
-
-//   useClickOutside(navbarRef, () => {
-//     if (isOpen) setIsOpen(false);
-//   });
-
-//   const handleScroll = (key: string) => {
-//     if (!sectionRefs) return; // exit if undefined
-//     sectionRefs[key]?.current?.scrollIntoView({ behavior: "smooth" });
-//     setIsOpen(false); // close mobile menu after click
-//   };
-
-//   const navItems = [
-//     { label: "Home", key: "Landing" },
-//     { label: "How It Works", key: "Aboutus" },
-//     { label: "Careers", key: "Technology" },
-//     { label: "Testimonials", key: "Howaxis" },
-//     { label: "Prediction", key: "Prediction" },
-//     { label: "Contact", key: "RoadMap" },
-//     // { label: "Blog", key: "FAQ" },
-//     // { label: "FAQ", key: "FAQ" },
-//   ];
-
-//   return (
-//     <nav className="start-0 top-0 z-20 w-full">
-//       <div className="flex flex-wrap items-center justify-between p-4">
-//         <div className="flex items-center gap-x-2">
-//           <img
-//             src={Logo}
-//             onClick={() => handleScroll("Landing")}
-//             className="h-auto w-full max-w-[80px] cursor-pointer"
-//             alt="logo"
-//           />
-//           <span
-//             onClick={() => handleScroll("Landing")}
-//             className="font-fredoka cursor-pointer text-xl font-bold text-[#fc33a4]"
-//           >
-//             FutureMe
-//           </span>
-//         </div>
-
-//         <div className="flex gap-[8px] md:order-2">
-//           {/* <button className="font-fredoka relative flex items-center rounded-[16px] border-[1px] border-[#fc33a4] px-[12px] py-[8px] text-[16px] leading-[24px] text-[#fc33a4] uppercase">
-//             {/* <a href="#">
-//               <Search className="h-auto w-full cursor-pointer rounded-full border-[1px] border-white p-[5px] hover:bg-zinc-50" />
-//             </a> */}
-//             Start Prediction
-//           {/* </button> */}
-//           {/* <li className="relative flex items-center">
-//             <a href="#">
-//               <img
-//                 src={Profile}
-//                 alt="profile"
-//                 className="h-9 w-9 cursor-pointer rounded-full bg-black object-contain p-2 hover:bg-black/80"
-//               />
-//             </a>
-//           </li> */}
-
-//           <button
-//             onClick={toggleMenu}
-//             type="button"
-//             className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#000000] p-2 text-white lg:hidden"
-//             aria-controls="navbar-sticky"
-//             aria-expanded={isOpen ? "true" : "false"}
-//           >
-//             <span className="sr-only">Open main menu</span>
-//             {isOpen ? <X className="h-4 w-4" /> : <AlignJustify className="h-5 w-5" />}
-//           </button>
-//         </div>
-
-//         {/* Overlay for blur effect */}
-//         {isOpen && <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-md lg:hidden" />}
-
-//         <div
-//           ref={navbarRef}
-//           className={`lg:backdrop-blur-0 absolute top-0 right-0 z-50 w-[300px] rounded-tl-[24px] rounded-b-[24px] bg-black backdrop-blur-lg lg:relative lg:bg-transparent lg:bg-none ${
-//             isOpen ? "flex" : "hidden lg:flex lg:w-auto lg:justify-center"
-//           }`}
-//         >
-//           <div
-//             className="w-full lg:flex lg:w-auto lg:items-center lg:justify-between"
-//             id="navbar-sticky"
-//           >
-//             <ul
-//               className={`font-fredoka flex flex-col space-y-4 p-4 pt-[78px] lg:mt-0 lg:flex-row lg:space-y-0 lg:space-x-4 lg:p-0 ${
-//                 isOpen ? "" : ""
-//               }`}
-//             >
-//               {navItems.map((item) => (
-//                 <li key={item.label}>
-//                   <button
-//                     onClick={() => item.key && handleScroll(item.key)}
-//                     className="font-fredoka inline-block w-[244px] cursor-pointer rounded-[16px] border border-[#fc33a4] py-4 text-center text-[16px] leading-[24px] font-bold text-white hover:border-b hover:border-[#fc33a4] hover:bg-[#fc33a4] lg:w-auto lg:rounded-none lg:border-0 lg:px-0 lg:py-0 lg:font-normal lg:hover:border-b lg:hover:bg-transparent"
-//                   >
-//                     {item.label}
-//                   </button>
-//                 </li>
-//               ))}
-//             </ul>
-//           </div>
-//         </div>
-//       </div>
-//     </nav>
-//   );
-// };
-
-// export default Navbar;
-import React from "react";
-import Logo from "../assets/images/navbar/logo.png";
+// components/Navbar.tsx
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { AlignJustify, X } from "lucide-react";
 
 const Navbar: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const goToFAQ = () => {
+    navigate("/faq");
+    setIsOpen(false);
+    window.scrollTo(0, 0);
+  };
+
   return (
-    <nav className="start-0 top-0 z-20 w-full">
-      <div className="flex items-center">
-        <img src={Logo} alt="logo" className="h-auto w-full max-w-[80px]" />
+    <nav className="fixed top-0 z-50 w-full border-b border-gray-200/30 bg-white/50 backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <Link to="/" className="flex items-center">
+          <span className="bg-gradient-to-r from-teal-400 via-teal-500 to-green-500 bg-clip-text text-3xl font-bold uppercase text-transparent sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 hover:from-green-500 hover:via-teal-500 hover:to-teal-500">
+            Career.AI
+          </span>
+        </Link>
+
+        <div className="hidden items-center gap-10 lg:flex">
+          <button
+            onClick={goToFAQ}
+            className="relative text-lg font-semibold text-gray-800 transition duration-300 hover:text-transparent hover:bg-gradient-to-r hover:from-teal-500 hover:to-green-500 hover:bg-clip-text"
+          >
+            FAQ
+          </button>
+        </div>
+
+        {/* CTA */}
+        {/* <div className="hidden lg:block">
+          <Link
+            to="/prediction"
+            className="rounded-full bg-gradient-to-r from-pink-500 to-purple-600 px-8 py-3 font-bold text-white shadow-lg transition hover:scale-105"
+          >
+            Start Prediction
+          </Link>
+        </div> */}
+
+        {/* Mobile Toggle */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="relative rounded-lg p-2 transition duration-300 hover:bg-gray-300/20 active:scale-95 lg:hidden"
+        >
+          {isOpen ? (
+            <X className="h-7 w-7 text-gray-800 transition duration-300" />
+          ) : (
+            <AlignJustify className="h-7 w-7 text-gray-800 transition duration-300" />
+          )}
+        </button>
       </div>
+
+      {/* Mobile Menu */}
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setIsOpen(false)} />
+          <div className="fixed top-0 right-0 h-full w-80 bg-white/70 backdrop-blur-lg p-8 shadow-2xl shadow-black/10 border-l border-gray-200/30">
+            <div className="mt-24 space-y-6">
+              <button
+                onClick={goToFAQ}
+                className="block w-full cursor-pointer rounded-lg bg-teal-500/10 py-5 text-xl font-semibold text-gray-800 transition duration-300 hover:bg-gradient-to-r hover:from-teal-500/30 hover:to-green-500/20 active:scale-95"
+              >
+                FAQ
+              </button>
+              {/* <Link
+                to="/prediction"
+                onClick={() => setIsOpen(false)}
+                className="block w-full rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 py-5 text-center text-2xl font-bold text-white"
+              >
+                Start Prediction
+              </Link> */}
+            </div>
+          </div>
+        </>
+      )}
     </nav>
   );
 };
