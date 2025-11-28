@@ -33,7 +33,7 @@ const MainLayout: React.FC<LayoutProps> = ({ children }) => {
         /> */}
       </div>
       <Navbar />
-      <main className="relative z-[10] px-[50px] py-[50px] xl:px-[100px]">{children}</main>
+      <main className="relative z-[10] pt-[72px]">{children}</main>
     </div>
   );
 };

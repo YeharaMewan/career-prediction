@@ -13,8 +13,8 @@ const careerPath: React.FC = () => {
   </h1>
     <p className="mt-2 text-gray-600 font-sans">Powered by AI-Driven Matching & Analytics</p>
 </div>
-<div className="p-10 flex flex-col items-center justify-center ">
-    <div className="grid grid-cols-2 gap-x-8 gap-y-16 w-full">
+<div className="p-10 flex flex-col  items-center justify-center ">
+    <div className="grid  grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-16 w-full">
         <Border borderRadius="1rem">
         <div className="flex flex-row ">
             <div className="w-2/3">
@@ -68,19 +68,20 @@ const careerPath: React.FC = () => {
             </div>
         </div>
         </Border>
-                        <Border borderRadius="1rem">
-                <div className="flex flex-row">
+
+        <Border borderRadius="1rem">
+          <div className="flex flex-row  rounded-2xl">
             <div className="w-2/3">
             <h2 className="font-mono text-black uppercase font-semibold text-xl">cyber security specialist</h2>
             <div className="flex flex-col mt-6">
                 <p className="font-sans 
-                ">Securing digital infrastructure against modern cyber threats.</p>
+                ">Safeguarding critical digital systems by preventing, detecting, and responding to modern cyber threats.</p>
                 <div className="mt-4 mb-4">
                     
                     <ul className="list-disc list-disc-blue list-inside mt-2 font-sans">
-                        <li>Security Focus</li>
-                        <li>Network Knowledge</li>
-                        <li>Rapid Response</li>
+                        <li>Strong Analytical Mind</li>
+                        <li>Date Driven Decisions</li>
+                        <li>Programming (Python / R)</li>
                 
                     </ul>
                     <div className="my-3">
@@ -95,8 +96,12 @@ const careerPath: React.FC = () => {
             </div>
         </div>
         </Border>
-                        <Border borderRadius="1rem">
-                <div className="flex flex-row  rounded-2xl">
+
+
+
+
+        <Border borderRadius="1rem">
+          <div className="flex flex-row  rounded-2xl">
             <div className="w-2/3">
             <h2 className="font-mono text-black uppercase font-semibold text-xl">robotics engineer</h2>
             <div className="flex flex-col mt-6">

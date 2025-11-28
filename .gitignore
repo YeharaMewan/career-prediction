@@ -217,3 +217,11 @@ models/trained/
 checkpoints/
 wandb/
 mlruns/
+
+# Explicitly allow important configuration files
+!package.json
+!package-lock.json
+!yarn.lock
+!requirements.txt
+!Dockerfile
+!docker-compose.yml
