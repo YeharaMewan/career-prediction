@@ -20,10 +20,10 @@ const RotatingCards: React.FC = () => {
     <div className="wrapper">
       <div className="inner" style={{ ["--quantity" as string]: 10 } as React.CSSProperties}>
         <div
-          className="font-fredoka text-[40px] font-bold text-white"
+          className="font-space-grotesk text-[40px] font-bold text-white"
           style={{
             transform: `translateY(-120px) rotateY(${rotationCount * 180}deg)`,
-            transition: "transform 1.5s ease-in-out", // GPU optimized: slower transition
+            transition: "transform 1s ease-in-out",
           }}
         >
           {displayText}
@@ -33,7 +33,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 0,
-              ["--color-card" as string]: "142, 249, 252",
+              ["--color-card" as string]: "34, 87, 122",
             } as React.CSSProperties
           }
         >
@@ -44,7 +44,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 1,
-              ["--color-card" as string]: "142, 252, 204",
+              ["--color-card" as string]: "56, 163, 165",
             } as React.CSSProperties
           }
         >
@@ -55,7 +55,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 2,
-              ["--color-card" as string]: "142, 252, 157",
+              ["--color-card" as string]: "87, 204, 153",
             } as React.CSSProperties
           }
         >
@@ -66,7 +66,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 3,
-              ["--color-card" as string]: "215, 252, 142",
+              ["--color-card" as string]: "128, 237, 153",
             } as React.CSSProperties
           }
         >
@@ -77,7 +77,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 4,
-              ["--color-card" as string]: "252, 252, 142",
+              ["--color-card" as string]: "199, 249, 204",
             } as React.CSSProperties
           }
         >
@@ -88,7 +88,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 5,
-              ["--color-card" as string]: "252, 208, 142",
+              ["--color-card" as string]: "27, 70, 98",
             } as React.CSSProperties
           }
         >
@@ -99,7 +99,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 6,
-              ["--color-card" as string]: "252, 142, 142",
+              ["--color-card" as string]: "70, 204, 207",
             } as React.CSSProperties
           }
         >
@@ -110,7 +110,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 7,
-              ["--color-card" as string]: "252, 142, 239",
+              ["--color-card" as string]: "78, 184, 138",
             } as React.CSSProperties
           }
         >
@@ -121,7 +121,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 8,
-              ["--color-card" as string]: "204, 142, 252",
+              ["--color-card" as string]: "153, 255, 178",
             } as React.CSSProperties
           }
         >
@@ -132,7 +132,7 @@ const RotatingCards: React.FC = () => {
           style={
             {
               ["--index" as string]: 9,
-              ["--color-card" as string]: "142, 202, 252",
+              ["--color-card" as string]: "220, 255, 225",
             } as React.CSSProperties
           }
         >
