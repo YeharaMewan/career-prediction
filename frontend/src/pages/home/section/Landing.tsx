@@ -1,34 +1,22 @@
 import { useState, useRef } from "react";
+import useClickOutside from "../../../hooks/UseClickOutside";
 import PreviewUseAutoScroll from "../../../components/PreviewUseAutoScroll";
 import { ModernSimpleInput } from "../../../components/Input";
-import LanguageToggle from "../../../components/LanguageToggle";
-import AIninja from "../../../assets/images/home/AIrobo.jpg";
 
 const Landing = () => {
   const [chatOpen, setChatOpen] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState("");
+  const chatRef = useRef<HTMLDivElement>(null);
 
-  // Language state with localStorage persistence (syncs with chat)
-  const [language, setLanguage] = useState<"en" | "si">(() => {
-    return (localStorage.getItem("preferredLanguage") as "en" | "si") || "en";
-  });
-
-  // Handle language change
-  const handleLanguageChange = (newLang: "en" | "si") => {
-    setLanguage(newLang);
-    localStorage.setItem("preferredLanguage", newLang);
-  };
-
-  // Background click navigation disabled - close icon in chat interface will handle closing
+  useClickOutside(chatRef, () => setChatOpen(false));
 
   return (
-    <div className="relative z-[0] w-full">
-      {chatOpen ? (
-        <div className="fixed inset-0 z-[50] flex w-full items-center justify-center bg-black/70">
+    <div className="relative w-full">
+      {chatOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md">
           <div
             ref={chatRef}
-            className="relative flex h-[90%] w-[90%] max-w-3xl items-center justify-center overflow-hidden rounded-xl bg-neutral-900 p-[24px] shadow-lg"
+            className="h-[90vh] w-[90vw] max-w-4xl overflow-hidden rounded-2xl bg-neutral-900 shadow-2xl"
           >
             {/* Close button */}
             <button
@@ -54,37 +42,47 @@ const Landing = () => {
             <PreviewUseAutoScroll />
           </div>
         </div>
-      ) : (
-        <div className="flex w-full flex-col items-center justify-between lg:flex-row lg:gap-x-[50px]">
-          <div className="flex w-full flex-col justify-center gap-y-[24px]">
-            <div className="w-full items-center text-center">
-              <p className="font-fredoka pb-[16px] text-[52px] leading-[72px] font-bold text-white uppercase xl:text-[86px] xl:leading-[90px] 2xl:leading-[140px]">
-                Build Imagination on your mind with logic ai
-              </p>
-            </div>
+      )}
 
-            {/* Language selector - syncs with chat via localStorage */}
-            <div className="flex w-full justify-center mb-4">
-              <LanguageToggle
-                currentLanguage={language}
-                onLanguageChange={handleLanguageChange}
-              />
-            </div>
-
-            <div className="codepen-button z-50">
-              <ModernSimpleInput
-                onClick={() => setChatOpen(true)}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="Say Hi..."
-                type="text"
-                value={value}
-                className=" relative z-50"
-              />
-            </div>
+      {!chatOpen && (
+        <div className="relative flex w-full items-center justify-center px-6 py-20">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-40 -right-40 h-90 w-96 rounded-full bg-orange-300/30 blur-3xl" />
+            <div className="absolute -bottom-40 -left-40 h-90 w-96 rounded-full bg-amber-400/30 blur-3xl" />
           </div>
 
-          <div className="z-[50] flex w-full justify-end">
-            <img src={AIninja} alt="" className="z-[2] h-[88vh] rounded-[24px] object-cover" />
+          <div className="relative z-10 w-full max-w-5xl text-center">
+            <div className="space-y-7 xl:space-y-9">
+              <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-6xl lg:text-7xl xl:text-8xl">
+                Build Imagination
+                <br />
+                <span className="bg-gradient-to-r from-yellow-500 to-amber-500 bg-clip-text text-transparent">
+                  With Logic AI
+                </span>
+              </h1>
+
+              <p className="mx-auto max-w-2xl font-mono text-lg font-light text-gray-700 md:text-xl">
+                Your intelligent companion for creativity, problem-solving, and turning ideas into
+                reality.
+              </p>
+
+              <div className="mx-auto max-w-2xl">
+                <ModernSimpleInput
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  onClick={() => setChatOpen(true)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && setChatOpen(true)}
+                  placeholder="Start a conversation..."
+                  className="w-full text-[12px] shadow-2xl transition-all duration-300 hover:shadow-violet-500/20 focus:shadow-violet-500/30 md:text-lg"
+                />
+              </div>
+
+              <div className="flex flex-wrap justify-center gap-x-10 gap-y-4 pt-3 font-mono text-sm text-gray-600">
+                <span>Instant Responses</span>
+                <span>Private & Secure</span>
+                <span>Creative & Logical</span>
+              </div>
+            </div>
           </div>
         </div>
       )}

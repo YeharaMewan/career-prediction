@@ -30,14 +30,14 @@
 :root {
   --color-topic: #252525;
   --color-para: #5f5f5f;
-  --color-main: #060010;
+  --color-main: #FFFCF4;
   --color-red: #b91533;
 }
 
 .dark {
   --color-topic: #ffffff;
   --color-para: #a0a0a0;
-  --color-main: #060010;
+  --color-main: #FFFCF4;
   --color-red: #d6262c;
 }
 
@@ -416,4 +416,7 @@
  box-shadow: 0 0 0.6em .25em var(--glow-color),
         0 0 2.5em 2em var(--glow-spread-color),
         inset 0 0 .5em .25em var(--glow-color);
+}
+.list-disc-blue li::marker {
+  color: #2563eb;
 }
