@@ -1,93 +1,112 @@
-import { useState, useRef } from "react";
-import PreviewUseAutoScroll from "../../../components/PreviewUseAutoScroll";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ModernSimpleInput } from "../../../components/Input";
-import LanguageToggle from "../../../components/LanguageToggle";
-import AIninja from "../../../assets/images/home/AIrobo.jpg";
+import LandingSkeleton from "../../../components/skeletons/LandingSkeleton";
+import { useLanguage } from "../../../context/LanguageContext";
 
 const Landing = () => {
-  const [chatOpen, setChatOpen] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const { language, setLanguage } = useLanguage();
+  const navigate = useNavigate();
 
-  // Language state with localStorage persistence (syncs with chat)
-  const [language, setLanguage] = useState<"en" | "si">(() => {
-    return (localStorage.getItem("preferredLanguage") as "en" | "si") || "en";
-  });
+  useEffect(() => {
+    // Simulate content loading
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
 
-  // Handle language change
-  const handleLanguageChange = (newLang: "en" | "si") => {
-    setLanguage(newLang);
-    localStorage.setItem("preferredLanguage", newLang);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleStartChat = () => {
+    navigate("/chat", { state: { initialMessage: value } });
   };
 
-  // Background click navigation disabled - close icon in chat interface will handle closing
+  if (isLoading) {
+    return <LandingSkeleton />;
+  }
 
   return (
-    <div className="relative z-[0] w-full">
-      {chatOpen ? (
-        <div className="fixed inset-0 z-[50] flex w-full items-center justify-center bg-black/70">
-          <div
-            ref={chatRef}
-            className="relative flex h-[90%] w-[90%] max-w-3xl items-center justify-center overflow-hidden rounded-xl bg-neutral-900 p-[24px] shadow-lg"
-          >
-            {/* Close button */}
-            <button
-              onClick={() => setChatOpen(false)}
-              className="absolute top-6 right-6 z-10 rounded-lg p-2 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200 transition-colors"
-              aria-label="Close chat"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+    <div className="relative w-full">
+      <div className="relative flex w-full h-[calc(100vh-72px)] items-center justify-center px-6">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute top-10 right-0 h-90 w-96 rounded-full bg-teal-300/30 blur-3xl" />
+          <div className="absolute bottom-10 left-0 h-90 w-96 rounded-full bg-cyan-400/30 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 w-full max-w-5xl text-center">
+          <div className="space-y-7 xl:space-y-9">
+            <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-6xl lg:text-7xl xl:text-8xl">
+              Build Imagination
+              <br />
+              <span className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+                With Logic AI
+              </span>
+            </h1>
+
+            <p className="mx-auto max-w-2xl font-mono text-lg font-light text-gray-700 md:text-xl">
+              Your intelligent companion for creativity, problem-solving, and turning ideas into
+              reality.
+            </p>
+
+            {/* Language Toggle */}
+            <div className="flex justify-center">
+              <button
+                onClick={() => setLanguage(language === "en" ? "si" : "en")}
+                className="relative inline-flex cursor-pointer rounded-full bg-gray-100/80 p-1 backdrop-blur-sm ring-1 ring-gray-200 transition-all hover:ring-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-            <PreviewUseAutoScroll />
+                <span
+                  className={`relative z-10 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-300 ${language === "en" ? "text-white" : "text-gray-500"
+                    }`}
+                >
+                  English
+                  {language === "en" && (
+                    <motion.div
+                      layoutId="active-language"
+                      className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 shadow-md"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                </span>
+                <span
+                  className={`relative z-10 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-300 ${language === "si" ? "text-white" : "text-gray-500"
+                    }`}
+                >
+                  සිංහල
+                  {language === "si" && (
+                    <motion.div
+                      layoutId="active-language"
+                      className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 shadow-md"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                </span>
+              </button>
+            </div>
+
+            <div className="mx-auto max-w-2xl">
+              <div className="glow-input-wrapper">
+                <ModernSimpleInput
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  onClick={handleStartChat}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleStartChat()}
+                  placeholder="Start a conversation..."
+                  className="w-full !bg-white text-[12px] shadow-2xl transition-all duration-300 hover:shadow-teal-500/20 focus:shadow-teal-500/30 md:text-lg"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-x-10 gap-y-4 pt-3 font-mono text-sm text-gray-600">
+              <span>Instant Responses</span>
+              <span>Private & Secure</span>
+              <span>Creative & Logical</span>
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="flex w-full flex-col items-center justify-between lg:flex-row lg:gap-x-[50px]">
-          <div className="flex w-full flex-col justify-center gap-y-[24px]">
-            <div className="w-full items-center text-center">
-              <p className="font-fredoka pb-[16px] text-[52px] leading-[72px] font-bold text-white uppercase xl:text-[86px] xl:leading-[90px] 2xl:leading-[140px]">
-                Build Imagination on your mind with logic ai
-              </p>
-            </div>
-
-            {/* Language selector - syncs with chat via localStorage */}
-            <div className="flex w-full justify-center mb-4">
-              <LanguageToggle
-                currentLanguage={language}
-                onLanguageChange={handleLanguageChange}
-              />
-            </div>
-
-            <div className="codepen-button z-50">
-              <ModernSimpleInput
-                onClick={() => setChatOpen(true)}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="Say Hi..."
-                type="text"
-                value={value}
-                className=" relative z-50"
-              />
-            </div>
-          </div>
-
-          <div className="z-[50] flex w-full justify-end">
-            <img src={AIninja} alt="" className="z-[2] h-[88vh] rounded-[24px] object-cover" />
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
