@@ -32,6 +32,7 @@
   --color-topic: #252525;
   --color-para: #5f5f5f;
   --color-main: #FFFCF4;
+  --color-main: #FFFCF4;
   --color-red: #b91533;
   --color-teal-primary: #38a3a5;
   --color-teal-dark: #22577a;
@@ -43,6 +44,7 @@
 .dark {
   --color-topic: #ffffff;
   --color-para: #a0a0a0;
+  --color-main: #FFFCF4;
   --color-main: #FFFCF4;
   --color-red: #d6262c;
 }
@@ -496,4 +498,7 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+.list-disc-blue li::marker {
+  color: #2563eb;
 }
