@@ -4,9 +4,14 @@ import React from "react";
 interface BorderProps {
   children: React.ReactNode;
   borderRadius?: string;
+  color?: string;
 }
 
-const Border: React.FC<BorderProps> = ({ children, borderRadius = "1rem" }) => {
+const Border: React.FC<BorderProps> = ({ children, borderRadius = "1rem", color }) => {
+  const backgroundGradient = color
+    ? `conic-gradient(from 0deg, ${color}, ${color}30, ${color})`
+    : `conic-gradient(from 0deg, #abffb3, #80ed99, #57cc99, #38a3a5, #57cc99, #80ed99, #abffb3)`;
+
   return (
     <>
       <style>{`
@@ -25,8 +30,11 @@ const Border: React.FC<BorderProps> = ({ children, borderRadius = "1rem" }) => {
         style={{ borderRadius }}
       >
         <div
-          className="absolute inset-0 bg-[conic-gradient(#00F5FF,#00F5FF30,#00F5FF)]"
-          style={{ animation: "spin-gradient 10s linear infinite" }}
+          className="absolute inset-0"
+          style={{
+            background: backgroundGradient,
+            animation: "spin-gradient 15s linear infinite"
+          }}
         />
 
         {/* FIXED */}

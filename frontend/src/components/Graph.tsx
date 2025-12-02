@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 
 interface GraphProps {
-  value: number;         
-  size?: number;         
-  strokeWidth?: number; 
-  label?: string;   
-  strokeColor?: string;     
+  value: number;
+  size?: number;
+  strokeWidth?: number;
+  label?: string;
+  strokeColor?: string;
 }
 
 const Graph: React.FC<GraphProps> = ({
@@ -21,24 +21,23 @@ const Graph: React.FC<GraphProps> = ({
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    let start = 0;
-    const speed = 20; 
+    // Small delay to ensure the transition triggers after mount
+    const timer = setTimeout(() => {
+      setProgress(value);
+    }, 100);
 
-    const interval = setInterval(() => {
-      start += 1;
-      setProgress(start);
-
-      if (start >= value) clearInterval(interval);
-    }, speed);
-
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, [value]);
 
   const offset = circumference - (progress / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center justify-center">
-      <svg width={size} height={size}>
+    <div className="relative flex flex-col items-center justify-center">
+      <svg
+        width={size}
+        height={size}
+        style={{ transform: "rotate(-90deg)" }}
+      >
         <circle
           stroke="#e5e7eb"
           fill="transparent"
@@ -57,14 +56,14 @@ const Graph: React.FC<GraphProps> = ({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.2s ease" }}
+          style={{ transition: "stroke-dashoffset 1.5s ease-out" }}
         />
       </svg>
 
-      <div className="-mt-4 text-center absolute">
-        <p className="text-3xl font-bold font-mono  text-gray-800">{progress}%</p>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <p className="text-3xl font-bold font-mono text-gray-800 leading-none">{value}%</p>
         {label && (
-          <p className="text-lg font-semibold font-mono  text-gray-500 mt-1 uppercase tracking-wide">
+          <p className="text-lg font-semibold font-mono text-gray-500 uppercase tracking-wide -mt-1">
             {label}
           </p>
         )}

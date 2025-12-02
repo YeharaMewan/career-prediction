@@ -4,6 +4,7 @@ Enhanced Conversation Manager for Human-in-the-Loop User Profiler Agent
 This module handles intelligent question generation, response analysis,
 and conversation flow control using advanced AI techniques.
 """
+
 import json
 import logging
 import re
@@ -15,15 +16,25 @@ from enum import Enum
 from langchain_core.messages import HumanMessage, AIMessage
 
 from agents.conversation_states import (
-    ConversationState, ConversationContext, RIASECCategory,
-    ConversationStateMachine, create_initial_conversation_context
+    ConversationState,
+    ConversationContext,
+    RIASECCategory,
+    ConversationStateMachine,
+    create_initial_conversation_context,
 )
 
 # Import LangSmith configuration
-from utils.langsmith_config import get_traced_run_config, log_agent_execution, setup_langsmith
+from utils.langsmith_config import (
+    get_traced_run_config,
+    log_agent_execution,
+    setup_langsmith,
+)
 
 # Import LLM factory for fallback support
 from utils.llm_factory import LLMFactory
+
+# Import MessagePool for dynamic greeting variation
+from agents.message_pools import MessagePool
 
 # Ensure LangSmith is configured
 setup_langsmith()
@@ -31,6 +42,7 @@ setup_langsmith()
 
 class QuestionType(Enum):
     """Types of questions that can be asked."""
+
     OPEN_ENDED = "open_ended"
     MULTIPLE_CHOICE = "multiple_choice"
     SCALE_RATING = "scale_rating"
@@ -44,6 +56,7 @@ class GeneratedQuestion:
     """
     A generated question with metadata.
     """
+
     question_text: str
     question_type: QuestionType
     target_area: str  # What area this question is meant to assess
@@ -58,6 +71,7 @@ class ResponseAnalysis:
     Analysis results from a user response.
     Simplified to focus on RIASEC assessment without confidence tracking.
     """
+
     riasec_updates: Dict[RIASECCategory, float]  # Updates to RIASEC scores
     extracted_data: Dict[str, Any]  # Extracted structured data
     follow_up_needed: List[str]  # Areas needing follow-up
@@ -86,137 +100,240 @@ class ConversationManager:
     def __init__(self, model: str = "gpt-4o", temperature: float = 0.3):
         # Use LLM factory with fallback support instead of direct ChatOpenAI
         self.llm_wrapper = LLMFactory.create_llm(
-            model=model,
-            temperature=temperature,
-            enable_fallback=True
+            model=model, temperature=temperature, enable_fallback=True
         )
         self.llm = self.llm_wrapper.llm
-        logging.info(f"✅ ConversationManager LLM initialized using {self.llm_wrapper.strategy.provider_name}")
+        logging.info(
+            f"✅ ConversationManager LLM initialized using {self.llm_wrapper.strategy.provider_name}"
+        )
 
         self.state_machine = ConversationStateMachine()
         self.question_bank = self._initialize_question_bank()
         self.riasec_keywords = self._initialize_riasec_keywords()
         self.few_shot_examples = self._initialize_few_shot_examples()
 
-    def _initialize_question_bank(self) -> Dict[ConversationState, List[Dict[str, Any]]]:
+        # Initialize message pool for dynamic greeting variation (Phase 2A enhancement)
+        self.message_pool = MessagePool()
+        logging.info("✅ MessagePool initialized for dynamic greetings")
+
+        # Initialize rephrased question cache (Phase 2B enhancement)
+        # Cache structure: {(question_text, tone_profile): rephrased_text}
+        # tone_profile = f"{energy_level}_{formality}" (e.g., "enthusiastic_casual")
+        self.rephrased_question_cache = {}
+        logging.info("✅ Rephrased question cache initialized for adaptive tone matching")
+
+    def _initialize_question_bank(
+        self,
+    ) -> Dict[ConversationState, List[Dict[str, Any]]]:
         """Initialize curated question bank for each conversation state with simplified, accessible questions."""
         return {
             ConversationState.GREETING: [
                 # No predefined greeting - will be generated dynamically
             ],
-
-            ConversationState.ACADEMIC_GATHERING: [
-                {
-                    "question": "Tell me about your experience with school so far. What subjects or topics have really clicked for you?",
-                    "type": QuestionType.OPEN_ENDED,
-                    "target_area": "academic_background",
-                    "follow_up_triggers": ["incomplete_info", "career_change", "multiple_fields"],
-                    "priority": 1
-                },
-                {
-                    "question": "When you're learning something new, what helps it stick? Do you prefer hands-on practice, working through problems, creative projects, or discussing ideas with others?",
-                    "type": QuestionType.OPEN_ENDED,
-                    "target_area": "learning_style",
-                    "follow_up_triggers": ["specific_methods", "challenges", "preferences"],
-                    "priority": 1
-                }
-            ],
-
             ConversationState.INTEREST_DISCOVERY: [
                 {
                     "question": "Outside of school, what kinds of activities or hobbies really draw you in? What makes them appealing?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "work_preferences",
-                    "follow_up_triggers": ["general_response", "multiple_activities", "unclear"],
-                    "priority": 1
+                    "follow_up_triggers": [
+                        "general_response",
+                        "multiple_activities",
+                        "unclear",
+                    ],
+                    "priority": 1,
                 },
                 {
                     "question": "Think about times when you've felt really engaged and energized. Was it working independently on something, or collaborating with others? What made that experience work for you?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "work_style",
-                    "follow_up_triggers": ["combination", "uncertain", "strong_preference"],
-                    "priority": 1
+                    "follow_up_triggers": [
+                        "combination",
+                        "uncertain",
+                        "strong_preference",
+                    ],
+                    "priority": 1,
                 },
                 {
                     "question": "When you picture yourself in a work environment, what kind of setting appeals to you? What atmosphere helps you do your best work?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "industry_interests",
-                    "follow_up_triggers": ["multiple_industries", "superficial_knowledge", "specific_companies"],
-                    "priority": 1
+                    "follow_up_triggers": [
+                        "multiple_industries",
+                        "superficial_knowledge",
+                        "specific_companies",
+                    ],
+                    "priority": 1,
                 },
                 {
                     "question": "Everyone values different things in their work. What matters most to you when you think about your future career - is it making an impact, creative freedom, financial stability, something else?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "career_values",
-                    "follow_up_triggers": ["multiple_motivations", "unclear_values", "specific_impact"],
-                    "priority": 1
-                }
+                    "follow_up_triggers": [
+                        "multiple_motivations",
+                        "unclear_values",
+                        "specific_impact",
+                    ],
+                    "priority": 1,
+                },
             ],
-
+            ConversationState.ACADEMIC_GATHERING: [
+                {
+                    "question": "Tell me about your experience with school so far. What subjects or topics have really clicked for you?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "academic_background",
+                    "follow_up_triggers": [
+                        "incomplete_info",
+                        "career_change",
+                        "multiple_fields",
+                    ],
+                    "priority": 1,
+                },
+                {
+                    "question": "When you're learning something new, what helps it stick? Do you prefer hands-on practice, working through problems, creative projects, or discussing ideas with others?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "learning_style",
+                    "follow_up_triggers": [
+                        "specific_methods",
+                        "challenges",
+                        "preferences",
+                    ],
+                    "priority": 1,
+                },
+            ],
             ConversationState.SKILLS_ASSESSMENT: [
                 {
                     "question": "Let's talk about your strengths. What comes naturally to you that others might find challenging? What do people tend to come to you for?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "technical_skills",
-                    "follow_up_triggers": ["limited_skills", "advanced_skills", "self_taught"],
-                    "priority": 1
+                    "follow_up_triggers": [
+                        "limited_skills",
+                        "advanced_skills",
+                        "self_taught",
+                    ],
+                    "priority": 1,
                 },
                 {
                     "question": "When you're faced with a challenge or problem, how do you typically approach it? Walk me through your process.",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "problem_solving",
                     "follow_up_triggers": ["analytical", "creative", "collaborative"],
-                    "priority": 1
-                }
+                    "priority": 1,
+                },
             ],
-
             ConversationState.PERSONALITY_PROBE: [
                 {
                     "question": "Some people recharge by being around others, while others need solo time to refuel. What's your pattern? When do you feel most like yourself?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "introversion_extraversion",
-                    "follow_up_triggers": ["extreme_preference", "situational", "unclear"],
-                    "priority": 1
+                    "follow_up_triggers": [
+                        "extreme_preference",
+                        "situational",
+                        "unclear",
+                    ],
+                    "priority": 1,
                 },
                 {
                     "question": "Think about a time recently when you felt really satisfied or accomplished. What were you doing, and what about that moment made it meaningful for you?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "core_motivation",
-                    "follow_up_triggers": ["multiple_motivations", "unclear", "specific_examples"],
-                    "priority": 1
-                }
-            ]
+                    "follow_up_triggers": [
+                        "multiple_motivations",
+                        "unclear",
+                        "specific_examples",
+                    ],
+                    "priority": 1,
+                },
+            ],
         }
 
     def _initialize_riasec_keywords(self) -> Dict[RIASECCategory, List[str]]:
         """Initialize RIASEC category keywords for scoring."""
         return {
             RIASECCategory.REALISTIC: [
-                "hands-on", "practical", "mechanical", "building", "tools", "outdoors",
-                "physical", "construction", "repair", "engineering", "technical", "tangible"
+                "hands-on",
+                "practical",
+                "mechanical",
+                "building",
+                "tools",
+                "outdoors",
+                "physical",
+                "construction",
+                "repair",
+                "engineering",
+                "technical",
+                "tangible",
             ],
             RIASECCategory.INVESTIGATIVE: [
-                "research", "analyze", "investigate", "scientific", "data", "theory",
-                "logical", "experimental", "academic", "intellectual", "problem-solving", "study"
+                "research",
+                "analyze",
+                "investigate",
+                "scientific",
+                "data",
+                "theory",
+                "logical",
+                "experimental",
+                "academic",
+                "intellectual",
+                "problem-solving",
+                "study",
             ],
             RIASECCategory.ARTISTIC: [
-                "creative", "design", "artistic", "imaginative", "aesthetic", "visual",
-                "music", "writing", "innovative", "expressive", "original", "beauty"
+                "creative",
+                "design",
+                "artistic",
+                "imaginative",
+                "aesthetic",
+                "visual",
+                "music",
+                "writing",
+                "innovative",
+                "expressive",
+                "original",
+                "beauty",
             ],
             RIASECCategory.SOCIAL: [
-                "helping", "teaching", "caring", "people", "service", "community",
-                "counseling", "teamwork", "communication", "mentoring", "support", "relationships"
+                "helping",
+                "teaching",
+                "caring",
+                "people",
+                "service",
+                "community",
+                "counseling",
+                "teamwork",
+                "communication",
+                "mentoring",
+                "support",
+                "relationships",
             ],
             RIASECCategory.ENTERPRISING: [
-                "leadership", "management", "business", "sales", "persuading", "competitive",
-                "entrepreneurial", "ambitious", "influence", "negotiate", "risk-taking", "profit"
+                "leadership",
+                "management",
+                "business",
+                "sales",
+                "persuading",
+                "competitive",
+                "entrepreneurial",
+                "ambitious",
+                "influence",
+                "negotiate",
+                "risk-taking",
+                "profit",
             ],
             RIASECCategory.CONVENTIONAL: [
-                "organized", "systematic", "detail-oriented", "procedures", "administrative",
-                "structured", "accuracy", "routine", "data-entry", "planning", "methodical", "efficient"
-            ]
+                "organized",
+                "systematic",
+                "detail-oriented",
+                "procedures",
+                "administrative",
+                "structured",
+                "accuracy",
+                "routine",
+                "data-entry",
+                "planning",
+                "methodical",
+                "efficient",
+            ],
         }
-
     def _initialize_few_shot_examples(self) -> List[Dict[str, str]]:
         """Initialize few-shot prompting examples for better LLM performance."""
         return [
@@ -233,6 +350,42 @@ class ConversationManager:
                 "analysis": "High Artistic RIASEC score (0.8), moderate Enterprising score (0.6). Good confidence in interests (0.7). Follow-up needed on specific design areas and business interests."
             }
         ]
+
+    def _translate_if_needed(self, text: str, context: ConversationContext) -> str:
+        """Translate text to target language if needed."""
+        language = context.session_metadata.get("language", "en")
+        
+        # If language is English or text is empty, return original
+        if language == "en" or not text:
+            return text
+            
+        # For Sinhala, translate using LLM
+        if language == "si":
+            # Log translation fallback (indicates LLM didn't follow instructions)
+            session_id = context.session_metadata.get("session_id", "unknown")
+            logging.warning(f"Session {session_id}: Translation fallback triggered - LLM may not have followed language instructions")
+
+            prompt = f"""Translate the following career counseling question/statement into natural, conversational Sinhala (Sinhala script).
+            
+            ORIGINAL: "{text}"
+            
+            REQUIREMENTS:
+            - Use natural, spoken-style Sinhala suitable for a high school student
+            - Maintain the warm, supportive tone
+            - Write in Sinhala script (සිංහල අකුරු)
+            - Return ONLY the translated text, no other words
+            
+            TRANSLATION:"""
+            
+            try:
+                response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
+                if response and response.content:
+                    return response.content.strip()
+            except Exception as e:
+                logging.error(f"Translation failed: {e}")
+                return text
+                
+        return text
 
     def generate_question(self, context: ConversationContext) -> GeneratedQuestion:
         """
@@ -271,17 +424,40 @@ class ConversationManager:
                 logging.info(f"Generating mid-conversation summary at question {questions_asked}")
                 return self._generate_mid_conversation_summary(context)
 
+        # Handle GREETING state specifically
+        if current_state == ConversationState.GREETING:
+            return self._generate_dynamic_greeting(context)
+
         # Get available questions with priority consideration
         available_questions = self._get_available_questions_by_priority(context)
 
         if available_questions:
             # Select best question based on priority and context
             selected_question = self._select_best_question(available_questions, context)
+
+            # Translate if needed
+            if context.session_metadata.get("language") == "si":
+                selected_question["question"] = self._translate_if_needed(selected_question["question"], context)
+
             result = self._convert_to_generated_question(selected_question, context)
         else:
             # Only generate dynamic questions if we haven't reached limit and no predefined questions available
             result = self._generate_dynamic_question(context)
-        
+
+        # ADAPTIVE REPHRASING (Phase 2B enhancement)
+        # Apply tone-matching rephrasing after question 2 (once we have baseline tone data)
+        questions_asked = len(context.question_history)
+        if questions_asked >= 2 and current_state != ConversationState.GREETING:
+            # Skip rephrasing for mid-conversation summaries (they're already personalized)
+            if result.target_area != "mid_summary":
+                original_question = result.question_text
+                rephrased_question = self._rephrase_question_for_student(original_question, context)
+
+                # Update the result with rephrased question if different
+                if rephrased_question != original_question:
+                    result.question_text = rephrased_question
+                    logging.debug(f"Applied adaptive rephrasing (Q{questions_asked + 1})")
+
         # Log execution
         duration = (datetime.now() - start_time).total_seconds()
         state_value = context.current_state.value if context.current_state else "unknown"
@@ -295,451 +471,341 @@ class ConversationManager:
         
         return result
 
-    def _select_best_question(self, questions: List[Dict[str, Any]], context: ConversationContext) -> Dict[str, Any]:
-        """Select the best question based on current context, confidence gaps, and conversation flow."""
-
-        # Enhanced question selection with multiple criteria
-        scored_questions = []
-
-        for question in questions:
-            score = 0
-            target_area = question.get("target_area", "")
-            question_text = question.get("question", "")
-
-            # 1. Priority scoring (highest weight)
-            priority = question.get("priority", 3)
-            score += (4 - priority) * 30  # Priority 1 = 90 points, Priority 2 = 60 points
-
-            # 2. Context relevance scoring
-            if context.response_history:
-                last_response = context.response_history[-1].lower()
-
-                # Check for topic continuity - avoid jumping topics abruptly
-                question_keywords = self._extract_question_keywords(question_text)
-                response_keywords = self._extract_response_keywords(last_response)
-
-                keyword_overlap = len(set(question_keywords) & set(response_keywords))
-                if keyword_overlap > 0:
-                    score += keyword_overlap * 5  # Bonus for topical continuity
-
-                # Avoid repetitive question patterns
-                if any(self._questions_are_similar(question_text, prev_q)
-                       for prev_q in context.question_history[-2:]):
-                    score -= 20  # Penalty for similar questions
-
-            # 3. RIASEC-based scoring - prioritize balanced coverage
-            riasec_relevance = self._calculate_question_riasec_relevance(question_text)
-            priority_categories = self._get_riasec_priority_categories(context)
-
-            # Give high priority to questions that address under-explored RIASEC categories
-            for category, relevance in riasec_relevance.items():
-                if category in priority_categories[:2]:  # Top 2 priority categories
-                    score += relevance * 40  # High bonus for priority RIASEC categories
-                elif category in priority_categories:
-                    score += relevance * 20  # Medium bonus for other priority categories
-
-            # 4. Conversation flow scoring
-            questions_asked = len(context.question_history)
-
-            # Early conversation: prioritize foundational questions
-            if questions_asked <= 3 and "background" in target_area:
-                score += 10
-
-            # Mid conversation: prioritize interest and skills
-            elif 4 <= questions_asked <= 8 and target_area in ["work_preferences", "technical_skills", "work_style"]:
-                score += 10
-
-            # Later conversation: prioritize personality and values
-            elif questions_asked > 8 and target_area in ["core_motivation", "work_environment_preferences"]:
-                score += 10
-
-            # 5. Response depth adaptation
-            if context.response_history:
-                last_analysis = context.session_metadata.get("last_response_completeness", 0.5)
-
-                # If last response was shallow, ask a more engaging question
-                if last_analysis < 0.4 and "motivation" in target_area:
-                    score += 15
-
-                # If responses are detailed, we can ask more specific questions
-                elif last_analysis > 0.7:
-                    score += 5
-
-            scored_questions.append((question, score))
-
-        # Sort by score (highest first) and return the best question
-        scored_questions.sort(key=lambda x: x[1], reverse=True)
-
-        # Return the highest-scoring question
-        return scored_questions[0][0] if scored_questions else questions[0]
-
-    def _extract_question_keywords(self, question_text: str) -> List[str]:
-        """Extract key topics from a question for context matching."""
-        # Simple keyword extraction - focus on career-relevant terms
-        keywords = []
-        career_terms = [
-            "academic", "study", "education", "learning", "subjects",
-            "work", "career", "job", "activities", "interests", "industry", "companies",
-            "skills", "abilities", "talents", "problem", "solving", "teamwork", "leadership",
-            "motivation", "values", "goals", "environment", "preferences", "style"
-        ]
-
-        question_lower = question_text.lower()
-        for term in career_terms:
-            if term in question_lower:
-                keywords.append(term)
-
-        return keywords
-
-    def _extract_response_keywords(self, response_text: str) -> List[str]:
-        """Extract topics mentioned in user responses for context matching."""
-        # Extract meaningful words from user responses
-        response_lower = response_text.lower()
-        keywords = []
-
-        # Look for specific topics users commonly mention
-        topic_indicators = {
-            "academic": ["study", "school", "college", "university", "degree", "major", "course"],
-            "technical": ["computer", "software", "programming", "code", "technology", "data"],
-            "creative": ["design", "art", "creative", "writing", "music", "innovation"],
-            "social": ["people", "team", "help", "teach", "communicate", "social"],
-            "leadership": ["lead", "manage", "organize", "coordinate", "direct"],
-            "analytical": ["analysis", "research", "solve", "think", "logic", "math"]
-        }
-
-        for topic, indicators in topic_indicators.items():
-            if any(indicator in response_lower for indicator in indicators):
-                keywords.append(topic)
-
-        return keywords
-
-    def _questions_are_similar(self, question1: str, question2: str) -> bool:
-        """Check if two questions are asking about similar topics."""
-        if not question1 or not question2:
-            return False
-
-        q1_keywords = set(self._extract_question_keywords(question1))
-        q2_keywords = set(self._extract_question_keywords(question2))
-
-        # Consider questions similar if they share 2+ keywords
-        overlap = len(q1_keywords & q2_keywords)
-        return overlap >= 2
-
-    def _convert_to_generated_question(self, question_dict: Dict[str, Any], context: ConversationContext) -> GeneratedQuestion:
-        """Convert question dictionary to GeneratedQuestion object."""
-        return GeneratedQuestion(
-            question_text=question_dict["question"],
-            question_type=QuestionType(question_dict.get("type", QuestionType.OPEN_ENDED)),
-            target_area=question_dict.get("target_area", "general"),
-            expected_insights=question_dict.get("expected_insights", []),
-            follow_up_triggers=question_dict.get("follow_up_triggers", []),
-            riasec_relevance=self._calculate_question_riasec_relevance(question_dict["question"])
-        )
-
-    def _generate_dynamic_question(self, context: ConversationContext) -> GeneratedQuestion:
-        """Generate a dynamic question using LLM when pre-defined questions are exhausted."""
-
-        # Special handling for greeting state
-        if context.current_state == ConversationState.GREETING:
-            return self._generate_dynamic_greeting(context)
-
-        state_objective = self.state_machine.get_state_objective(context.current_state)
-        questions_asked = len(context.question_history)
-        questions_remaining = 12 - questions_asked
-
-        # Build context from recent conversation (only last response to keep questions concise)
-        recent_context = ""
-        if context.response_history:
-            last_response = context.response_history[-1]
-            recent_context = f"\nTheir most recent response: \"{last_response}\""
-
-        # Get student's tone and energy to adapt response
-        tone_context = ""
-        if context.response_history:
-            latest_tone = context.session_metadata.get("energy_level", "balanced")
-            confidence = context.session_metadata.get("confidence_level", "moderate")
-            suggested_personality = context.session_metadata.get("suggested_personality", "balanced_and_curious")
-
-            tone_context = f"\n\nSTUDENT'S COMMUNICATION STYLE:\n- Energy: {latest_tone}\n- Confidence: {confidence}\n- Match this tone: {suggested_personality}"
-
-        # Get language preference
-        language = context.session_metadata.get("language", "en")
-        language_instruction = ""
-        if language == "si":
-            language_instruction = """LANGUAGE REQUIREMENT: Generate your response in SINHALA (සිංහල භාෂාව).
-- Use natural, conversational Sinhala that a high school student would understand
-- Write entirely in Sinhala script (සිංහල අකුරු)
-- Be warm, encouraging, and conversational in Sinhala
-- Maintain the same tone and approach but in Sinhala language
-
-"""
-
-        prompt = f"""{language_instruction}You are a warm, supportive career counselor talking with a high school student.{tone_context}
-
-GOAL: {state_objective}
-{recent_context}
-
-INSTRUCTIONS:
-- Brief acknowledgment (optional, 1 sentence max)
-- Ask ONE clear, conversational question about {state_objective.lower()}
-- Match their energy and tone
-- Keep total response to 2-3 sentences maximum
-- NO section labels, NO reasoning, NO explanations about your approach
-- Your output is shown DIRECTLY to the student - be natural and concise
-
-CRITICAL: Return ONLY the conversational message. No prefixes like "Acknowledge:", "Question:", or "Response:". Just speak naturally.
-
-Example:
-Student: "I love organizing events."
-You: "That's great! What kind of impact do you hope to make in your career?"
-
-Generate your brief, natural response:"""
-
+    def _generate_mid_conversation_summary(self, context: ConversationContext) -> GeneratedQuestion:
+        """Generate a summary of what we've learned so far."""
+        # Mark summary as done
+        context._summary_done = True
+        
+        summary_prompt = f"""Summarize the key career interests and strengths identified so far for this student.
+        
+        CONTEXT:
+        - RIASEC Scores: {context.riasec_scores}
+        - Collected Data: {context.collected_data}
+        
+        TASK:
+        Create a brief, encouraging summary (2-3 sentences) that reflects back what you've heard.
+        Then ask a transition question to explore deeper.
+        """
+        
         try:
-            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
-
-            if not response or not response.content:
-                raise ValueError("Empty response from LLM")
-
-            question_text = response.content.strip()
-
-            # Strip structural markers that should not appear in user-facing output
-            question_text = self._strip_structural_markers(question_text)
-
-            # Ensure single question only (for high school student clarity)
-            question_text = self._ensure_single_question(question_text)
-
-            # Ensure the question is valid
-            if not question_text or len(question_text) < 10:
-                raise ValueError("Question too short or empty")
-
+            response = self.llm_wrapper.invoke([HumanMessage(content=summary_prompt)])
+            summary_text = response.content.strip()
+            
+            # Translate if needed
+            summary_text = self._translate_if_needed(summary_text, context)
+            
+            return GeneratedQuestion(
+                question_text=summary_text,
+                question_type=QuestionType.OPEN_ENDED,
+                target_area="mid_summary",
+                expected_insights=["confirmation", "correction"],
+                follow_up_triggers=[],
+                riasec_relevance={}
+            )
         except Exception as e:
-            logging.error(f"Dynamic question generation failed: {type(e).__name__}: {str(e)}. Using fallback question.")
-
-            # Multiple varied fallback questions - rotate to avoid repetition
-            import random
-            state_name = context.current_state.name.lower()
-            fallback_questions = {
-                "academic_gathering": [
-                    "What subject or topic in school has really clicked with you so far?",
-                    "Tell me about something you're learning that genuinely interests you.",
-                    "Is there a class or subject area where things just make sense to you?",
-                    "What topic or area of study do you find yourself actually enjoying?",
-                    "When you're learning something new, what type of content tends to grab your attention?"
-                ],
-                "interest_discovery": [
-                    "What kinds of things do you do that make you lose track of time?",
-                    "Outside of school requirements, what activities or interests pull you in?",
-                    "What do you find yourself naturally drawn to when you have free time?",
-                    "Is there something you do where you feel genuinely engaged and energized?",
-                    "What activities or experiences have felt meaningful or satisfying to you?"
-                ],
-                "skills_assessment": [
-                    "What's something that comes naturally to you that others might struggle with?",
-                    "Is there an area where you feel particularly capable or confident?",
-                    "What do people tend to come to you for help with?",
-                    "What skills or abilities do you have that you feel good about?",
-                    "When have you felt really competent at something? What was it?"
-                ],
-                "personality_probe": [
-                    "How would your friends describe your personality or working style?",
-                    "What kind of environment or situation brings out your best?",
-                    "When do you feel most like yourself - in what kinds of settings?",
-                    "What matters most to you when you're working on something?",
-                    "How do you tend to approach new challenges or problems?"
-                ]
-            }
-
-            # Get random question from the appropriate category
-            questions_list = fallback_questions.get(state_name, [
-                "What kind of career or work environment feels like it might be a good match for you?",
-                "What draws you to certain types of work or activities?",
-                "What are you hoping to find in a future career?",
-                "When you think about your future, what matters most to you?",
-                "What kind of impact or contribution would you like to make?"
-            ])
-            question_text = random.choice(questions_list)
-
-        return GeneratedQuestion(
-            question_text=question_text,
-            question_type=QuestionType.OPEN_ENDED,
-            target_area="dynamic_generation",
-            expected_insights=[],
-            follow_up_triggers=[],
-            riasec_relevance=self._calculate_question_riasec_relevance(question_text)
-        )
+            logging.error(f"Mid-conversation summary generation failed: {e}")
+            return self._generate_dynamic_question(context)
 
     def _generate_dynamic_greeting(self, context: ConversationContext) -> GeneratedQuestion:
-        """Generate a dynamic, personalized greeting message using LLM."""
+        """
+        Generate a dynamic, friendly greeting with random variation.
 
-        session_id = context.session_metadata.get('session_id', 'unknown')
-        current_time = datetime.now().strftime('%B %d, %Y')
+        Strategy (Phase 2A Enhancement):
+        - 70% use pre-generated pool (5 greetings per language) - fast, cost-effective
+        - 30% generate fresh greeting with LLM - variety, prevents staleness
 
-        # Get language preference
+        Args:
+            context: Conversation context containing session metadata
+
+        Returns:
+            GeneratedQuestion with greeting text
+        """
+        import random
+
         language = context.session_metadata.get("language", "en")
-        language_instruction = ""
-        if language == "si":
-            language_instruction = """LANGUAGE REQUIREMENT: Generate your greeting in SINHALA (සිංහල භාෂාව).
-- Use natural, conversational Sinhala that a high school student would understand
-- Write entirely in Sinhala script (සිංහල අකුරු)
-- Be warm, welcoming, and conversational in Sinhala
-- Maintain the same friendly tone but in Sinhala language
 
-"""
+        # Use random selection 70% of time, LLM generation 30%
+        use_pool = random.random() < 0.7
 
-        prompt = f"""{language_instruction}You are a friendly career counselor starting a conversation with a high school student.
+        if use_pool:
+            # Pick random greeting from pool (70% of cases)
+            greeting = self.message_pool.get_random_greeting(language)
+            logging.debug(f"Using pooled greeting for language: {language}")
+        else:
+            # Generate fresh greeting with LLM (30% of cases)
+            greeting = self._generate_fresh_greeting_with_llm(language)
+            logging.debug(f"Generated fresh LLM greeting for language: {language}")
 
-TASK:
-Write a warm, brief greeting (2-3 sentences) that:
-- Introduces yourself as their career counselor
-- Shows genuine interest in helping
-- Ends with ONE engaging question
-
-EXAMPLES:
-- "Hey! I'm here to help you explore careers that might fit you. We'll talk about what you enjoy and what you're good at. What's got you thinking about careers?"
-- "Hi! I help students discover career paths. We'll chat about your interests and strengths. What brings you here?"
-
-CRITICAL:
-- Keep it SHORT (2-3 sentences max)
-- Friendly but natural, not overly enthusiastic
-- Your output is shown DIRECTLY to the student
-- NO prefixes like "Greeting:" or "Response:"
-
-Generate your brief greeting:"""
-
-        try:
-            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
-            question_text = response.content.strip()
-
-            # Strip structural markers that should not appear in user-facing output
-            question_text = self._strip_structural_markers(question_text)
-
-            # Enforce single question ending
-            question_text = self._ensure_greeting_has_single_question(question_text)
-
-            # Multiple varied fallback greetings if LLM response is empty or too short
-            import random
-            if not question_text or len(question_text) < 20:
-                fallback_greetings = [
-                    "Hey! I'm here to help you explore career paths that might be a good fit for you. We'll talk about your interests, strengths, and what matters to you. So what's got you thinking about careers right now?",
-                    "Hi there! I work with students to help them figure out career directions that make sense for them. We'll just have a conversation about what you enjoy and what you're good at. What brings you here today?",
-                    "Hello! I'm your career counselor, and I'm glad we're doing this. We'll chat about your interests, what comes naturally to you, and where you might want to head. What's on your mind about your future?",
-                    "Hey! I help students discover career options that actually fit who they are. We'll talk through what you care about and what you're drawn to. What made you want to explore this?",
-                    "Hi! I'm here to help you find career paths that could be a good match. We'll discuss your strengths, interests, and goals. So what's making you think about careers today?"
-                ]
-                question_text = random.choice(fallback_greetings)
-
-        except Exception as e:
-            # Multiple varied fallback greetings if LLM fails
-            import random
-            fallback_greetings = [
-                "Hey! I'm here to help you explore career paths that might be a good fit for you. We'll talk about your interests, strengths, and what matters to you. So what's got you thinking about careers right now?",
-                "Hi there! I work with students to help them figure out career directions that make sense for them. We'll just have a conversation about what you enjoy and what you're good at. What brings you here today?",
-                "Hello! I'm your career counselor, and I'm glad we're doing this. We'll chat about your interests, what comes naturally to you, and where you might want to head. What's on your mind about your future?",
-                "Hey! I help students discover career options that actually fit who they are. We'll talk through what you care about and what you're drawn to. What made you want to explore this?"
-            ]
-            question_text = random.choice(fallback_greetings)
+            # Optionally add this fresh greeting back to the pool
+            self.message_pool.add_greeting(language, greeting)
 
         return GeneratedQuestion(
-            question_text=question_text,
+            question_text=greeting,
             question_type=QuestionType.OPEN_ENDED,
-            target_area="initial_engagement",
-            expected_insights=["engagement_level", "communication_style", "initial_career_interests"],
-            follow_up_triggers=["vague", "uncertain", "multiple_interests"],
+            target_area="greeting",
+            expected_insights=["initial_interest"],
+            follow_up_triggers=[],
             riasec_relevance={}
         )
 
-    def _generate_mid_conversation_summary(self, context: ConversationContext) -> GeneratedQuestion:
-        """Generate a mid-conversation summary after 6-7 questions to show active listening."""
+    def _generate_fresh_greeting_with_llm(self, language: str) -> str:
+        """
+        Generate a unique greeting using LLM (30% of cases).
 
-        # Gather key insights from responses so far
-        responses_summary = "\n".join([
-            f"Q{i+1}: {context.question_history[i]}\nA{i+1}: {context.response_history[i]}"
-            for i in range(min(len(context.question_history), len(context.response_history)))
-        ])
+        Creates a fresh, varied greeting that maintains the required structure
+        but uses natural, conversational language.
 
-        prompt = f"""You are a GREAT career counselor talking with a HIGH SCHOOL STUDENT. You've asked 6-7 questions so far. Now PAUSE and create a summary to show you're listening.
+        Args:
+            language: Language code ("en" or "si")
 
-CONVERSATION SO FAR:
-{responses_summary}
+        Returns:
+            Generated greeting text
+        """
+        lang_instruction = "සිංහල භාෂාවෙන්" if language == "si" else "in English"
 
-YOUR TASK:
-Create a MID-CONVERSATION CHECK-IN with 3 parts:
+        prompt = f"""Generate a warm, friendly greeting for an AI conversation agent {lang_instruction}.
 
-1. TRANSITION (1 sentence)
-   • Simple transition to the summary
-   • Example: "Let's pause for a quick sec."
-   • Example: "Okay, let me make sure I'm understanding you right."
+STRUCTURE (must include):
+1. Greeting (1 sentence)
+2. Brief introduction (1 sentence)
+3. Opening question about interests/hobbies (1 sentence)
 
-2. SUMMARY (3-5 bullet points)
-   • List key things you've learned about them
-   • Use THEIR words when possible
-   • Keep it simple and clear
-   • Example format:
-     - You love [specific thing they mentioned]
-     - You're good at [specific skill]
-     - You value [specific value]
+CRITICAL REQUIREMENTS:
+- DO NOT mention: "career", "job", "future", "calling", "profession", "work"
+- DO ask about: hobbies, interests, free time, what they enjoy, passions
+- Tone: Friendly, casual, genuinely curious
+- Style: Natural conversation starter (not career counseling)
+- Length: 2-3 sentences total
+- Be warm and approachable
 
-3. VALIDATION QUESTION (1-2 sentences)
-   • Ask if you got it right
-   • Give them chance to correct or add
-   • Example: "Does that sound right? Did I miss anything important?"
+EXAMPLES OF GOOD GREETINGS (for inspiration, don't copy):
+- "Hey! I'm here to chat and learn about what makes you tick. What kind of stuff do you enjoy doing in your free time?"
+- "Welcome! Let's get to know each other. What's something you're really into these days?"
+- "Hi there! I'd love to hear about you. What do you like to spend your time on when you're not in class?"
 
-COMPLETE EXAMPLE:
-
-"Let's take a quick break here. Let me make sure I've got the full picture so far.
-
-From what you've told me:
-- You love working with your soccer team and being active
-- You really enjoy making plans and seeing them work out
-- You're a hands-on learner - you learn best by actually doing things
-- You want to make a real impact and help people
-
-Does that sound right? Is there anything important I missed or got wrong?"
-
-LANGUAGE RULES (HIGH SCHOOL LEVEL):
-✓ Use simple, everyday words
-✓ Short bullet points
-✓ Conversational tone
-✓ Reference their specific examples
-
-Generate the mid-conversation summary:"""
+Generate ONLY the greeting text, no labels or formatting."""
 
         try:
-            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
+            response = self.llm_wrapper.llm.invoke([HumanMessage(content=prompt)])
+            greeting = response.content.strip()
 
-            if not response or not response.content:
-                raise ValueError("Empty response from LLM")
+            # Clean up any unwanted formatting
+            greeting = self._clean_generated_text(greeting)
 
-            summary_text = response.content.strip()
-
-            # Strip structural markers that should not appear in user-facing output
-            summary_text = self._strip_structural_markers(summary_text)
-
-            # Mark that we've done the summary
-            context._summary_done = True
+            logging.info(f"✅ Generated fresh LLM greeting ({len(greeting)} chars)")
+            return greeting
 
         except Exception as e:
-            logging.error(f"Mid-conversation summary generation failed: {e}. Using fallback.")
+            logging.error(f"❌ Failed to generate LLM greeting: {e}")
 
-            # Simple fallback summary
-            summary_text = """Let's pause for a sec. Let me make sure I understand what you've shared:
+            # Fallback to pool if LLM generation fails
+            logging.warning("Using pool fallback for greeting")
+            return self.message_pool.get_random_greeting(language)
 
-- Your interests and strengths
-- What you enjoy doing
-- How you like to work
+    def _clean_generated_text(self, text: str) -> str:
+        """
+        Clean generated text by removing unwanted formatting.
 
-Does that sound about right? Anything important I missed?"""
+        Removes:
+        - Quotes at start/end
+        - Extra whitespace
+        - Structural markers like [GREETING], [QUESTION], etc.
 
-            context._summary_done = True
+        Args:
+            text: Text to clean
 
+        Returns:
+            Cleaned text
+        """
+        # Remove quotes
+        text = text.strip('"\'')
+
+        # Remove structural markers
+        markers = ["[GREETING]", "[ROLE]", "[QUESTION]", "[END]"]
+        for marker in markers:
+            text = text.replace(marker, "")
+
+        # Clean extra whitespace
+        text = " ".join(text.split())
+
+        return text.strip()
+
+    def _rephrase_question_for_student(
+        self, question: str, context: ConversationContext
+    ) -> str:
+        """
+        Rephrase a question to match the student's communication tone and style.
+
+        Uses the student's detected tone (energy, formality, confidence) to adapt
+        question phrasing for better engagement. Results are cached to minimize LLM costs.
+
+        Args:
+            question: Original question text
+            context: Conversation context with tone analysis data
+
+        Returns:
+            Rephrased question matching student's tone, or original if rephrasing fails
+        """
+        # Extract tone insights from context (stored in session_metadata by _analyze_response_for_adaptation)
+        energy_level = context.session_metadata.get("energy_level", "balanced")
+        formality = context.session_metadata.get("formality", "neutral")
+        confidence_level = context.session_metadata.get("confidence_level", "moderate")
+        suggested_personality = context.session_metadata.get("suggested_personality", "balanced_and_curious")
+
+        # If no tone data available yet (first 1-2 questions), return original
+        if energy_level == "balanced" and formality == "neutral" and confidence_level == "moderate":
+            logging.debug("No tone insights available yet, using original question")
+            return question
+
+        tone_profile = f"{energy_level}_{formality}_{confidence_level}"
+        cache_key = (question, tone_profile)
+
+        # Check cache first
+        if cache_key in self.rephrased_question_cache:
+            logging.debug(f"Using cached rephrased question for tone: {tone_profile}")
+            return self.rephrased_question_cache[cache_key]
+
+        # Get language
+        language = context.session_metadata.get("language", "en")
+        lang_instruction = "සිංහල භාෂාවෙන්" if language == "si" else "in English"
+
+        # Build adaptive rephrasing prompt
+        prompt = f"""Rephrase this career counseling question to match the student's communication style {lang_instruction}.
+
+ORIGINAL QUESTION:
+"{question}"
+
+STUDENT'S COMMUNICATION STYLE:
+- Energy Level: {energy_level}
+- Formality: {formality}
+- Confidence: {confidence_level}
+- Suggested Personality: {suggested_personality}
+
+REPHRASING GUIDELINES:
+
+1. If student is ENTHUSIASTIC:
+   - Use more energetic language ("That's awesome!", "I'm curious to know...")
+   - Add exclamation points sparingly
+   - Mirror their excitement
+
+2. If student is RESERVED:
+   - Use calmer, gentler phrasing
+   - Avoid excessive enthusiasm
+   - Be more thoughtful and patient
+
+3. If student is CASUAL:
+   - Use conversational language ("How do you feel about...", "What's your take on...")
+   - Avoid formal words like "furthermore", "indeed"
+   - Keep it natural and friendly
+
+4. If student is FORMAL:
+   - Use more structured language
+   - Maintain professional tone
+   - Avoid slang
+
+5. If student is UNCERTAIN/LOW CONFIDENCE:
+   - Use reassuring language
+   - Soften the question ("I'm wondering...", "If you're comfortable sharing...")
+   - Make it feel safe to explore
+
+6. If student is CONFIDENT:
+   - Be more direct
+   - Ask deeper, more challenging questions
+
+CRITICAL REQUIREMENTS:
+- Keep the SAME core meaning and intent
+- Maintain {lang_instruction} language ONLY
+- Output ONLY the rephrased question, no explanations
+- Keep it natural and conversational (not robotic)
+- Length: 1-2 sentences maximum
+
+Generate the rephrased question now:"""
+
+        try:
+            response = self.llm_wrapper.llm.invoke([HumanMessage(content=prompt)])
+            rephrased = response.content.strip()
+            rephrased = self._clean_generated_text(rephrased)
+
+            # Validate it's not empty
+            if len(rephrased) < 5:
+                logging.warning("Rephrased question too short, using original")
+                return question
+
+            # Cache for future use
+            self.rephrased_question_cache[cache_key] = rephrased
+            logging.info(f"✅ Rephrased question for tone: {tone_profile} ({len(rephrased)} chars)")
+
+            return rephrased
+
+        except Exception as e:
+            logging.error(f"❌ Question rephrasing failed: {e}. Using original question.")
+            return question
+
+    def _generate_dynamic_question(self, context: ConversationContext) -> GeneratedQuestion:
+        """Generate a dynamic question when no predefined ones are suitable."""
+        language = context.session_metadata.get("language", "en")
+
+        # CRITICAL: Strong language enforcement at prompt START
+        if language == "si":
+            language_instruction = """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 YOUR QUESTION MUST BE IN SINHALA (සිංහල) 🚨
+
+EVEN IF THE USER TYPED IN ENGLISH, YOUR QUESTION IS IN SINHALA.
+DO NOT MIRROR THEIR LANGUAGE. SINHALA ONLY.
+==========================================
+
+"""
+        else:
+            language_instruction = "Language: English\n\n"
+
+        prompt = f"""{language_instruction}Generate a career counseling question for the current state: {context.current_state.name}.
+
+        CONTEXT:
+        - Previous Questions: {context.question_history[-3:]}
+        - RIASEC Scores: {context.riasec_scores}
+
+        Generate a single, engaging open-ended question."""
+        
+        try:
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
+            question_text = response.content.strip()
+            
+            return GeneratedQuestion(
+                question_text=question_text,
+                question_type=QuestionType.OPEN_ENDED,
+                target_area="dynamic_exploration",
+                expected_insights=["general_insight"],
+                follow_up_triggers=[],
+                riasec_relevance={}
+            )
+        except Exception as e:
+            logging.error(f"Dynamic question generation failed: {e}")
+            fallback = "Tell me more about your interests."
+            if language == "si":
+                fallback = "ඔබේ රුචිකත්වයන් ගැන මට තව කියන්න."
+            return GeneratedQuestion(
+                question_text=fallback,
+                question_type=QuestionType.OPEN_ENDED,
+                target_area="fallback",
+                expected_insights=[],
+                follow_up_triggers=[],
+                riasec_relevance={}
+            )
+
+    def _select_best_question(self, available_questions: List[Dict[str, Any]], context: ConversationContext) -> Dict[str, Any]:
+        """Select the best question from the available list."""
+        # Simple selection: take the first one (highest priority)
+        return available_questions[0]
+
+    def _convert_to_generated_question(self, question_data: Dict[str, Any], context: ConversationContext) -> GeneratedQuestion:
+        """Convert dictionary question data to GeneratedQuestion object."""
         return GeneratedQuestion(
-            question_text=summary_text,
-            question_type=QuestionType.OPEN_ENDED,
-            target_area="mid_conversation_summary",
-            expected_insights=["validation", "clarification"],
-            follow_up_triggers=[],
-            riasec_relevance={}
+            question_text=question_data["question"],
+            question_type=question_data["type"],
+            target_area=question_data["target_area"],
+            expected_insights=[],
+            follow_up_triggers=question_data.get("follow_up_triggers", []),
+            riasec_relevance=self._calculate_question_riasec_relevance(question_data["question"])
         )
 
     def analyze_response(self, user_response: str, context: ConversationContext, question: GeneratedQuestion) -> ResponseAnalysis:
@@ -849,7 +915,6 @@ Provide analysis in this JSON format (JSON only, no explanations):
 
             # Fallback to rule-based analysis
             return self._fallback_analysis(user_response, question)
-
     def _fallback_analysis(self, user_response: str, question: GeneratedQuestion) -> ResponseAnalysis:
         """Fallback rule-based analysis when LLM analysis fails."""
 
@@ -1159,6 +1224,61 @@ Provide analysis in this JSON format (JSON only, no explanations):
         logging.info(f"Session {session_id}: {len(available_questions)} questions available, RIASEC: {riasec_status}")
 
         return available_questions
+
+    def _extract_question_keywords(self, question: str) -> List[str]:
+        """
+        Extract meaningful keywords from a question for similarity comparison.
+
+        Removes:
+        - Common stop words (what, how, do, you, are, etc.)
+        - Question words (who, what, where, when, why, how)
+        - Very short words (< 3 characters)
+
+        Keeps:
+        - Nouns, verbs, adjectives (content words)
+        - Domain-specific terms (career, skills, interests, etc.)
+
+        Args:
+            question: Question text to extract keywords from
+
+        Returns:
+            List of meaningful keywords in lowercase
+        """
+        # Stop words to remove (English)
+        stop_words = {
+            'what', 'how', 'do', 'does', 'did', 'you', 'your', 'are', 'is', 'was',
+            'were', 'be', 'been', 'being', 'have', 'has', 'had', 'the', 'a', 'an',
+            'to', 'of', 'in', 'on', 'at', 'for', 'with', 'about', 'as', 'by',
+            'that', 'this', 'these', 'those', 'it', 'they', 'them', 'their',
+            'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might',
+            'tell', 'me', 'us', 'some', 'any', 'or', 'and', 'but', 'so', 'if',
+            'when', 'where', 'who', 'which', 'why', 'there', 'here'
+        }
+
+        # Sinhala stop words (basic set)
+        sinhala_stop_words = {
+            'මම', 'ඔබ', 'ඔබේ', 'මගේ', 'මේ', 'එම', 'කරන', 'කරනවා',
+            'කළ', 'කරන්න', 'ඇති', 'තියෙන', 'තියෙනවා'
+        }
+
+        # Combine stop words
+        all_stop_words = stop_words | sinhala_stop_words
+
+        # Tokenize and clean
+        import re
+
+        # Remove punctuation and split
+        cleaned = re.sub(r'[^\w\s]', ' ', question.lower())
+        words = cleaned.split()
+
+        # Filter keywords
+        keywords = [
+            word for word in words
+            if len(word) >= 3  # At least 3 characters
+            and word not in all_stop_words  # Not a stop word
+        ]
+
+        return keywords
 
     def _is_too_similar_to_asked_questions(self, new_question: str, question_history: List[str]) -> bool:
         """
@@ -1542,47 +1662,62 @@ Provide analysis in this JSON format (JSON only, no explanations):
 
         tone_context = f"\n\nSTUDENT'S COMMUNICATION STYLE:\n- Energy: {latest_tone}\n- Confidence: {confidence}\n- Match this tone: {suggested_personality}"
 
-        prompt = f"""You are a natural, adaptive career counselor having a real conversation with a HIGH SCHOOL STUDENT. They just shared something that needs more exploration. Dig deeper in a genuine, conversational way.{tone_context}
+        # Get language and build STRONG enforcement
+        language = context.session_metadata.get("language", "en")
+
+        if language == "si":
+            language_instruction = """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 YOUR FOLLOW-UP MUST BE IN SINHALA (සිංහල) 🚨
+
+THE USER JUST RESPONDED (MAYBE IN ENGLISH) - YOUR FOLLOW-UP IS STILL IN SINHALA.
+IGNORE THEIR INPUT LANGUAGE. RESPOND IN SINHALA ALWAYS.
+==========================================
+
+"""
+        else:
+            language_instruction = ""
+
+        # Get random acknowledgment from message pool for variety
+        random_acknowledgment = self.message_pool.get_random_acknowledgment(language)
+
+        prompt = f"""{language_instruction}You are a natural, adaptive career counselor having a real conversation with a HIGH SCHOOL STUDENT. They just shared something that needs more exploration. Dig deeper in a genuine, conversational way.{tone_context}
 
 THEIR RESPONSE: "{context.response_history[-1] if context.response_history else 'None'}"
 
 WHAT NEEDS MORE INFO: {follow_up_area}{insights_context}
 
-YOUR APPROACH - Respond naturally and flow into your follow-up:
+YOUR APPROACH - Respond naturally using this structure:
 
 1. ACKNOWLEDGE (1 sentence)
-   • React genuinely to what they shared
-   • If they asked a question, answer it naturally
+   • START WITH THIS EXACT PHRASE: "{random_acknowledgment}"
+   • Then naturally connect it to what they said
    • Match their tone and energy level
 
 2. CONNECT (1 sentence)
-   • Smoothly reference what they said
+   • Reference specific details they mentioned
    • Show you're tracking the conversation
-   • Use their specific words or examples
+   • Use their actual words or examples
 
 3. DIG DEEPER (1-2 sentences)
    • Ask a natural follow-up about {follow_up_area}
    • Show authentic curiosity
-   • Make it feel like a real conversation, not an interrogation
+   • Make it conversational, not interrogative
 
-IMPORTANT: Do NOT include section labels. Flow naturally from thought to thought.
+IMPORTANT:
+- Do NOT include section labels
+- Flow naturally from thought to thought
+- Start with the acknowledgment phrase provided above
 
-EXAMPLE (one of many possible responses):
+EXAMPLE (using different acknowledgment):
 
 Their response: "I guess I like art. Is that useful for jobs?"
+Acknowledgment provided: "I can see why that resonates with you."
 
-Your response: "Definitely! Creative skills are actually in demand across a lot of different fields.
+Your response: "I can see why that resonates with you - creative skills are in demand across many fields.
 
 It sounds like art's something you're drawn to.
 
-What kind of creative work do you find yourself doing? Are you more into traditional stuff like drawing, or do you mess around with digital design, or something totally different?"
-
-HOW TO SOUND NATURAL:
-• Vary your responses - don't use the same validation every time
-• Mirror their language style (if they're casual, be casual; if thoughtful, be thoughtful)
-• Reference specific things they mentioned
-• Sound genuinely interested, not like you're reading from a script
-• Keep it conversational and age-appropriate
+What kind of creative work do you find yourself doing? Are you more into traditional stuff like drawing, or do you mess around with digital design?"
 
 Generate your natural follow-up response:"""
 

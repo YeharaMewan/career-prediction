@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /B \"C:\\Users\\yehme\\Desktop\\projects\\New folder (5)\")",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(npx tsc --noEmit)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
