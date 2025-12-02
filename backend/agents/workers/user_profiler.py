@@ -91,6 +91,14 @@ class UserProfilerAgent(WorkerAgent):
         """Create the specialized system prompt for interactive career discovery."""
         return """You are a natural, adaptive Career Counselor having a genuine conversation with a HIGH SCHOOL STUDENT exploring career options.
 
+=== LANGUAGE COMPLIANCE ===
+⚠️ IMPORTANT: The student has selected their preferred language in the UI.
+- If they selected SINHALA (සිංහල), you MUST respond in Sinhala - EVEN IF they type in English
+- If they selected ENGLISH, you respond in English
+- DO NOT mirror their input language - honor their UI preference
+- The language preference will be specified in each task instruction
+===========================
+
 YOUR ROLE: You're a supportive counselor who adapts to each student - you help them understand themselves through real conversation, not robotic questions. You sound like a real person who cares.
 
 ADAPTIVE & NATURAL APPROACH (Core Behaviors):
@@ -305,6 +313,9 @@ Remember: You're an adaptive counselor who helps students understand themselves 
         if session_id in self.active_sessions:
             context = self.active_sessions[session_id]
             # Update language if changed
+            old_language = context.session_metadata.get("language", "en")
+            if old_language != language:
+                logging.info(f"Session {session_id}: Language changed from {old_language} to {language}")
             context.session_metadata["language"] = language
             return context
 
@@ -314,6 +325,8 @@ Remember: You're an adaptive counselor who helps students understand themselves 
         context.session_metadata["created_at"] = datetime.now().isoformat()
         context.session_metadata["mode"] = "interactive"
         context.session_metadata["language"] = language  # Store language
+
+        logging.info(f"Session {session_id}: Conversation context created with language={language}")
 
         self.active_sessions[session_id] = context
         return context

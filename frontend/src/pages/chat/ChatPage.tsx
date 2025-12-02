@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react";
 import { Send, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
+import type { CareerPrediction } from "../../types/career";
 
 interface Message {
     sender: "user" | "ai";
@@ -13,11 +14,17 @@ const ChatPage = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
-    const { language, setLanguage } = useLanguage();
+    const [careerPredictions, setCareerPredictions] = useState<CareerPrediction[]>([]);
+    const [showPredictionsButton, setShowPredictionsButton] = useState(false);
+    const [questionCount, setQuestionCount] = useState(0);
+    const [isPredictionsLoading, setIsPredictionsLoading] = useState(false);
+    const { language, setLanguage} = useLanguage();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const location = useLocation();
+    const navigate = useNavigate();
     const hasInitialized = useRef(false);
     const sessionIdRef = useRef<string | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -27,23 +34,15 @@ const ChatPage = () => {
         scrollToBottom();
     }, [messages, isTyping]);
 
-    // Initialize session on mount
+    // Auto-resize textarea
     useEffect(() => {
-        if (!hasInitialized.current) {
-            hasInitialized.current = true;
-
-            // If we have an initial message from landing page, use standard chat flow
-            if (location.state?.initialMessage) {
-                setInput(location.state.initialMessage);
-                sendMessage(location.state.initialMessage);
-            } else {
-                // Otherwise, start agent-initiated session
-                startAgentSession();
-            }
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
         }
-    }, [location.state]);
+    }, [input]);
 
-    const startAgentSession = async () => {
+    const startAgentSession = useCallback(async () => {
         setIsTyping(true);
         try {
             const response = await fetch("http://localhost:8000/session/initialize", {
@@ -75,9 +74,9 @@ const ChatPage = () => {
         } finally {
             setIsTyping(false);
         }
-    };
+    }, [language]);
 
-    const sendMessage = async (messageText: string = input) => {
+    const sendMessage = useCallback(async (messageText: string = input) => {
         const trimmedInput = messageText.trim();
         if (trimmedInput === "") {
             return;
@@ -174,8 +173,35 @@ const ChatPage = () => {
             } else {
                 // Handle standard JSON response (for /respond endpoint)
                 const data = await response.json();
-                if (data.question) {
+
+                // Check if response contains career predictions
+                const hasPredictions = data.career_predictions &&
+                                      Array.isArray(data.career_predictions) &&
+                                      data.career_predictions.length > 0;
+
+                if (hasPredictions) {
+                    // Career predictions received - show brief message ONLY
+                    setCareerPredictions(data.career_predictions);
+                    setShowPredictionsButton(true);
+                    setIsPredictionsLoading(false);
+
+                    setMessages((prev) => [...prev, {
+                        sender: "ai",
+                        text: "✨ Your career matches are ready! Click the button below to explore your personalized recommendations."
+                    }]);
+
+                    // IMPORTANT: Do NOT process data.question or data.message
+                    // The question field contains full career details which we're suppressing
+
+                } else if (data.question) {
+                    // Normal question flow (only when NO predictions)
                     setMessages((prev) => [...prev, { sender: "ai", text: data.question }]);
+                    setQuestionCount(prev => prev + 1);
+
+                    // Show loading when question 12 is being answered
+                    if (questionCount === 11) {  // After answering question 12
+                        setIsPredictionsLoading(true);
+                    }
                 } else if (data.message) {
                     setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
                 }
@@ -189,10 +215,36 @@ const ChatPage = () => {
         } finally {
             setIsTyping(false);
         }
+    }, [input, language]);
+
+    // Initialize session on mount
+    useEffect(() => {
+        if (!hasInitialized.current) {
+            hasInitialized.current = true;
+
+            // If we have an initial message from landing page, use standard chat flow
+            if (location.state?.initialMessage) {
+                setInput(location.state.initialMessage);
+                sendMessage(location.state.initialMessage);
+            } else {
+                // Otherwise, start agent-initiated session
+                startAgentSession();
+            }
+        }
+    }, [location.state, sendMessage, startAgentSession]);
+
+    const handleViewPredictions = () => {
+        navigate("/prediction", {
+            state: {
+                predictions: careerPredictions,
+                sessionId: sessionIdRef.current
+            }
+        });
     };
 
-    const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Enter") {
+    const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
             sendMessage();
         }
     };
@@ -261,7 +313,7 @@ const ChatPage = () => {
                                         : "bg-white text-gray-700 ring-1 ring-gray-100 rounded-bl-none"
                                         }`}
                                 >
-                                    {msg.text}
+                                    <div className="whitespace-pre-wrap">{msg.text}</div>
                                 </div>
                             </div>
                         ))}
@@ -273,7 +325,7 @@ const ChatPage = () => {
                                         animate={{ opacity: 1 }}
                                         transition={{ repeat: Infinity, duration: 1.5 }}
                                     >
-                                        Thinking...
+                                        {isPredictionsLoading ? "Analyzing your profile..." : "Thinking..."}
                                     </motion.div>
                                 </div>
                             </div>
@@ -282,21 +334,36 @@ const ChatPage = () => {
                     </div>
                 </div>
 
+                {/* View Career Options Button */}
+                {showPredictionsButton && (
+                    <div className="flex justify-center border-t border-gray-100 bg-white/50 py-4 backdrop-blur-md">
+                        <button
+                            onClick={handleViewPredictions}
+                            className="bg-gradient-to-r from-teal-600 to-cyan-700 text-white px-8 py-3 rounded-full font-medium hover:scale-105 transition duration-300 shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2"
+                        >
+                            <span className="text-xl"></span>
+                            <span>View Career Options</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* Input Area */}
                 <div className="border-t border-gray-100 bg-white/50 p-4 backdrop-blur-md">
                     <div className="relative mx-auto max-w-3xl">
-                        <input
-                            type="text"
+                        <textarea
+                            ref={textareaRef}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyPress}
                             placeholder="Type your message..."
                             disabled={isTyping}
-                            className="w-full rounded-full border-2 border-teal-600 bg-white py-4 pl-6 pr-14 text-gray-700 shadow-lg shadow-gray-200/50 ring-1 ring-gray-100 transition-all placeholder:text-gray-400 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 disabled:opacity-50"
+                            rows={1}
+                            className="w-full resize-none rounded-3xl border-2 border-teal-600 bg-white py-4 pl-6 pr-14 text-gray-700 shadow-lg shadow-gray-200/50 ring-1 ring-gray-100 transition-all placeholder:text-gray-400 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 disabled:opacity-50 scrollbar-hide"
+                            style={{ minHeight: "60px", maxHeight: "120px" }}
                         />
                         <button
                             onClick={() => sendMessage()}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 p-2.5 text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-50"
+                            className="absolute right-2 top-2.5 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 p-2.5 text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-50"
                             disabled={!input.trim() || isTyping}
                         >
                             <Send className="h-5 w-5" />

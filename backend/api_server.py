@@ -760,6 +760,7 @@ async def send_user_response(session_id: str, user_response: UserResponse):
                     conversation_state=cleaned_data.get("conversation_state"),
                     progress=cleaned_data.get("progress"),
                     completed=False,
+                    career_predictions=cleaned_data.get("career_predictions"),
                 )
         else:
             error_msg = (
