@@ -53,7 +53,6 @@ function App() {
         </Router>
       )}
     </LanguageProvider>
-
   );
 }
 

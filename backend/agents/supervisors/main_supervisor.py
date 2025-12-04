@@ -4,6 +4,7 @@ Enhanced Main Supervisor - CEO Level Career Planning Orchestrator with Session M
 This enhanced version supports both traditional batch processing and human-in-the-loop
 interactive conversation flows with persistent session management.
 """
+
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -16,13 +17,21 @@ from agents.base_agent import SupervisorAgent
 from agents.workers.user_profiler import UserProfilerAgent
 from agents.supervisors.career_planning_supervisor import CareerPlanningSupervisor
 from models.state_models import (
-    AgentState, TaskResult, StudentProfile, CareerBlueprint,
-    ConversationSession, ConversationState
+    AgentState,
+    TaskResult,
+    StudentProfile,
+    CareerBlueprint,
+    ConversationSession,
+    ConversationState,
 )
 from utils.handoff_tools import HandoffToolFactory
 
 # Import LangSmith configuration
-from utils.langsmith_config import get_traced_run_config, log_agent_execution, setup_langsmith
+from utils.langsmith_config import (
+    get_traced_run_config,
+    log_agent_execution,
+    setup_langsmith,
+)
 
 # Ensure LangSmith is configured
 setup_langsmith()
@@ -59,29 +68,29 @@ class MainSupervisor(SupervisorAgent):
             name="main_supervisor",
             description="Enhanced CEO-level supervisor with session management and interactive conversation support",
             orchestration_prompt=orchestration_prompt,
-            **kwargs
+            **kwargs,
         )
 
         # Create the react agent with handoff tools
         self.react_agent = create_react_agent(
-            model=self.llm,
-            tools=handoff_tools,
-            prompt=orchestration_prompt
+            model=self.llm, tools=handoff_tools, prompt=orchestration_prompt
         )
 
         # Enhanced capabilities
-        self.capabilities.extend([
-            "session_management",
-            "interactive_conversation_coordination",
-            "human_in_the_loop_workflow",
-            "persistent_state_management",
-            "real_time_qa_handling",
-            "workflow_orchestration",
-            "student_request_processing",
-            "report_generation",
-            "quality_assurance",
-            "final_integration"
-        ])
+        self.capabilities.extend(
+            [
+                "session_management",
+                "interactive_conversation_coordination",
+                "human_in_the_loop_workflow",
+                "persistent_state_management",
+                "real_time_qa_handling",
+                "workflow_orchestration",
+                "student_request_processing",
+                "report_generation",
+                "quality_assurance",
+                "final_integration",
+            ]
+        )
 
         # Session management
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
@@ -161,9 +170,14 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         Enhanced task processing with session management support.
         """
         start_time = datetime.now()
-        session_id = state.session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        session_id = (
+            state.session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
 
-        self._log_task_start("enhanced_workflow", f"session: {session_id}, mode: {state.interaction_mode}")
+        self._log_task_start(
+            "enhanced_workflow",
+            f"session: {session_id}, mode: {state.interaction_mode}",
+        )
 
         try:
             # Determine processing mode
@@ -180,10 +194,12 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 task_type="enhanced_workflow",
                 success=False,
                 error_message=str(e),
-                processing_time=processing_time
+                processing_time=processing_time,
             )
 
-    async def _handle_interactive_workflow(self, state: AgentState, session_id: str) -> TaskResult:
+    async def _handle_interactive_workflow(
+        self, state: AgentState, session_id: str
+    ) -> TaskResult:
         """Handle interactive conversation workflow."""
 
         # Initialize or retrieve session
@@ -207,8 +223,13 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         else:
             return self._handle_unknown_stage(state, session_id, current_stage)
 
-    def _initialize_interactive_session(self, state: AgentState, session_id: str) -> TaskResult:
+    def _initialize_interactive_session(
+        self, state: AgentState, session_id: str
+    ) -> TaskResult:
         """Initialize a new interactive conversation session."""
+
+        # Get language with null-safe fallback
+        language = state.preferred_language or "en"
 
         # Create session info
         session_info = {
@@ -217,7 +238,8 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             "current_stage": "profiling",
             "conversation_state": "greeting",
             "user_profiler_session_active": True,
-            "total_interactions": 0
+            "total_interactions": 0,
+            "language": language,  # CRITICAL: Store language
         }
 
         # Initialize session state
@@ -227,7 +249,7 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             current_step="interactive_profiling",
             student_request=state.student_request,
             awaiting_user_response=False,
-            preferred_language=state.preferred_language  # Preserve language preference
+            preferred_language=language,  # CRITICAL: Store language
         )
 
         # Store session
@@ -239,7 +261,9 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             self.user_profiler = UserProfilerAgent()
 
         # Start interactive profiling session (pass state with language)
-        profiler_result = self.user_profiler.start_interactive_session(session_id, session_state)
+        profiler_result = self.user_profiler.start_interactive_session(
+            session_id, session_state
+        )
 
         if profiler_result.success:
             session_info["total_interactions"] += 1
@@ -249,12 +273,18 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             result_data = profiler_result.result_data or {}
             session_state.current_question = result_data.get("question")
 
-            self._log_task_completion("session_initialization", True, f"Session {session_id} started")
+            self._log_task_completion(
+                "session_initialization", True, f"Session {session_id} started"
+            )
 
             # Ensure question is never None/undefined
-            question_text = result_data.get("question") or result_data.get("current_question") or ""
+            question_text = (
+                result_data.get("question") or result_data.get("current_question") or ""
+            )
             if not question_text:
-                logging.warning(f"Session {session_id}: No question in profiler result, using fallback")
+                logging.warning(
+                    f"Session {session_id}: No question in profiler result, using fallback"
+                )
                 question_text = "Hello! I'm here to help you explore career options. What are you interested in?"
 
             return self._create_task_result(
@@ -265,20 +295,24 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                     "mode": "interactive",
                     "stage": "profiling",
                     "question": question_text.strip(),
-                    "conversation_state": result_data.get("conversation_state", "greeting"),
+                    "conversation_state": result_data.get(
+                        "conversation_state", "greeting"
+                    ),
                     "awaiting_user_response": True,
-                    "progress": result_data.get("progress", {})
+                    "progress": result_data.get("progress", {}),
                 },
-                updated_state=session_state
+                updated_state=session_state,
             )
         else:
             return self._create_task_result(
                 task_type="session_initialization",
                 success=False,
-                error_message=f"Failed to start profiler session: {profiler_result.error_message}"
+                error_message=f"Failed to start profiler session: {profiler_result.error_message}",
             )
 
-    def _handle_interactive_profiling(self, state: AgentState, session_id: str) -> TaskResult:
+    def _handle_interactive_profiling(
+        self, state: AgentState, session_id: str
+    ) -> TaskResult:
         """Handle interactive profiling stage."""
 
         session_info = self.active_sessions[session_id]
@@ -311,9 +345,15 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                     session_state.awaiting_user_response = True
 
                     # Ensure question is never None/undefined
-                    question_text = result_data.get("question") or result_data.get("current_question") or ""
+                    question_text = (
+                        result_data.get("question")
+                        or result_data.get("current_question")
+                        or ""
+                    )
                     if not question_text:
-                        logging.warning(f"Session {session_id}: No question in profiler response, using fallback")
+                        logging.warning(
+                            f"Session {session_id}: No question in profiler response, using fallback"
+                        )
                         question_text = "Could you tell me more about your interests?"
 
                     session_state.current_question = question_text
@@ -324,17 +364,19 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                         result_data={
                             "session_id": session_id,
                             "question": question_text.strip(),
-                            "conversation_state": result_data.get("conversation_state", "gathering_info"),
+                            "conversation_state": result_data.get(
+                                "conversation_state", "gathering_info"
+                            ),
                             "awaiting_user_response": True,
                             "progress": result_data.get("progress", {}),
-                            "riasec_scores": result_data.get("riasec_scores", {})
-                        }
+                            "riasec_scores": result_data.get("riasec_scores", {}),
+                        },
                     )
             else:
                 return self._create_task_result(
                     task_type="profiling_interaction",
                     success=False,
-                    error_message=f"Profiler error: {profiler_result.error_message}"
+                    error_message=f"Profiler error: {profiler_result.error_message}",
                 )
 
         # Check session status
@@ -353,7 +395,9 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 # Continue profiling
                 return self._create_waiting_result(session_id, session_state)
 
-    def _complete_profiling_stage(self, session_id: str, profiler_data: Dict[str, Any]) -> TaskResult:
+    def _complete_profiling_stage(
+        self, session_id: str, profiler_data: Dict[str, Any]
+    ) -> TaskResult:
         """Complete the profiling stage and generate career predictions."""
 
         session_info = self.active_sessions[session_id]
@@ -370,38 +414,63 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             try:
                 student_profile = StudentProfile(**profiler_data["student_profile"])
             except Exception as e:
-                self._log_task_completion("profile_extraction_error", False,
-                                        f"Session {session_id}: Student profile extraction failed: {str(e)}")
+                self._log_task_completion(
+                    "profile_extraction_error",
+                    False,
+                    f"Session {session_id}: Student profile extraction failed: {str(e)}",
+                )
         elif "profile" in profiler_data:
             try:
                 student_profile = StudentProfile(**profiler_data["profile"])
             except Exception as e:
-                self._log_task_completion("profile_extraction_error", False,
-                                        f"Session {session_id}: Profile extraction failed: {str(e)}")
+                self._log_task_completion(
+                    "profile_extraction_error",
+                    False,
+                    f"Session {session_id}: Profile extraction failed: {str(e)}",
+                )
 
         # Fallback profile creation if extraction failed
         if student_profile is None:
-            self._log_task_completion("fallback_profile_creation", True,
-                                    f"Session {session_id}: Creating fallback profile for career predictions")
-            student_profile = self._create_fallback_student_profile(profiler_data, session_id)
+            self._log_task_completion(
+                "fallback_profile_creation",
+                True,
+                f"Session {session_id}: Creating fallback profile for career predictions",
+            )
+            student_profile = self._create_fallback_student_profile(
+                profiler_data, session_id
+            )
 
         session_state.student_profile = student_profile
 
         # Generate 5 career predictions with enhanced error handling
         try:
-            career_predictions = self._generate_career_predictions(student_profile, profiler_data)
-            self._log_task_completion("career_predictions_generated", True,
-                                    f"Session {session_id}: Generated {len(career_predictions)} career predictions")
+            career_predictions = self._generate_career_predictions(
+                student_profile, profiler_data
+            )
+            self._log_task_completion(
+                "career_predictions_generated",
+                True,
+                f"Session {session_id}: Generated {len(career_predictions)} career predictions",
+            )
         except Exception as e:
-            self._log_task_completion("career_prediction_error", False,
-                                    f"Session {session_id}: Career prediction generation failed: {str(e)}")
+            self._log_task_completion(
+                "career_prediction_error",
+                False,
+                f"Session {session_id}: Career prediction generation failed: {str(e)}",
+            )
             # Generate fallback predictions to ensure we always deliver something
-            career_predictions = self._generate_fallback_career_predictions(student_profile, profiler_data)
+            career_predictions = self._generate_fallback_career_predictions(
+                student_profile, profiler_data
+            )
 
         # Clean up profiler session
         self.user_profiler.end_session(session_id)
 
-        self._log_task_completion("profiling_stage", True, f"Session {session_id} profiling completed with career predictions")
+        self._log_task_completion(
+            "profiling_stage",
+            True,
+            f"Session {session_id} profiling completed with career predictions",
+        )
 
         # Create comprehensive confidence report for final results
         final_confidence_report = self._create_final_confidence_report(
@@ -419,7 +488,7 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 typical_responsibilities=[],
                 required_qualifications=prediction.get("required_skills", []),
                 salary_range=prediction.get("median_salary", ""),
-                career_progression=[]
+                career_progression=[],
             )
             career_blueprints.append(blueprint)
 
@@ -436,10 +505,14 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             # Build organized markdown format for career predictions
             career_sections = []
             for i, pred in enumerate(career_predictions):
-                title = pred.get('title', 'Career Option')
-                match_score = pred.get('confidence_score', 0.0) * 100  # Convert to percentage
-                description = pred.get('description', 'No description available')
-                why_fit = pred.get('why_good_fit', 'Based on your profile and interests')
+                title = pred.get("title", "Career Option")
+                match_score = (
+                    pred.get("confidence_score", 0.0) * 100
+                )  # Convert to percentage
+                description = pred.get("description", "No description available")
+                why_fit = pred.get(
+                    "why_good_fit", "Based on your profile and interests"
+                )
 
                 # Format each career with proper line breaks (single newlines between list items)
                 career_section = (
@@ -451,7 +524,11 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 career_sections.append(career_section)
 
             career_list = "\n\n".join(career_sections)
-            first_career_title = career_predictions[0].get('title', 'your preferred career') if career_predictions else 'your preferred career'
+            first_career_title = (
+                career_predictions[0].get("title", "your preferred career")
+                if career_predictions
+                else "your preferred career"
+            )
 
             # Build selection message with explicit double newlines for proper markdown rendering
             selection_message = (
@@ -460,7 +537,7 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 f"{career_list}\n\n"
                 f"---\n\n"
                 f"**Next Step:** Choose a career number (1-5) to get a detailed action plan with academic pathways and skill development roadmap.\n\n"
-                f"Please respond with the career you'd like to pursue (e.g., \"I want to pursue {first_career_title}\")"
+                f'Please respond with the career you\'d like to pursue (e.g., "I want to pursue {first_career_title}")'
             )
         except Exception as e:
             logging.error(f"Error formatting career selection message: {e}")
@@ -488,11 +565,15 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 "question": selection_message.strip(),
                 "message": "Career predictions generated. Please select a career to get detailed planning.",
                 "final_confidence_report": final_confidence_report,
-                "prediction_reliability": self._assess_prediction_reliability(profiler_data.get("profile_confidence", 0.0))
-            }
+                "prediction_reliability": self._assess_prediction_reliability(
+                    profiler_data.get("profile_confidence", 0.0)
+                ),
+            },
         )
 
-    async def _handle_career_selection(self, state: AgentState, session_id: str) -> TaskResult:
+    async def _handle_career_selection(
+        self, state: AgentState, session_id: str
+    ) -> TaskResult:
         """Handle user's career selection and route to career planning supervisor."""
 
         session_info = self.active_sessions[session_id]
@@ -514,13 +595,17 @@ Your goal is to deliver exceptional career guidance through both efficient batch
 
             if not selected_career:
                 # Default to first career if we can't parse
-                selected_career = session_state.career_blueprints[0] if session_state.career_blueprints else None
+                selected_career = (
+                    session_state.career_blueprints[0]
+                    if session_state.career_blueprints
+                    else None
+                )
 
             if not selected_career:
                 return self._create_task_result(
                     task_type="career_selection_error",
                     success=False,
-                    error_message="No career could be identified from your selection"
+                    error_message="No career could be identified from your selection",
                 )
 
             # Initialize career planning supervisor if needed
@@ -537,17 +622,23 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 session_id=session_id,
                 student_profile=session_state.student_profile,
                 career_blueprints=[selected_career],  # Only the selected career
-                interaction_mode="interactive"
+                interaction_mode="interactive",
             )
 
             # Route to career planning supervisor (it will execute both agents in parallel)
-            self.logger.info(f"🔄 Routing to career planning supervisor for: {selected_career.career_title}")
-            planning_result = await self.career_planning_supervisor.process_task(planning_state)
+            self.logger.info(
+                f"🔄 Routing to career planning supervisor for: {selected_career.career_title}"
+            )
+            planning_result = await self.career_planning_supervisor.process_task(
+                planning_state
+            )
 
             if planning_result.success:
                 # Update session state with results
                 if planning_result.updated_state:
-                    session_state.career_blueprints = planning_result.updated_state.career_blueprints
+                    session_state.career_blueprints = (
+                        planning_result.updated_state.career_blueprints
+                    )
 
                 # Update stage to completion
                 session_info["current_stage"] = "completion"
@@ -559,25 +650,35 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 skill_plan = result_data.get("skill_plan")
 
                 # Format detailed messages for frontend display using the full plan data
-                academic_message = self._format_academic_plan_message(
-                    selected_career.career_title,
-                    academic_plan
-                ) if academic_plan else None
+                academic_message = (
+                    self._format_academic_plan_message(
+                        selected_career.career_title, academic_plan
+                    )
+                    if academic_plan
+                    else None
+                )
 
                 # Log message length for debugging
                 if academic_message:
-                    self.logger.info(f"📚 Academic message length: {len(academic_message)} chars")
+                    self.logger.info(
+                        f"📚 Academic message length: {len(academic_message)} chars"
+                    )
                 else:
                     self.logger.warning("⚠️ Academic message is None")
 
-                skill_message = self._format_skill_plan_message(
-                    selected_career.career_title,
-                    skill_plan
-                ) if skill_plan else None
+                skill_message = (
+                    self._format_skill_plan_message(
+                        selected_career.career_title, skill_plan
+                    )
+                    if skill_plan
+                    else None
+                )
 
                 # Log message length for debugging
                 if skill_message:
-                    self.logger.info(f"🎯 Skill message length: {len(skill_message)} chars")
+                    self.logger.info(
+                        f"🎯 Skill message length: {len(skill_message)} chars"
+                    )
                 else:
                     self.logger.warning("⚠️ Skill message is None")
 
@@ -591,15 +692,15 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                         "skill_message": skill_message,
                         "completed": True,
                         "message": f"Thank you! Your career planning session is complete.",
-                        "delivery_sequence": ["academic_pathway", "skill_development"]
+                        "delivery_sequence": ["academic_pathway", "skill_development"],
                     },
-                    updated_state=session_state
+                    updated_state=session_state,
                 )
             else:
                 return self._create_task_result(
                     task_type="career_planning_error",
                     success=False,
-                    error_message=f"Career planning failed: {planning_result.error_message}"
+                    error_message=f"Career planning failed: {planning_result.error_message}",
                 )
 
         # Still waiting for user response
@@ -610,7 +711,9 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         else:
             return self._create_waiting_result(session_id, session_state)
 
-    def _handle_career_planning_stage(self, state: AgentState, session_id: str) -> TaskResult:
+    def _handle_career_planning_stage(
+        self, state: AgentState, session_id: str
+    ) -> TaskResult:
         """Handle career prediction stage - this is now the completion stage."""
         session_info = self.active_sessions[session_id]
         session_state = self.session_states[session_id]
@@ -627,11 +730,13 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 "session_id": session_id,
                 "stage": "completion",
                 "completed": True,
-                "message": "Career predictions have been successfully generated!"
-            }
+                "message": "Career predictions have been successfully generated!",
+            },
         )
 
-    def _handle_completion_stage(self, state: AgentState, session_id: str) -> TaskResult:
+    def _handle_completion_stage(
+        self, state: AgentState, session_id: str
+    ) -> TaskResult:
         """Handle completion stage."""
 
         session_info = self.active_sessions[session_id]
@@ -651,8 +756,12 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 "session_id": session_id,
                 "completed": True,
                 "final_report": final_report,
-                "student_profile": session_state.student_profile.dict() if session_state.student_profile else None
-            }
+                "student_profile": (
+                    session_state.student_profile.dict()
+                    if session_state.student_profile
+                    else None
+                ),
+            },
         )
 
     def _handle_batch_workflow(self, state: AgentState, session_id: str) -> TaskResult:
@@ -674,7 +783,9 @@ Your goal is to deliver exceptional career guidance through both efficient batch
         else:
             return self._handle_unknown_step(state, current_step)
 
-    def _create_waiting_result(self, session_id: str, session_state: AgentState) -> TaskResult:
+    def _create_waiting_result(
+        self, session_id: str, session_state: AgentState
+    ) -> TaskResult:
         """Create a result for when waiting for user response."""
         return self._create_task_result(
             task_type="waiting_for_user",
@@ -683,12 +794,14 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 "session_id": session_id,
                 "awaiting_user_response": True,
                 "current_question": session_state.current_question,
-                "status": "waiting_for_user_response"
+                "status": "waiting_for_user_response",
             },
-            updated_state=session_state
+            updated_state=session_state,
         )
 
-    def _generate_session_final_report(self, session_state: AgentState, session_info: Dict[str, Any]) -> str:
+    def _generate_session_final_report(
+        self, session_state: AgentState, session_info: Dict[str, Any]
+    ) -> str:
         """Generate final report for interactive session."""
 
         if not session_state.student_profile:
@@ -701,27 +814,39 @@ Your goal is to deliver exceptional career guidance through both efficient batch
 
         # Header
         report_sections.append("# 🎯 INTERACTIVE CAREER PLANNING SESSION REPORT")
-        report_sections.append(f"*Session completed on {datetime.now().strftime('%B %d, %Y')}*\n")
+        report_sections.append(
+            f"*Session completed on {datetime.now().strftime('%B %d, %Y')}*\n"
+        )
 
         # Session Summary
         report_sections.append("## 📊 Session Summary")
         report_sections.append(f"**Session ID:** {session_info.get('session_id')}")
         report_sections.append(f"**Total Interactions:** {total_interactions}")
-        report_sections.append(f"**Profile Confidence:** {profile.profile_confidence_score:.1%}")
+        report_sections.append(
+            f"**Profile Confidence:** {profile.profile_confidence_score:.1%}"
+        )
         if profile.dominant_riasec_type:
-            report_sections.append(f"**Dominant Career Type:** {profile.dominant_riasec_type}")
+            report_sections.append(
+                f"**Dominant Career Type:** {profile.dominant_riasec_type}"
+            )
         report_sections.append("")
 
         # Student Profile Summary
         report_sections.append("## 👤 Student Profile")
         if profile.current_education_level:
-            report_sections.append(f"**Education Level:** {profile.current_education_level}")
+            report_sections.append(
+                f"**Education Level:** {profile.current_education_level}"
+            )
         if profile.major_field:
             report_sections.append(f"**Field of Study:** {profile.major_field}")
         if profile.career_interests:
-            report_sections.append(f"**Career Interests:** {', '.join(profile.career_interests[:5])}")
+            report_sections.append(
+                f"**Career Interests:** {', '.join(profile.career_interests[:5])}"
+            )
         if profile.technical_skills:
-            report_sections.append(f"**Technical Skills:** {', '.join(profile.technical_skills[:5])}")
+            report_sections.append(
+                f"**Technical Skills:** {', '.join(profile.technical_skills[:5])}"
+            )
         report_sections.append("")
 
         # RIASEC Assessment
@@ -733,30 +858,79 @@ Your goal is to deliver exceptional career guidance through both efficient batch
                 "A": "Artistic (Creative, Self-expression)",
                 "S": "Social (People-oriented, Helping)",
                 "E": "Enterprising (Leadership, Business)",
-                "C": "Conventional (Organized, Systematic)"
+                "C": "Conventional (Organized, Systematic)",
             }
 
-            for code, score in sorted(profile.riasec_scores.items(), key=lambda x: x[1], reverse=True):
+            for code, score in sorted(
+                profile.riasec_scores.items(), key=lambda x: x[1], reverse=True
+            ):
                 if score > 0.3:  # Only show significant scores
-                    report_sections.append(f"**{riasec_names.get(code, code)}:** {score:.1%}")
+                    report_sections.append(
+                        f"**{riasec_names.get(code, code)}:** {score:.1%}"
+                    )
             report_sections.append("")
 
         # Next Steps
         report_sections.append("## 📝 Recommended Next Steps")
-        report_sections.append("1. **Career Exploration:** Research careers matching your top RIASEC types")
-        report_sections.append("2. **Skill Development:** Focus on building skills in your areas of interest")
-        report_sections.append("3. **Educational Planning:** Consider academic paths aligned with your goals")
-        report_sections.append("4. **Professional Networking:** Connect with professionals in your fields of interest")
-        report_sections.append("5. **Practical Experience:** Seek internships or projects in target areas")
+        report_sections.append(
+            "1. **Career Exploration:** Research careers matching your top RIASEC types"
+        )
+        report_sections.append(
+            "2. **Skill Development:** Focus on building skills in your areas of interest"
+        )
+        report_sections.append(
+            "3. **Educational Planning:** Consider academic paths aligned with your goals"
+        )
+        report_sections.append(
+            "4. **Professional Networking:** Connect with professionals in your fields of interest"
+        )
+        report_sections.append(
+            "5. **Practical Experience:** Seek internships or projects in target areas"
+        )
 
         # Footer
         report_sections.append("\n---")
-        report_sections.append("*This report was generated through an interactive career counseling session.*")
-        report_sections.append("*Continue to explore and refine your career path as you grow and learn.*")
+        report_sections.append(
+            "*This report was generated through an interactive career counseling session.*"
+        )
+        report_sections.append(
+            "*Continue to explore and refine your career path as you grow and learn.*"
+        )
 
-        return "\n".join(report_sections)
+        return self._translate_if_needed(
+            "\n".join(report_sections), session_state.preferred_language
+        )
 
-    def _generate_career_predictions(self, student_profile: StudentProfile, profiler_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _get_language_instruction(self, language: str) -> str:
+        """Get language instruction for prompts."""
+        if language == "si":
+            return "IMPORTANT: The output MUST be in Sinhala language (Sinhala script)."
+        return ""
+
+    def _translate_if_needed(self, text: str, language: str) -> str:
+        """Translate text if needed."""
+        if language != "si" or not text:
+            return text
+
+        prompt = f"""Translate the following text into natural Sinhala (Sinhala script).
+        
+        TEXT:
+        {text}
+        
+        TRANSLATION:"""
+
+        try:
+            from langchain_core.messages import HumanMessage
+
+            response = self.llm_wrapper.invoke([HumanMessage(content=prompt)])
+            return response.content.strip()
+        except Exception as e:
+            logging.error(f"Translation failed: {e}")
+            return text
+
+    def _generate_career_predictions(
+        self, student_profile: StudentProfile, profiler_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """
         Generate 5 personalized career predictions using AI analysis of the complete conversation.
         Analyzes all 12 user responses to create truly customized recommendations.
@@ -765,6 +939,14 @@ Your goal is to deliver exceptional career guidance through both efficient batch
             # Extract conversation history
             conversation_context = profiler_data.get("conversation_context", {})
             qa_pairs = self._extract_qa_pairs(conversation_context)
+
+            # Get language instruction
+            language = (
+                profiler_data.get("conversation_context", {})
+                .get("session_metadata", {})
+                .get("language", "en")
+            )
+            language_instruction = self._get_language_instruction(language)
 
             # Build comprehensive AI prompt with full conversation
             prompt = f"""You are an expert career counselor with deep knowledge of various industries and career paths. Analyze this complete conversation with a student who answered 12 career assessment questions.
@@ -778,6 +960,9 @@ STUDENT PROFILE SUMMARY:
 
 COMPLETE CONVERSATION (12 Questions & Detailed Answers):
 {self._format_qa_history(qa_pairs)}
+
+LANGUAGE REQUIREMENT:
+{language_instruction}
 
 TASK: Generate 5 highly personalized career recommendations for THIS specific student.
 
@@ -820,28 +1005,32 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             careers = self._call_llm_for_careers(prompt, student_profile, profiler_data)
 
             if careers and len(careers) > 0:
-                logging.info(f"AI generated {len(careers)} personalized career predictions")
+                logging.info(
+                    f"AI generated {len(careers)} personalized career predictions"
+                )
                 return careers[:5]
             else:
                 logging.warning("AI generation returned empty, using fallback")
-                return self._generate_fallback_career_predictions(student_profile, profiler_data)
+                return self._generate_fallback_career_predictions(
+                    student_profile, profiler_data
+                )
 
         except Exception as e:
             logging.error(f"Career prediction generation failed: {e}. Using fallback.")
-            return self._generate_fallback_career_predictions(student_profile, profiler_data)
+            return self._generate_fallback_career_predictions(
+                student_profile, profiler_data
+            )
 
-    def _extract_qa_pairs(self, conversation_context: Dict[str, Any]) -> List[Dict[str, str]]:
+    def _extract_qa_pairs(
+        self, conversation_context: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
         """Extract question-answer pairs from conversation context."""
         question_history = conversation_context.get("question_history", [])
         response_history = conversation_context.get("response_history", [])
 
         qa_pairs = []
         for i, (q, a) in enumerate(zip(question_history, response_history), 1):
-            qa_pairs.append({
-                "number": i,
-                "question": q,
-                "answer": a
-            })
+            qa_pairs.append({"number": i, "question": q, "answer": a})
         return qa_pairs
 
     def _format_qa_history(self, qa_pairs: List[Dict]) -> str:
@@ -855,7 +1044,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             formatted.append(f"A{qa['number']}: {qa['answer']}\n")
         return "\n".join(formatted)
 
-    def _call_llm_for_careers(self, prompt: str, student_profile: StudentProfile, profiler_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _call_llm_for_careers(
+        self,
+        prompt: str,
+        student_profile: StudentProfile,
+        profiler_data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         """Call LLM to generate career predictions dynamically."""
         try:
             from langchain_core.messages import HumanMessage
@@ -872,10 +1066,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             # Extract JSON array from response
             # Try to find JSON array in the response
             import re
-            json_match = re.search(r'\[[\s\S]*\]', response_text)
+
+            json_match = re.search(r"\[[\s\S]*\]", response_text)
 
             if json_match:
                 import json
+
                 try:
                     careers = json.loads(json_match.group())
 
@@ -887,15 +1083,33 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                                 # Ensure all required fields exist
                                 validated_career = {
                                     "title": career.get("title", "Unknown Career"),
-                                    "description": career.get("description", "No description available"),
-                                    "why_good_fit": career.get("why_good_fit", "Based on your profile"),
-                                    "required_education": career.get("required_education", "Bachelor's degree"),
-                                    "required_skills": career.get("required_skills", []),
-                                    "growth_outlook": career.get("growth_outlook", "Medium"),
-                                    "median_salary": career.get("median_salary", "$60,000-$80,000"),
-                                    "confidence_score": float(career.get("confidence_score", 0.75)),
-                                    "riasec_alignment": career.get("riasec_alignment", "Multi-faceted match"),
-                                    "career_path": career.get("career_path", "Entry → Mid → Senior")
+                                    "description": career.get(
+                                        "description", "No description available"
+                                    ),
+                                    "why_good_fit": career.get(
+                                        "why_good_fit", "Based on your profile"
+                                    ),
+                                    "required_education": career.get(
+                                        "required_education", "Bachelor's degree"
+                                    ),
+                                    "required_skills": career.get(
+                                        "required_skills", []
+                                    ),
+                                    "growth_outlook": career.get(
+                                        "growth_outlook", "Medium"
+                                    ),
+                                    "median_salary": career.get(
+                                        "median_salary", "$60,000-$80,000"
+                                    ),
+                                    "confidence_score": float(
+                                        career.get("confidence_score", 0.75)
+                                    ),
+                                    "riasec_alignment": career.get(
+                                        "riasec_alignment", "Multi-faceted match"
+                                    ),
+                                    "career_path": career.get(
+                                        "career_path", "Entry → Mid → Senior"
+                                    ),
                                 }
                                 validated_careers.append(validated_career)
 
@@ -918,7 +1132,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         student_profile: StudentProfile,
         profiler_data: Dict[str, Any],
         session_state: AgentState,
-        session_info: Dict[str, Any]
+        session_info: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Create a comprehensive final confidence report for completed sessions.
@@ -936,8 +1150,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "final_confidence_score": round(profile_confidence, 2),
             "final_confidence_percentage": f"{profile_confidence:.0%}",
             "session_duration_interactions": session_info.get("total_interactions", 0),
-            "conversation_efficiency": self._calculate_conversation_efficiency(total_questions, profile_confidence),
-            "data_collection_quality": self._assess_data_collection_quality(student_profile, profile_confidence)
+            "conversation_efficiency": self._calculate_conversation_efficiency(
+                total_questions, profile_confidence
+            ),
+            "data_collection_quality": self._assess_data_collection_quality(
+                student_profile, profile_confidence
+            ),
         }
 
         # Confidence categories analysis
@@ -948,7 +1166,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                     "final_score": data.get("current", 0.0),
                     "final_percentage": data.get("percentage", "0%"),
                     "target_met": data.get("status") in ["sufficient", "excellent"],
-                    "quality_rating": data.get("status", "unknown")
+                    "quality_rating": data.get("status", "unknown"),
                 }
 
         # RIASEC confidence analysis
@@ -958,16 +1176,32 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 riasec_analysis[category] = {
                     "score": round(score, 2),
                     "percentage": f"{score:.0%}",
-                    "confidence_level": "high" if score >= 0.6 else "moderate" if score >= 0.4 else "developing"
+                    "confidence_level": (
+                        "high"
+                        if score >= 0.6
+                        else "moderate" if score >= 0.4 else "developing"
+                    ),
                 }
 
         # Prediction reliability assessment
         prediction_reliability = {
-            "overall_reliability": self._assess_prediction_reliability(profile_confidence),
-            "career_predictions_confidence": "high" if profile_confidence >= 0.7 else "moderate" if profile_confidence >= 0.5 else "developing",
-            "recommendation_strength": self._calculate_recommendation_strength(profile_confidence, total_questions),
-            "areas_well_understood": self._identify_well_understood_areas(categories_analysis),
-            "areas_with_limited_data": self._identify_limited_data_areas(categories_analysis)
+            "overall_reliability": self._assess_prediction_reliability(
+                profile_confidence
+            ),
+            "career_predictions_confidence": (
+                "high"
+                if profile_confidence >= 0.7
+                else "moderate" if profile_confidence >= 0.5 else "developing"
+            ),
+            "recommendation_strength": self._calculate_recommendation_strength(
+                profile_confidence, total_questions
+            ),
+            "areas_well_understood": self._identify_well_understood_areas(
+                categories_analysis
+            ),
+            "areas_with_limited_data": self._identify_limited_data_areas(
+                categories_analysis
+            ),
         }
 
         # Session insights
@@ -975,7 +1209,11 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "conversation_flow": "efficient" if total_questions <= 10 else "thorough",
             "user_engagement": self._assess_user_engagement(session_info),
             "information_richness": self._assess_information_richness(student_profile),
-            "goal_achievement": "excellent" if profile_confidence >= 0.7 else "good" if profile_confidence >= 0.6 else "satisfactory"
+            "goal_achievement": (
+                "excellent"
+                if profile_confidence >= 0.7
+                else "good" if profile_confidence >= 0.6 else "satisfactory"
+            ),
         }
 
         return {
@@ -986,16 +1224,26 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "session_insights": session_insights,
             "confidence_journey": confidence_journey,
             "final_recommendations": {
-                "career_predictions_reliability": prediction_reliability["overall_reliability"]["level"],
-                "next_steps": self._generate_next_steps_recommendations(profile_confidence),
-                "improvement_opportunities": self._identify_improvement_opportunities(categories_analysis)
-            }
+                "career_predictions_reliability": prediction_reliability[
+                    "overall_reliability"
+                ]["level"],
+                "next_steps": self._generate_next_steps_recommendations(
+                    profile_confidence
+                ),
+                "improvement_opportunities": self._identify_improvement_opportunities(
+                    categories_analysis
+                ),
+            },
         }
 
-    def _calculate_conversation_efficiency(self, questions_asked: int, final_confidence: float) -> Dict[str, Any]:
+    def _calculate_conversation_efficiency(
+        self, questions_asked: int, final_confidence: float
+    ) -> Dict[str, Any]:
         """Calculate how efficiently the conversation gathered information."""
         # Ideal efficiency: high confidence with fewer questions
-        efficiency_score = final_confidence / max(questions_asked / 12, 1.0)  # Normalized to question limit
+        efficiency_score = final_confidence / max(
+            questions_asked / 12, 1.0
+        )  # Normalized to question limit
 
         if efficiency_score >= 0.8:
             rating = "excellent"
@@ -1009,17 +1257,26 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return {
             "score": round(efficiency_score, 2),
             "rating": rating,
-            "questions_per_confidence_point": round(questions_asked / max(final_confidence, 0.1), 1)
+            "questions_per_confidence_point": round(
+                questions_asked / max(final_confidence, 0.1), 1
+            ),
         }
 
-    def _assess_data_collection_quality(self, student_profile: StudentProfile, confidence: float) -> Dict[str, Any]:
+    def _assess_data_collection_quality(
+        self, student_profile: StudentProfile, confidence: float
+    ) -> Dict[str, Any]:
         """Assess the quality of data collected during the conversation."""
         quality_indicators = {
-            "has_academic_info": bool(student_profile.current_education_level and student_profile.current_education_level != "Unknown"),
+            "has_academic_info": bool(
+                student_profile.current_education_level
+                and student_profile.current_education_level != "Unknown"
+            ),
             "has_career_interests": bool(student_profile.career_interests),
             "has_technical_skills": bool(student_profile.technical_skills),
             "has_riasec_data": bool(student_profile.riasec_scores),
-            "has_goals": bool(student_profile.short_term_goals or student_profile.long_term_goals)
+            "has_goals": bool(
+                student_profile.short_term_goals or student_profile.long_term_goals
+            ),
         }
 
         quality_score = sum(quality_indicators.values()) / len(quality_indicators)
@@ -1027,8 +1284,16 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return {
             "quality_score": round(quality_score, 2),
             "quality_percentage": f"{quality_score:.0%}",
-            "data_completeness": "comprehensive" if quality_score >= 0.8 else "good" if quality_score >= 0.6 else "basic",
-            "missing_elements": [key.replace("has_", "") for key, value in quality_indicators.items() if not value]
+            "data_completeness": (
+                "comprehensive"
+                if quality_score >= 0.8
+                else "good" if quality_score >= 0.6 else "basic"
+            ),
+            "missing_elements": [
+                key.replace("has_", "")
+                for key, value in quality_indicators.items()
+                if not value
+            ],
         }
 
     def _assess_prediction_reliability(self, confidence: float) -> Dict[str, Any]:
@@ -1037,34 +1302,36 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             return {
                 "level": "very_high",
                 "description": "Career predictions are highly reliable and well-supported by comprehensive data",
-                "recommendation": "Proceed with confidence in these career recommendations"
+                "recommendation": "Proceed with confidence in these career recommendations",
             }
         elif confidence >= 0.7:
             return {
                 "level": "high",
                 "description": "Career predictions are reliable with good supporting data",
-                "recommendation": "These career suggestions provide a strong foundation for exploration"
+                "recommendation": "These career suggestions provide a strong foundation for exploration",
             }
         elif confidence >= 0.6:
             return {
                 "level": "good",
                 "description": "Career predictions are reasonably reliable with adequate data",
-                "recommendation": "Use these suggestions as a starting point for career exploration"
+                "recommendation": "Use these suggestions as a starting point for career exploration",
             }
         elif confidence >= 0.5:
             return {
                 "level": "moderate",
                 "description": "Career predictions have moderate reliability due to limited data",
-                "recommendation": "Consider these as initial guidance while gathering more information"
+                "recommendation": "Consider these as initial guidance while gathering more information",
             }
         else:
             return {
                 "level": "developing",
                 "description": "Career predictions are based on limited information",
-                "recommendation": "Use as preliminary guidance and continue career exploration"
+                "recommendation": "Use as preliminary guidance and continue career exploration",
             }
 
-    def _calculate_recommendation_strength(self, confidence: float, questions_asked: int) -> str:
+    def _calculate_recommendation_strength(
+        self, confidence: float, questions_asked: int
+    ) -> str:
         """Calculate the strength of career recommendations."""
         if confidence >= 0.7 and questions_asked >= 8:
             return "strong"
@@ -1075,7 +1342,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         else:
             return "exploratory"
 
-    def _identify_well_understood_areas(self, categories_analysis: Dict[str, Any]) -> List[str]:
+    def _identify_well_understood_areas(
+        self, categories_analysis: Dict[str, Any]
+    ) -> List[str]:
         """Identify areas where we have high confidence."""
         well_understood = []
         for category, data in categories_analysis.items():
@@ -1083,7 +1352,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 well_understood.append(category)
         return well_understood
 
-    def _identify_limited_data_areas(self, categories_analysis: Dict[str, Any]) -> List[str]:
+    def _identify_limited_data_areas(
+        self, categories_analysis: Dict[str, Any]
+    ) -> List[str]:
         """Identify areas where data collection was limited."""
         limited_areas = []
         for category, data in categories_analysis.items():
@@ -1148,7 +1419,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "Research specific companies and roles",
                 "Connect with professionals in these fields",
                 "Consider relevant internships or projects",
-                "Develop skills aligned with your top career matches"
+                "Develop skills aligned with your top career matches",
             ]
         elif confidence >= 0.6:
             return [
@@ -1156,7 +1427,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "Take additional career assessments if needed",
                 "Gain experience through volunteering or projects",
                 "Speak with career counselors for additional guidance",
-                "Continue exploring your interests and strengths"
+                "Continue exploring your interests and strengths",
             ]
         else:
             return [
@@ -1164,28 +1435,37 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "Take comprehensive career assessments",
                 "Gain diverse experiences to better understand preferences",
                 "Seek guidance from career professionals",
-                "Keep an open mind while exploring various paths"
+                "Keep an open mind while exploring various paths",
             ]
 
-    def _identify_improvement_opportunities(self, categories_analysis: Dict[str, Any]) -> List[str]:
+    def _identify_improvement_opportunities(
+        self, categories_analysis: Dict[str, Any]
+    ) -> List[str]:
         """Identify areas where the assessment could be improved."""
         opportunities = []
         for category, data in categories_analysis.items():
             if not data.get("target_met", True):
-                opportunities.append(f"Gather more information about {category.replace('_', ' ')}")
+                opportunities.append(
+                    f"Gather more information about {category.replace('_', ' ')}"
+                )
 
         if not opportunities:
             opportunities.append("Continue monitoring career interests as they evolve")
 
         return opportunities
 
-    def _create_fallback_student_profile(self, profiler_data: Dict[str, Any], session_id: str) -> StudentProfile:
+    def _create_fallback_student_profile(
+        self, profiler_data: Dict[str, Any], session_id: str
+    ) -> StudentProfile:
         """
         Create a minimal but functional student profile when normal extraction fails.
         Ensures career predictions can always be generated.
         """
-        self._log_task_completion("fallback_profile_creation", True,
-                                f"Session {session_id}: Creating fallback profile from available data")
+        self._log_task_completion(
+            "fallback_profile_creation",
+            True,
+            f"Session {session_id}: Creating fallback profile from available data",
+        )
 
         # Extract what data we can from profiler_data
         academic_level = "Unknown"
@@ -1203,7 +1483,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
 
             # Look for basic profile info
             if "profile_confidence" in profiler_data:
-                confidence_score = max(confidence_score, profiler_data.get("profile_confidence", 0.3))
+                confidence_score = max(
+                    confidence_score, profiler_data.get("profile_confidence", 0.3)
+                )
 
         # Create minimal viable profile
         return StudentProfile(
@@ -1213,16 +1495,19 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             technical_skills=["General problem-solving"],
             soft_skills=["Communication"],
             short_term_goals=["Explore career options"],
-            long_term_goals=["Find fulfilling career"]
+            long_term_goals=["Find fulfilling career"],
         )
 
-    def _generate_fallback_career_predictions(self, student_profile: StudentProfile, profiler_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _generate_fallback_career_predictions(
+        self, student_profile: StudentProfile, profiler_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """
         Generate basic career predictions when normal prediction process fails.
         Provides general career suggestions suitable for most students.
         """
-        self._log_task_completion("fallback_predictions", True,
-                                "Generating fallback career predictions")
+        self._log_task_completion(
+            "fallback_predictions", True, "Generating fallback career predictions"
+        )
 
         # General career suggestions suitable for most people
         fallback_careers = [
@@ -1233,12 +1518,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "key_reasons": [
                     "Versatile career path suitable for various backgrounds",
                     "Combines analytical thinking with communication skills",
-                    "Available across multiple industries"
+                    "Available across multiple industries",
                 ],
                 "riasec_match": "Investigative, Enterprising",
                 "growth_outlook": "Strong job growth expected",
                 "education_requirements": "Bachelor's degree preferred",
-                "industries": ["Technology", "Finance", "Healthcare", "Consulting"]
+                "industries": ["Technology", "Finance", "Healthcare", "Consulting"],
             },
             {
                 "career_title": "Project Coordinator",
@@ -1247,12 +1532,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "key_reasons": [
                     "Organizational skills valuable across industries",
                     "Entry-level pathway to management roles",
-                    "Develops transferable skills"
+                    "Develops transferable skills",
                 ],
                 "riasec_match": "Enterprising, Conventional",
                 "growth_outlook": "Steady demand across sectors",
                 "education_requirements": "Bachelor's degree or equivalent experience",
-                "industries": ["Various industries"]
+                "industries": ["Various industries"],
             },
             {
                 "career_title": "Customer Success Specialist",
@@ -1261,12 +1546,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "key_reasons": [
                     "Growing field with increasing demand",
                     "Combines interpersonal and problem-solving skills",
-                    "Opportunity for career advancement"
+                    "Opportunity for career advancement",
                 ],
                 "riasec_match": "Social, Enterprising",
                 "growth_outlook": "High growth potential",
                 "education_requirements": "Bachelor's degree preferred",
-                "industries": ["Technology", "SaaS", "Services"]
+                "industries": ["Technology", "SaaS", "Services"],
             },
             {
                 "career_title": "Marketing Coordinator",
@@ -1275,12 +1560,12 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "key_reasons": [
                     "Creative and analytical aspects",
                     "Digital marketing skills in high demand",
-                    "Diverse career progression opportunities"
+                    "Diverse career progression opportunities",
                 ],
                 "riasec_match": "Artistic, Enterprising",
                 "growth_outlook": "Strong growth in digital marketing",
                 "education_requirements": "Bachelor's degree in marketing or related field",
-                "industries": ["Marketing", "Technology", "Retail", "Services"]
+                "industries": ["Marketing", "Technology", "Retail", "Services"],
             },
             {
                 "career_title": "Operations Specialist",
@@ -1289,21 +1574,27 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 "key_reasons": [
                     "Process improvement and efficiency focus",
                     "Analytical and systematic approach",
-                    "Stable career with advancement potential"
+                    "Stable career with advancement potential",
                 ],
                 "riasec_match": "Conventional, Investigative",
                 "growth_outlook": "Steady demand for operational efficiency",
                 "education_requirements": "Bachelor's degree preferred",
-                "industries": ["Manufacturing", "Healthcare", "Finance", "Logistics"]
-            }
+                "industries": ["Manufacturing", "Healthcare", "Finance", "Logistics"],
+            },
         ]
 
         # Try to customize based on any available profile information
-        if student_profile and hasattr(student_profile, 'riasec_scores') and student_profile.riasec_scores:
+        if (
+            student_profile
+            and hasattr(student_profile, "riasec_scores")
+            and student_profile.riasec_scores
+        ):
             # Adjust confidence scores based on RIASEC alignment if available
             for career in fallback_careers:
                 # Simple boost for better alignment (this is basic but functional)
-                career["confidence_score"] = min(career["confidence_score"] + 0.05, 0.75)
+                career["confidence_score"] = min(
+                    career["confidence_score"] + 0.05, 0.75
+                )
                 career["match_percentage"] = int(career["confidence_score"] * 100)
 
         return fallback_careers
@@ -1316,11 +1607,13 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "A": "Artistic",
             "S": "Social",
             "E": "Enterprising",
-            "C": "Conventional"
+            "C": "Conventional",
         }
         return names.get(code, code)
 
-    def _generate_fit_explanation(self, career: Dict[str, Any], profile: StudentProfile, category: str) -> str:
+    def _generate_fit_explanation(
+        self, career: Dict[str, Any], profile: StudentProfile, category: str
+    ) -> str:
         """Generate explanation of why this career is a good fit."""
         explanations = {
             "R": f"Your practical, hands-on approach makes you well-suited for {career['title']} roles that involve building and creating tangible solutions.",
@@ -1328,11 +1621,16 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "A": f"Your creative thinking and appreciation for innovation make {career['title']} an excellent match for expressing your artistic abilities.",
             "S": f"Your people-oriented nature and desire to help others make {career['title']} roles ideal for making a positive impact.",
             "E": f"Your leadership qualities and business acumen are perfectly suited for {career['title']} positions that drive organizational success.",
-            "C": f"Your organized, detail-oriented approach makes you an excellent fit for {career['title']} roles that require systematic thinking."
+            "C": f"Your organized, detail-oriented approach makes you an excellent fit for {career['title']} roles that require systematic thinking.",
         }
-        return explanations.get(category, f"This {career['title']} role aligns well with your overall profile and interests.")
+        return explanations.get(
+            category,
+            f"This {career['title']} role aligns well with your overall profile and interests.",
+        )
 
-    def _format_academic_plan_message(self, career_title: str, academic_plan: Dict[str, Any]) -> str:
+    def _format_academic_plan_message(
+        self, career_title: str, academic_plan: Dict[str, Any]
+    ) -> str:
         """
         Format the complete academic pathway plan into a detailed, readable message.
         Uses the raw_plan (LLM-generated markdown) which includes all sections:
@@ -1367,9 +1665,13 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             message_parts.append("🎓 **STUDENT ASSESSMENT**")
             message_parts.append("")  # Blank line after section header
             if student_assessment.get("current_level"):
-                message_parts.append(f"• **Current Level:** {student_assessment.get('current_level', 'Not specified')}")
+                message_parts.append(
+                    f"• **Current Level:** {student_assessment.get('current_level', 'Not specified')}"
+                )
             if student_assessment.get("recommended_timeline"):
-                message_parts.append(f"• **Timeline to Career:** {student_assessment.get('recommended_timeline', 'Varies')}")
+                message_parts.append(
+                    f"• **Timeline to Career:** {student_assessment.get('recommended_timeline', 'Varies')}"
+                )
             message_parts.append("")  # Blank line after section
 
         # Pathway Options - This is the main content!
@@ -1386,13 +1688,18 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                 government_universities = pathway.get("government_universities", [])
                 if government_universities:
                     message_parts.append("")
-                    message_parts.append("**🎓 GOVERNMENT UNIVERSITIES (FREE EDUCATION)**")
+                    message_parts.append(
+                        "**🎓 GOVERNMENT UNIVERSITIES (FREE EDUCATION)**"
+                    )
                     message_parts.append("")
                     for option in government_universities[:10]:  # Show up to 10 options
                         inst_name = option.get("institution_name", "Institution")
                         program = option.get("program_name", "Related program")
                         duration = option.get("duration", "")
-                        cost = option.get("approximate_cost", "LKR 30,000-100,000/year (registration fees only)")
+                        cost = option.get(
+                            "approximate_cost",
+                            "LKR 30,000-100,000/year (registration fees only)",
+                        )
                         message_parts.append(f"**• {inst_name}**")
                         message_parts.append("")
                         message_parts.append(f"- **Program:** {program}")
@@ -1423,24 +1730,36 @@ Return ONLY a valid JSON array (no markdown, no extra text):
                         financial_planning = option.get("financial_planning", {})
                         if financial_planning and any(financial_planning.values()):
                             message_parts.append("")
-                            message_parts.append(f"**💰 Financial Planning for {inst_name}:**")
+                            message_parts.append(
+                                f"**💰 Financial Planning for {inst_name}:**"
+                            )
                             message_parts.append("")
 
                             total_cost = financial_planning.get("total_cost", "")
                             if total_cost and total_cost != "To be determined":
                                 message_parts.append(f"- **Total Cost:** {total_cost}")
 
-                            payment_options = financial_planning.get("payment_options", [])
+                            payment_options = financial_planning.get(
+                                "payment_options", []
+                            )
                             if payment_options:
-                                message_parts.append(f"- **Payment Options:** {', '.join(payment_options)}")
+                                message_parts.append(
+                                    f"- **Payment Options:** {', '.join(payment_options)}"
+                                )
 
-                            scholarships = financial_planning.get("institution_scholarships", [])
+                            scholarships = financial_planning.get(
+                                "institution_scholarships", []
+                            )
                             if scholarships:
-                                message_parts.append(f"- **Scholarships:** {', '.join(scholarships[:3])}")
+                                message_parts.append(
+                                    f"- **Scholarships:** {', '.join(scholarships[:3])}"
+                                )
 
                             loans = financial_planning.get("loan_options", [])
                             if loans:
-                                message_parts.append(f"- **Loan Options:** {', '.join(loans[:2])}")
+                                message_parts.append(
+                                    f"- **Loan Options:** {', '.join(loans[:2])}"
+                                )
 
                         message_parts.append("")  # Blank line after each institution
                     message_parts.append("")
@@ -1504,7 +1823,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
 
         return "\n".join(message_parts)
 
-    def _format_skill_plan_message(self, career_title: str, skill_plan: Dict[str, Any]) -> str:
+    def _format_skill_plan_message(
+        self, career_title: str, skill_plan: Dict[str, Any]
+    ) -> str:
         """
         Format the complete skill development plan into a detailed, readable message.
         Uses the raw_plan (LLM-generated markdown) which includes all sections:
@@ -1529,21 +1850,29 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         if raw_plan:
             self.logger.info(f"   ✅ raw_plan found: {len(raw_plan)} characters")
         else:
-            self.logger.warning(f"   ⚠️ raw_plan is empty or missing, using fallback formatting")
+            self.logger.warning(
+                f"   ⚠️ raw_plan is empty or missing, using fallback formatting"
+            )
 
         if raw_plan:
             # Add header and return the complete plan
             message_parts = []
-            message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**")
+            message_parts.append(
+                f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**"
+            )
             message_parts.append("")
             message_parts.append(raw_plan)
             formatted_message = "\n".join(message_parts)
-            self.logger.info(f"   📝 Formatted skill message: {len(formatted_message)} characters")
+            self.logger.info(
+                f"   📝 Formatted skill message: {len(formatted_message)} characters"
+            )
             return formatted_message
 
         # Fallback: Use structured extraction if raw_plan is not available
         message_parts = []
-        message_parts.append(f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**")
+        message_parts.append(
+            f"🎯 **SKILL DEVELOPMENT PLAN FOR {career_title.upper()}**"
+        )
         message_parts.append("")  # Blank line after title
 
         # Technical Skills
@@ -1656,7 +1985,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             message_parts.append("")
 
         fallback_message = "\n".join(message_parts)
-        self.logger.info(f"   📝 Formatted skill message (FALLBACK): {len(fallback_message)} characters")
+        self.logger.info(
+            f"   📝 Formatted skill message (FALLBACK): {len(fallback_message)} characters"
+        )
         return fallback_message
 
     # Include original batch processing methods for backward compatibility
@@ -1666,7 +1997,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return self._create_task_result(
             task_type="student_request_analysis",
             success=True,
-            result_data={"next_step": "profile_creation", "mode": "batch"}
+            result_data={"next_step": "profile_creation", "mode": "batch"},
         )
 
     def _handle_profile_creation(self, state: AgentState) -> TaskResult:
@@ -1675,7 +2006,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return self._create_task_result(
             task_type="profile_creation",
             success=True,
-            result_data={"next_step": "career_planning", "mode": "batch"}
+            result_data={"next_step": "career_planning", "mode": "batch"},
         )
 
     def _handle_career_planning(self, state: AgentState) -> TaskResult:
@@ -1683,7 +2014,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return self._create_task_result(
             task_type="career_planning",
             success=True,
-            result_data={"next_step": "completion", "mode": "batch"}
+            result_data={"next_step": "completion", "mode": "batch"},
         )
 
     def _handle_future_analysis(self, state: AgentState) -> TaskResult:
@@ -1691,7 +2022,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return self._create_task_result(
             task_type="future_analysis",
             success=True,
-            result_data={"next_step": "completion", "mode": "batch"}
+            result_data={"next_step": "completion", "mode": "batch"},
         )
 
     def _handle_final_report_generation(self, state: AgentState) -> TaskResult:
@@ -1699,7 +2030,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return self._create_task_result(
             task_type="final_report_generation",
             success=True,
-            result_data={"completed": True, "mode": "batch"}
+            result_data={"completed": True, "mode": "batch"},
         )
 
     def _handle_unknown_step(self, state: AgentState, step: str) -> TaskResult:
@@ -1707,19 +2038,26 @@ Return ONLY a valid JSON array (no markdown, no extra text):
         return self._create_task_result(
             task_type="workflow_error",
             success=False,
-            error_message=f"Unknown workflow step: {step}"
+            error_message=f"Unknown workflow step: {step}",
         )
 
-    def _handle_unknown_stage(self, state: AgentState, session_id: str, stage: str) -> TaskResult:
+    def _handle_unknown_stage(
+        self, state: AgentState, session_id: str, stage: str
+    ) -> TaskResult:
         """Handle unknown session stages."""
         return self._create_task_result(
             task_type="session_error",
             success=False,
-            error_message=f"Unknown session stage: {stage}"
+            error_message=f"Unknown session stage: {stage}",
         )
 
     # Public interface methods for interactive sessions
-    def start_interactive_career_planning(self, student_request: str, session_id: Optional[str] = None, language: str = "en") -> AgentState:
+    def start_interactive_career_planning(
+        self,
+        student_request: str,
+        session_id: Optional[str] = None,
+        language: str = "en",
+    ) -> AgentState:
         """
         Start an interactive career planning session.
 
@@ -1729,7 +2067,9 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             language: User's preferred language ("en" or "si")
         """
         if not session_id:
-            session_id = f"interactive_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            session_id = (
+                f"interactive_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            )
 
         initial_state = AgentState(
             student_request=student_request,
@@ -1739,13 +2079,17 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             interaction_mode="interactive",
             awaiting_user_response=False,
             preferred_language=language,
-            messages=[HumanMessage(content=student_request)]
+            messages=[HumanMessage(content=student_request)],
         )
 
-        self.logger.info(f"🚀 Starting interactive career planning session: {session_id}")
+        self.logger.info(
+            f"🚀 Starting interactive career planning session: {session_id}"
+        )
         return initial_state
 
-    async def process_user_response(self, session_id: str, user_response: str, language: str = "en") -> TaskResult:
+    async def process_user_response(
+        self, session_id: str, user_response: str, language: str = "en"
+    ) -> TaskResult:
         """
         Process a user response for an active session.
 
@@ -1758,17 +2102,25 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             return self._create_task_result(
                 task_type="session_error",
                 success=False,
-                error_message=f"Session {session_id} not found"
+                error_message=f"Session {session_id} not found",
             )
 
         session_state = self.session_states[session_id]
         session_state.pending_user_response = user_response
         session_state.response_processed = False
-        session_state.preferred_language = language  # Update language preference
+        session_state.preferred_language = language  # Update language
 
-        # Update session language if session exists
+        # CRITICAL: Update session info language
         if session_id in self.active_sessions:
             self.active_sessions[session_id]["language"] = language
+
+        # CRITICAL: Update conversation context language (profiler session)
+        if self.user_profiler and session_id in self.user_profiler.active_sessions:
+            conv_context = self.user_profiler.active_sessions[session_id]
+            old_language = conv_context.session_metadata.get("language", "en")
+            conv_context.session_metadata["language"] = language
+            if old_language != language:
+                logging.info(f"Session {session_id}: Language changed from {old_language} to {language}")
 
         return await self.process_task(session_state)
 
@@ -1788,7 +2140,7 @@ Return ONLY a valid JSON array (no markdown, no extra text):
             "awaiting_user_response": session_state.awaiting_user_response,
             "current_question": session_state.current_question,
             "total_interactions": session_info.get("total_interactions", 0),
-            "created_at": session_info.get("created_at")
+            "created_at": session_info.get("created_at"),
         }
 
     def end_session(self, session_id: str) -> bool:

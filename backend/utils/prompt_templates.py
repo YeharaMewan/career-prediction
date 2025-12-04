@@ -164,7 +164,9 @@ FORMATTING_RULES = {
 
 def get_language_instruction(language: str, agent_role: str = "general") -> str:
     """
-    Get language-specific instruction for LLM prompts.
+    Get STRONG language enforcement instruction for LLM prompts.
+
+    CRITICAL: These instructions override LLM's natural tendency to mirror user's input language.
 
     Args:
         language: "en" (English) or "si" (Sinhala)
@@ -176,41 +178,98 @@ def get_language_instruction(language: str, agent_role: str = "general") -> str:
     """
     if language == "si":
         instructions = {
-            "general": """LANGUAGE: Sinhala (සිංහල)
-Generate ALL content in natural, conversational Sinhala.
-Use Sinhala script for all text.""",
+            "general": """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 YOU MUST RESPOND IN SINHALA (සිංහල) ONLY 🚨
 
-            "career_counselor": """LANGUAGE: Sinhala (සිංහල)
-Generate questions and responses in natural Sinhala.
-Use simple language suitable for high school students.
-Write entirely in Sinhala script (සිංහල අකුරු).
-Be warm, encouraging, and conversational.""",
+IGNORE THE USER'S INPUT LANGUAGE - EVEN IF THEY TYPE IN ENGLISH, YOUR RESPONSE MUST BE IN SINHALA.
 
-            "academic_pathway": """LANGUAGE: Sinhala (සිංහල)
-Provide academic plans with Sinhala descriptions.
-JSON keys remain in English, but all text values must be in Sinhala.
-Transliterate institution names to Sinhala when appropriate.
-Example: {"degree": "තොරතුරු තාක්ෂණ උපාධිය", "duration": "අවුරුදු 4"}""",
+MANDATORY RULES:
+1. Generate ALL content in natural Sinhala (Sinhala script: සිංහල අකුරු)
+2. Do NOT mirror the user's language
+3. Do NOT respond in English even if the user types in English
+4. The user has selected Sinhala as their preferred language - honor this choice ALWAYS
+5. Use conversational, natural Sinhala appropriate for high school students
 
-            "skill_development": """LANGUAGE: Sinhala (සිංහල)
-Provide skill plans with Sinhala descriptions.
-JSON keys remain in English, but all text values must be in Sinhala.
-Course names can be transliterated or kept in English if widely known.
-Example: {"skill": "Python Programming", "description": "ක්‍රමලේඛන භාෂාව"}""",
+THIS IS NON-NEGOTIABLE. YOUR ENTIRE RESPONSE MUST BE IN SINHALA.
+===========================================""",
 
-            "response_analyst": """LANGUAGE: Sinhala (සිංහල)
-JSON keys remain in English, but "intent" field should be in Sinhala.
-Example: {"scores": {...}, "intent": "තාක්ෂණය සහ ප්‍රශ්න විසඳීම ගැන උනන්දුවක්"}""",
+            "career_counselor": """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 YOU MUST ASK QUESTIONS IN SINHALA (සිංහල) ONLY 🚨
 
-            "career_predictor": """LANGUAGE: Sinhala (සිංහල)
-Career titles can remain in English or be translated (e.g., "Software Engineer" or "මෘදුකාංග ඉංජිනේරු").
-All descriptions and reasoning must be in natural Sinhala.
-JSON keys remain in English."""
+IGNORE THE USER'S INPUT LANGUAGE - RESPOND IN SINHALA REGARDLESS OF WHAT LANGUAGE THEY USE.
+
+MANDATORY RULES FOR QUESTIONS:
+1. Generate ALL questions in natural, conversational Sinhala (සිංහල අකුරු)
+2. Do NOT mirror the user's language - if they answer in English, your next question is STILL IN SINHALA
+3. Use simple, warm Sinhala suitable for high school students
+4. The UI shows Sinhala is selected - you MUST respect this preference
+5. Be encouraging and supportive IN SINHALA
+
+YOUR QUESTIONS = 100% SINHALA. NO EXCEPTIONS.
+===========================================""",
+
+            "academic_pathway": """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 ACADEMIC PLAN MUST BE IN SINHALA (සිංහල) 🚨
+
+IGNORE THE USER'S INPUT LANGUAGE - YOUR OUTPUT IS IN SINHALA REGARDLESS.
+
+MANDATORY RULES:
+1. Provide academic plans with Sinhala descriptions
+2. JSON keys remain in English, but ALL text values must be in Sinhala
+3. Transliterate institution names to Sinhala when appropriate
+4. Do NOT use English for descriptions even if user typed in English
+5. Example: {"degree": "තොරතුරු තාක්ෂණ උපාධිය", "duration": "අවුරුදු 4"}
+
+YOUR DESCRIPTIONS = 100% SINHALA. NO EXCEPTIONS.
+===========================================""",
+
+            "skill_development": """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 SKILL PLAN MUST BE IN SINHALA (සිංහල) 🚨
+
+IGNORE THE USER'S INPUT LANGUAGE - YOUR OUTPUT IS IN SINHALA REGARDLESS.
+
+MANDATORY RULES:
+1. Provide skill plans with Sinhala descriptions
+2. JSON keys remain in English, but ALL text values must be in Sinhala
+3. Course names can be transliterated or kept in English if widely known
+4. Do NOT use English for descriptions even if user typed in English
+5. Example: {"skill": "Python Programming", "description": "ක්‍රමලේඛන භාෂාව"}
+
+YOUR DESCRIPTIONS = 100% SINHALA. NO EXCEPTIONS.
+===========================================""",
+
+            "response_analyst": """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 ANALYSIS MUST BE IN SINHALA (සිංහල) 🚨
+
+IGNORE THE USER'S INPUT LANGUAGE - YOUR ANALYSIS IS IN SINHALA.
+
+MANDATORY RULES:
+1. JSON keys remain in English, but "intent" field MUST be in Sinhala
+2. Do NOT analyze in English even if user typed in English
+3. Example: {"scores": {...}, "intent": "තාක්ෂණය සහ ප්‍රශ්න විසඳීම ගැන උනන්දුවක්"}
+
+YOUR INTENT = 100% SINHALA. NO EXCEPTIONS.
+===========================================""",
+
+            "career_predictor": """=== CRITICAL LANGUAGE REQUIREMENT ===
+🚨 CAREER PREDICTIONS MUST BE IN SINHALA (සිංහල) 🚨
+
+IGNORE THE USER'S INPUT LANGUAGE - YOUR PREDICTIONS ARE IN SINHALA.
+
+MANDATORY RULES:
+1. Career titles can remain in English or be translated (e.g., "Software Engineer" or "මෘදුකාංග ඉංජිනේරු")
+2. ALL descriptions and reasoning MUST be in natural Sinhala
+3. JSON keys remain in English, but text values = Sinhala
+4. Do NOT use English descriptions even if user typed in English
+
+YOUR DESCRIPTIONS = 100% SINHALA. NO EXCEPTIONS.
+=========================================="""
         }
         return instructions.get(agent_role, instructions["general"])
 
-    # Default: English (no special instruction needed)
-    return "Language: English. Provide all content in English."
+    # English (default) - still make it explicit
+    return """Language Requirement: Respond in English.
+Generate all content in clear, natural English."""
 
 
 # =============================================================================
@@ -271,11 +330,17 @@ def build_task_prompt(
     """
     prompt_parts = []
 
-    # Add language instruction first if not English
-    if language != "en":
-        prompt_parts.append(get_language_instruction(language, agent_role))
+    # CRITICAL: ALWAYS add language instruction FIRST (highest priority position)
+    # This appears before task description to give language requirement maximum attention
+    prompt_parts.append(get_language_instruction(language, agent_role))
+    prompt_parts.append("")  # Blank line for separation
+
+    # Additional reminder for Sinhala (redundancy helps overcome language mirroring)
+    if language == "si":
+        prompt_parts.append("⚠️ REMINDER: User may type in English, but YOU respond in SINHALA. ⚠️")
         prompt_parts.append("")
 
+    # NOW add task description (language instruction has highest priority)
     prompt_parts.append(task_description)
     prompt_parts.append("")
 
@@ -351,7 +416,7 @@ class PromptTemplates:
 Expertise: Educational roadmaps, universities, degrees, scholarships, entry requirements
 Focus: Sri Lankan + international options, realistic timelines, cost estimates
 
-Career Levels: O/L → A/L → Diploma → Bachelor's → Master's → PhD
+Career Levels: O/L -> A/L -> Diploma -> Bachelor's -> Master's -> PhD
 Education Types: University degrees, technical diplomas, vocational training, online courses
 Institutions: Use web search for current Sri Lankan universities, international options
 
@@ -362,7 +427,7 @@ Output: Structured academic plan with pathways, institutions (with URLs), timeli
         """Optimized system prompt for Skill Development Agent"""
         return """Role: Skill development specialist for career preparation
 Expertise: Technical/soft skills, online courses, certifications, learning platforms
-Focus: Progressive roadmaps (Foundation → Intermediate → Advanced)
+Focus: Progressive roadmaps (Foundation -> Intermediate -> Advanced)
 
 Skill Types: Technical (programming, tools, frameworks), Soft (communication, leadership)
 Learning Phases: Foundation (basics), Intermediate (application), Advanced (mastery)

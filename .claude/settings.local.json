@@ -36,7 +36,11 @@
       "Bash(docker ps:*)",
       "Bash(cmd /c 'tree /F /L 2' 2)",
       "Bash(pip install:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(for line in 194 209 224 239 252)",
+      "Bash(do echo \"Line $line:\")",
+      "Bash(done)",
+      "Bash(timeout 5 docker logs:*)"
     ],
     "deny": [],
     "ask": []

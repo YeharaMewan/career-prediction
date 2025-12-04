@@ -16,8 +16,8 @@ class ConversationState(Enum):
     Based on the psychological career counseling framework.
     """
     GREETING = auto()
-    ACADEMIC_GATHERING = auto()
     INTEREST_DISCOVERY = auto()
+    ACADEMIC_GATHERING = auto()
     SKILLS_ASSESSMENT = auto()
     PERSONALITY_PROBE = auto()
     SUMMARIZATION = auto()
@@ -144,17 +144,17 @@ class ConversationStateMachine:
 
         return {
             ConversationState.GREETING: [
-                QuestionCountTransition(1, ConversationState.ACADEMIC_GATHERING),
-                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
-            ],
-
-            ConversationState.ACADEMIC_GATHERING: [
-                QuestionCountTransition(3, ConversationState.INTEREST_DISCOVERY),  # After 3 questions, move on
+                QuestionCountTransition(1, ConversationState.INTEREST_DISCOVERY),  # Changed from ACADEMIC_GATHERING
                 QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
             ConversationState.INTEREST_DISCOVERY: [
-                QuestionCountTransition(6, ConversationState.SKILLS_ASSESSMENT),  # After 6 questions, move on
+                QuestionCountTransition(5, ConversationState.ACADEMIC_GATHERING),  # Changed from 6 to 5, next state changed
+                QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
+            ],
+
+            ConversationState.ACADEMIC_GATHERING: [
+                QuestionCountTransition(7, ConversationState.SKILLS_ASSESSMENT),  # Changed from 3 to 7
                 QuestionLimitTransition(question_limit, ConversationState.COMPLETED)
             ],
 
@@ -183,8 +183,8 @@ class ConversationStateMachine:
         """Setup objectives for each conversation state."""
         return {
             ConversationState.GREETING: "Welcome the student and establish rapport",
-            ConversationState.ACADEMIC_GATHERING: "Collect comprehensive academic background information",
-            ConversationState.INTEREST_DISCOVERY: "Identify career interests and industry preferences",
+            ConversationState.INTEREST_DISCOVERY: "Identify hobbies, passions, and what energizes the student",
+            ConversationState.ACADEMIC_GATHERING: "Understand academic strengths and learning preferences",
             ConversationState.SKILLS_ASSESSMENT: "Assess technical and soft skills",
             ConversationState.PERSONALITY_PROBE: "Understand personality traits and work style preferences",
             ConversationState.SUMMARIZATION: "Create comprehensive profile summary",

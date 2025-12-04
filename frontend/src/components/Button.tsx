@@ -3,8 +3,9 @@ import React from "react";
 interface ButtonProps {
   label: string;
   onClick?: () => void;
-  className?: string; 
+  className?: string;
   bg?: string;
+  style?: React.CSSProperties;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -12,6 +13,7 @@ const Button: React.FC<ButtonProps> = ({
   onClick,
   bg,
   className = "",
+  style,
 }) => {
   return (
     <>
@@ -29,7 +31,8 @@ const Button: React.FC<ButtonProps> = ({
       <div className="button-wrapper relative inline-block p-0.5 rounded-full overflow-hidden hover:scale-105 transition duration-300 active:scale-100 before:content-[''] before:absolute before:inset-0 ">
         <button
           onClick={onClick}
-          className={`relative z-10 ${bg} text-white rounded-full px-8 py-3 font-medium text-sm ${className}`}
+          className={`relative z-10 ${bg || ""} text-white rounded-full px-8 py-3 font-medium text-sm ${className}`}
+          style={style}
         >
           {label}
         </button>
