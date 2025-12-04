@@ -10,6 +10,7 @@ import { LanguageProvider } from "./context/LanguageContext";
 
 import ChatPage from "./pages/chat/ChatPage";
 import CareerPath from "./pages/explorecareerPath/careerPath";
+import CareerPrediction from "./pages/careerprediction/careerprediction";
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -46,6 +47,7 @@ function App() {
               {/* Add more routes as needed */}
               <Route path="/faq" element={<FAQ />} />
               <Route path="/careerPath" element={<CareerPath />} />
+              <Route path="/careerprediction" element={<CareerPrediction />} />
             </Routes>
           </MainLayout>
         </Router>
