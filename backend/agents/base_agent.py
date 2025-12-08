@@ -48,7 +48,7 @@ class BaseAgent(ABC):
         self,
         name: str,
         description: str,
-        model: str = "gpt-4o",
+        model: str = "gpt-4o",  # Default GPT-4o, agents can override with gpt-4o-mini
         temperature: float = 0.1,
         use_fallback: bool = True
     ):

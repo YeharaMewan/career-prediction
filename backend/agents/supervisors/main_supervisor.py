@@ -40,6 +40,8 @@ setup_langsmith()
 class MainSupervisor(SupervisorAgent):
     """
     Enhanced Main Supervisor with session management and human-in-the-loop support.
+    
+    Uses GPT-4o for critical orchestration and decision-making tasks.
 
     Supports both:
     1. Traditional batch processing for immediate results

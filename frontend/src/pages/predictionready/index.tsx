@@ -14,8 +14,10 @@ function Prediction() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get predictions from navigation state
+  // Get predictions AND sessionId from navigation state
   const predictions = (location.state?.predictions || []) as CareerPrediction[];
+  const sessionId = location.state?.sessionId;
+  const language = location.state?.language || 'en';
 
   useEffect(() => {
     // Redirect to chat if no predictions available
@@ -74,6 +76,16 @@ function Prediction() {
                             label="Select this path"
                             className="uppercase font-mono text-white"
                             style={{ backgroundColor: cardColor }}
+                            onClick={() => {
+                              // Navigate to loading page, which triggers career planning
+                              navigate('/career-planning-loader', {
+                                state: {
+                                  sessionId: sessionId,
+                                  careerTitle: career.title,
+                                  language: language,
+                                },
+                              });
+                            }}
                           />
                         </div>
                       </div>

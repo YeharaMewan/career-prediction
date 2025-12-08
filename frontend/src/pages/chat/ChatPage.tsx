@@ -14,17 +14,19 @@ const ChatPage = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
+    const [debouncedIsTyping, setDebouncedIsTyping] = useState(false);
     const [careerPredictions, setCareerPredictions] = useState<CareerPrediction[]>([]);
     const [showPredictionsButton, setShowPredictionsButton] = useState(false);
     const [questionCount, setQuestionCount] = useState(0);
     const [isPredictionsLoading, setIsPredictionsLoading] = useState(false);
-    const { language, setLanguage} = useLanguage();
+    const { language, setLanguage } = useLanguage();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const location = useLocation();
     const navigate = useNavigate();
     const hasInitialized = useRef(false);
     const sessionIdRef = useRef<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -32,7 +34,7 @@ const ChatPage = () => {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, isTyping]);
+    }, [messages, debouncedIsTyping]);
 
     // Auto-resize textarea
     useEffect(() => {
@@ -41,6 +43,44 @@ const ChatPage = () => {
             textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
         }
     }, [input]);
+
+    // Debounce isTyping to prevent flicker
+    useEffect(() => {
+        if (isTyping) {
+            // Immediately show typing indicator
+            setDebouncedIsTyping(true);
+        } else {
+            // Delay hiding to ensure minimum display duration (300ms)
+            debounceTimeoutRef.current = setTimeout(() => {
+                setDebouncedIsTyping(false);
+            }, 300);
+        }
+
+        return () => {
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+                debounceTimeoutRef.current = null;
+            }
+        };
+    }, [isTyping]);
+
+    // Immediately hide thinking indicator when AI message arrives
+    useEffect(() => {
+        if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1];
+            // If the last message is from AI and we're showing typing indicator, hide it immediately
+            if (lastMessage.sender === "ai" && debouncedIsTyping) {
+                // Clear any pending timeout
+                if (debounceTimeoutRef.current) {
+                    clearTimeout(debounceTimeoutRef.current);
+                    debounceTimeoutRef.current = null;
+                }
+                // Immediately hide
+                setDebouncedIsTyping(false);
+            }
+        }
+    }, [messages, debouncedIsTyping]);
+
 
     const startAgentSession = useCallback(async () => {
         setIsTyping(true);
@@ -176,8 +216,8 @@ const ChatPage = () => {
 
                 // Check if response contains career predictions
                 const hasPredictions = data.career_predictions &&
-                                      Array.isArray(data.career_predictions) &&
-                                      data.career_predictions.length > 0;
+                    Array.isArray(data.career_predictions) &&
+                    data.career_predictions.length > 0;
 
                 if (hasPredictions) {
                     // Career predictions received - show brief message ONLY
@@ -237,7 +277,8 @@ const ChatPage = () => {
         navigate("/prediction", {
             state: {
                 predictions: careerPredictions,
-                sessionId: sessionIdRef.current
+                sessionId: sessionIdRef.current,
+                language: language
             }
         });
     };
@@ -317,16 +358,12 @@ const ChatPage = () => {
                                 </div>
                             </div>
                         ))}
-                        {isTyping && (
+                        {debouncedIsTyping && (
                             <div className="flex justify-start">
                                 <div className="max-w-[80%] rounded-2xl rounded-bl-none bg-white px-6 py-4 text-gray-500 shadow-sm ring-1 ring-gray-100">
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        transition={{ repeat: Infinity, duration: 1.5 }}
-                                    >
+                                    <span className="bg-[length:200%_100%] bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-500 bg-clip-text text-transparent font-medium animate-gradient-x">
                                         {isPredictionsLoading ? "Analyzing your profile..." : "Thinking..."}
-                                    </motion.div>
+                                    </span>
                                 </div>
                             </div>
                         )}
@@ -374,7 +411,7 @@ const ChatPage = () => {
                     </p>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

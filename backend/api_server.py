@@ -915,6 +915,77 @@ async def get_tasks():
     return []
 
 
+@app.get("/api/career-pathway/{session_id}")
+async def get_career_pathway_structured(session_id: str):
+    """
+    Get structured career pathway data in frontend card format.
+
+    Returns academic pathway and skill development in format matching
+    frontend ACADEMIC_DATA and SKILLS_DATA structure.
+    """
+    if not main_supervisor:
+        raise HTTPException(status_code=503, detail="Main supervisor not available")
+
+    try:
+        # Validate session exists
+        if session_id not in main_supervisor.active_sessions:
+            raise HTTPException(status_code=404, detail="Session not found or expired")
+
+        session_info = main_supervisor.active_sessions[session_id]
+        session_state = main_supervisor.session_states.get(session_id)
+
+        if not session_state:
+            raise HTTPException(status_code=404, detail="Session state not available")
+
+        # Check if career planning completed
+        current_stage = session_info.get('current_stage', 'unknown')
+        if current_stage not in ['career_planning', 'completion']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Career planning not yet completed. Current stage: {current_stage}"
+            )
+
+        # Extract structured data from blueprints
+        if not session_state.career_blueprints:
+            raise HTTPException(status_code=404, detail="No career blueprints available")
+
+        # Get the selected career blueprint (first one with structured data)
+        selected_blueprint = None
+        for idx, blueprint in enumerate(session_state.career_blueprints):
+            has_academic = blueprint.academic_plan_structured is not None
+            has_skill = blueprint.skill_plan_structured is not None
+
+            logger.debug(f"Blueprint {idx} ({blueprint.career_title}): academic={has_academic}, skill={has_skill}")
+
+            if has_academic and has_skill:
+                selected_blueprint = blueprint
+                logger.info(f"✅ Found complete blueprint for {blueprint.career_title}")
+                break
+
+        if not selected_blueprint:
+            logger.error("❌ No blueprint with complete structured data found")
+            raise HTTPException(
+                status_code=400,
+                detail="Structured career pathway data not yet generated. Please complete career planning first."
+            )
+
+        return JSONResponse(content={
+            "success": True,
+            "session_id": session_id,
+            "career_title": selected_blueprint.career_title,
+            "academic_pathway": selected_blueprint.academic_plan_structured,
+            "skill_development": selected_blueprint.skill_plan_structured,
+            "match_score": selected_blueprint.match_score,
+            "generated_at": datetime.now().isoformat()
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving career pathway for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")

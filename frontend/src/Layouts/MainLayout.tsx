@@ -7,7 +7,7 @@ interface LayoutProps {
 
 const MainLayout: React.FC<LayoutProps> = ({ children }) => {
   return (
-    <div className="relative mx-auto min-h-screen w-full max-w-[1920px] overflow-y-hidden bg-[color:var(--color-main)]">
+    <div className="relative mx-auto min-h-screen w-full max-w-[1920px] overflow-y-auto bg-[color:var(--color-main)]">
       <div className="fixed inset-0 z-10 h-full w-full">
         {/* <LiquidEther
           colors={["#5227FF", "#FF9FFC", "#B19EEF"]}
