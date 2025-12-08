@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 from langchain_core.messages import HumanMessage, AIMessage
@@ -22,6 +22,7 @@ from agents.conversation_states import (
     ConversationStateMachine,
     create_initial_conversation_context,
 )
+from agents.personality_analyzer import PersonalityAnalyzer
 
 # Import LangSmith configuration
 from utils.langsmith_config import (
@@ -70,6 +71,7 @@ class ResponseAnalysis:
     """
     Analysis results from a user response.
     Simplified to focus on RIASEC assessment without confidence tracking.
+    Enhanced with dynamic follow-up and ambiguity detection fields.
     """
 
     riasec_updates: Dict[RIASECCategory, float]  # Updates to RIASEC scores
@@ -79,10 +81,22 @@ class ResponseAnalysis:
     sentiment: str  # Response sentiment
     completeness_score: float  # How complete the response is (0-1)
 
+    # NEW: Dynamic follow-up fields
+    depth_score: float = 0.5  # How detailed is the response? (0-1)
+    specificity_score: float = 0.5  # How specific vs generic? (0-1)
+    follow_up_type: Optional[str] = None  # "clarification", "expansion", "exploration", or None
+    follow_up_focus: Optional[str] = None  # Specific area to explore (e.g., "IT interest")
+    key_phrases: List[str] = field(default_factory=list)  # Important phrases user mentioned (max 3)
+
+    # NEW: Ambiguity detection
+    ambiguity_score: float = 0.0  # How vague/ambiguous is the response? (0-1)
+
 
 class ConversationManager:
     """
     Advanced conversation manager for intelligent Q&A flow.
+    
+    Uses GPT-4o-mini for cost-effective question generation and response analysis.
 
     Implements Chain-of-Thought reasoning, Few-Shot prompting,
     and sophisticated intent recognition with question limiting.
@@ -97,14 +111,14 @@ class ConversationManager:
     # Maximum questions per RIASEC category for balanced assessment
     MAX_QUESTIONS_PER_RIASEC = 2  # Exactly 2 questions per category
 
-    def __init__(self, model: str = "gpt-4o", temperature: float = 0.3):
+    def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.3):  # Use gpt-4o-mini for cost savings
         # Use LLM factory with fallback support instead of direct ChatOpenAI
         self.llm_wrapper = LLMFactory.create_llm(
             model=model, temperature=temperature, enable_fallback=True
         )
         self.llm = self.llm_wrapper.llm
         logging.info(
-            f"✅ ConversationManager LLM initialized using {self.llm_wrapper.strategy.provider_name}"
+            f"✅ ConversationManager LLM initialized using {self.llm_wrapper.strategy.provider_name} with model: {model}"
         )
 
         self.state_machine = ConversationStateMachine()
@@ -844,7 +858,20 @@ FEW-SHOT EXAMPLES:
 {self._format_few_shot_examples()}
 
 ANALYSIS TASK:
-Analyze the response and provide structured assessment covering: completeness, extracted data, RIASEC scores, follow-up areas, intent, and sentiment.
+Analyze the response and provide structured assessment covering: completeness, extracted data, RIASEC scores, follow-up areas, intent, sentiment, PLUS new fields for ambiguity detection and dynamic follow-ups.
+
+AMBIGUITY ASSESSMENT:
+- Evaluate if the response is too vague to be actionable (generic terms, very short, no specifics)
+- Score ambiguity from 0.0 (very specific) to 1.0 (extremely vague)
+
+DEPTH & SPECIFICITY:
+- depth_score (0-1): How detailed is the response? (0=very brief, 1=very detailed)
+- specificity_score (0-1): How specific vs generic? (0=generic "I like tech", 1=specific "I enjoy Python web development")
+
+FOLLOW-UP OPPORTUNITY:
+- follow_up_type: "clarification" (vague/unclear), "expansion" (interesting but brief), "exploration" (passion detected), or null
+- follow_up_focus: Specific topic to explore (e.g., "AI interest", "helping people motivation")
+- key_phrases: Extract 1-3 important phrases they used (e.g., ["web apps", "React"])
 
 Provide analysis in this JSON format (JSON only, no explanations):
 {{
@@ -853,7 +880,13 @@ Provide analysis in this JSON format (JSON only, no explanations):
     "riasec_updates": {{"R": 0.0-1.0, "I": 0.0-1.0, "A": 0.0-1.0, "S": 0.0-1.0, "E": 0.0-1.0, "C": 0.0-1.0}},
     "follow_up_needed": ["area1", "area2"],
     "intent_classification": "description",
-    "sentiment": "positive/neutral/negative"
+    "sentiment": "positive/neutral/negative",
+    "ambiguity_score": 0.0-1.0,
+    "depth_score": 0.0-1.0,
+    "specificity_score": 0.0-1.0,
+    "follow_up_type": "clarification|expansion|exploration|null",
+    "follow_up_focus": "topic area or null",
+    "key_phrases": ["phrase1", "phrase2", "phrase3"]
 }}"""
 
         try:
@@ -886,7 +919,15 @@ Provide analysis in this JSON format (JSON only, no explanations):
                 follow_up_needed=analysis_data.get("follow_up_needed", []),
                 intent_classification=analysis_data.get("intent_classification", "general_response"),
                 sentiment=analysis_data.get("sentiment", "neutral"),
-                completeness_score=analysis_data.get("completeness_score", 0.5)
+                completeness_score=analysis_data.get("completeness_score", 0.5),
+                # NEW: Dynamic follow-up fields
+                depth_score=analysis_data.get("depth_score", 0.5),
+                specificity_score=analysis_data.get("specificity_score", 0.5),
+                follow_up_type=analysis_data.get("follow_up_type"),
+                follow_up_focus=analysis_data.get("follow_up_focus"),
+                key_phrases=analysis_data.get("key_phrases", []),
+                # NEW: Ambiguity detection
+                ambiguity_score=analysis_data.get("ambiguity_score", 0.0)
             )
             
             # Log execution
@@ -915,6 +956,86 @@ Provide analysis in this JSON format (JSON only, no explanations):
 
             # Fallback to rule-based analysis
             return self._fallback_analysis(user_response, question)
+
+    def detect_ambiguity(
+        self,
+        user_response: str,
+        question_context: str = ""
+    ) -> tuple[bool, float, List[str]]:
+        """
+        Detect if a response is too vague/ambiguous to be useful.
+
+        Args:
+            user_response: The user's response text
+            question_context: The question that was asked (for context)
+
+        Returns:
+            Tuple of (is_ambiguous, ambiguity_score, ambiguous_phrases)
+            - is_ambiguous: True if ambiguity_score >= 0.5
+            - ambiguity_score: 0.0 (clear) to 1.0 (extremely vague)
+            - ambiguous_phrases: List of specific vague phrases detected
+        """
+        response_lower = user_response.lower().strip()
+        word_count = len(user_response.split())
+
+        ambiguity_score = 0.0
+        ambiguous_phrases = []
+
+        # 1. Length check - very short responses are often vague
+        if word_count < 10:
+            ambiguity_score += 0.3
+            if word_count < 5:
+                ambiguity_score += 0.1  # Extra penalty for extremely short
+
+        # 2. Generic career phrases
+        generic_phrases = [
+            "good job", "make money", "be rich", "successful", "nice career",
+            "stable job", "high salary", "comfortable life", "good salary",
+            "make a living", "earn well", "decent job"
+        ]
+        for phrase in generic_phrases:
+            if phrase in response_lower:
+                ambiguity_score += 0.25
+                ambiguous_phrases.append(phrase)
+
+        # 3. Vague interest statements
+        vague_interests = [
+            "i like technology", "i want to help people", "business is interesting",
+            "i'm interested in everything", "i don't know yet", "anything related to",
+            "something with", "something in", "work with computers",
+            "be my own boss"
+        ]
+        for statement in vague_interests:
+            if statement in response_lower:
+                ambiguity_score += 0.3
+                ambiguous_phrases.append(statement)
+
+        # 4. Non-committal language
+        uncertainty_markers = [
+            "maybe", "i guess", "i don't know", "not sure", "kind of",
+            "sort of", "possibly", "might", "whatever", "anything"
+        ]
+        uncertainty_count = sum(1 for marker in uncertainty_markers if marker in response_lower)
+        if uncertainty_count >= 2:
+            ambiguity_score += 0.2
+            ambiguous_phrases.append(f"{uncertainty_count} uncertainty markers")
+
+        # 5. Single-word or very minimal responses
+        if word_count <= 2 and not any(marker in response_lower for marker in ["yes", "no"]):
+            ambiguity_score += 0.4
+            ambiguous_phrases.append("minimal response")
+
+        # Cap at 1.0
+        ambiguity_score = min(ambiguity_score, 1.0)
+
+        # Threshold for ambiguity
+        is_ambiguous = ambiguity_score >= 0.5
+
+        logging.debug(f"Ambiguity detection: score={ambiguity_score:.2f}, "
+                     f"is_ambiguous={is_ambiguous}, phrases={ambiguous_phrases}")
+
+        return is_ambiguous, ambiguity_score, ambiguous_phrases
+
     def _fallback_analysis(self, user_response: str, question: GeneratedQuestion) -> ResponseAnalysis:
         """Fallback rule-based analysis when LLM analysis fails."""
 
@@ -930,13 +1051,24 @@ Provide analysis in this JSON format (JSON only, no explanations):
         word_count = len(user_response.split())
         completeness_score = min(word_count / 20, 1.0)  # Normalize to 0-1
 
+        # Calculate ambiguity using the detect_ambiguity method
+        is_ambiguous, ambiguity_score, ambiguous_phrases = self.detect_ambiguity(user_response)
+
         return ResponseAnalysis(
             riasec_updates=riasec_updates,
             extracted_data={"response": user_response},
             follow_up_needed=[] if completeness_score > 0.7 else [question.target_area],
             intent_classification="general_response",
             sentiment="neutral",
-            completeness_score=completeness_score
+            completeness_score=completeness_score,
+            # NEW: Dynamic follow-up fields (defaults for fallback)
+            depth_score=completeness_score,  # Use completeness as proxy for depth
+            specificity_score=0.5,  # Neutral default
+            follow_up_type="clarification" if is_ambiguous else None,
+            follow_up_focus=question.target_area if is_ambiguous else None,
+            key_phrases=[],
+            # NEW: Ambiguity detection
+            ambiguity_score=ambiguity_score
         )
 
     def _calculate_question_riasec_relevance(self, question_text: str) -> Dict[RIASECCategory, float]:
@@ -1405,6 +1537,30 @@ Provide analysis in this JSON format (JSON only, no explanations):
         # Remove duplicates
         context.follow_up_needed = list(set(context.follow_up_needed))
 
+        # NEW: Personality analysis (per-response)
+        if not hasattr(context, 'personality_analyzer'):
+            # Initialize personality analyzer on first use
+            context.personality_analyzer = PersonalityAnalyzer()
+            logging.debug("Initialized PersonalityAnalyzer for this session")
+
+        # Analyze current response for personality traits
+        personality_insights = context.personality_analyzer.analyze_response(user_response)
+
+        # Update cumulative scores
+        context.personality_analyzer.update_cumulative_scores(personality_insights)
+
+        # Get dominant traits and confidence
+        dominant_traits = context.personality_analyzer.get_dominant_traits(threshold=0.25)
+        personality_confidence = context.personality_analyzer.get_confidence_score()
+
+        # Store in session metadata
+        context.session_metadata["personality_traits_detected"] = dominant_traits
+        context.session_metadata["personality_confidence"] = personality_confidence
+        context.session_metadata["personality_summary"] = context.personality_analyzer.get_trait_summary()
+
+        logging.debug(f"Personality analysis: {len(dominant_traits)} traits detected "
+                     f"(confidence: {personality_confidence:.2f})")
+
         # Update session metadata with progress tracking
         question_type_value = question.question_type.value if question.question_type else "unknown"
         context.session_metadata.update({
@@ -1638,20 +1794,91 @@ Provide analysis in this JSON format (JSON only, no explanations):
 
         return False
 
+    def should_ask_dynamic_follow_up(
+        self,
+        context: ConversationContext,
+        analysis: ResponseAnalysis
+    ) -> bool:
+        """
+        Determine if a dynamic follow-up is warranted based on response depth and specificity.
+        This is separate from the basic should_ask_follow_up() method.
+
+        Dynamic follow-up triggers:
+        - High interest + low specificity (depth_score > 0.7 but specificity < 0.5)
+        - Passion indicators detected
+        - Multiple interests without prioritization
+        - Follow-up type is "expansion" or "exploration"
+
+        Budget constraints:
+        - Only if questions_asked < 10 (save 2 questions for RIASEC balance)
+        - Limit to 2-3 dynamic follow-ups per session
+        """
+        questions_asked = len(context.question_history)
+        dynamic_followups_used = context.session_metadata.get("dynamic_followups_count", 0)
+
+        # Budget constraints
+        if questions_asked >= 10:  # Save room for final RIASEC questions
+            return False
+
+        if dynamic_followups_used >= 3:  # Max 3 dynamic follow-ups per session
+            return False
+
+        # High-value follow-up triggers
+        if hasattr(analysis, 'follow_up_type') and analysis.follow_up_type in ["expansion", "exploration"]:
+            # Check if depth/specificity warrant follow-up
+            depth_score = getattr(analysis, 'depth_score', 0.5)
+            specificity_score = getattr(analysis, 'specificity_score', 0.5)
+
+            # High depth but low specificity → expand on interesting topic
+            if depth_score > 0.7 and specificity_score < 0.5:
+                logging.debug(f"Dynamic follow-up triggered: high depth ({depth_score:.2f}), "
+                             f"low specificity ({specificity_score:.2f})")
+                return True
+
+            # Exploration type with reasonable depth
+            if analysis.follow_up_type == "exploration" and depth_score > 0.5:
+                logging.debug(f"Dynamic follow-up triggered: exploration type with depth {depth_score:.2f}")
+                return True
+
+        return False
+
+    def _get_follow_up_type_guidance(self, follow_up_type: Optional[str]) -> str:
+        """Get specific guidance based on follow-up type."""
+        if follow_up_type == "clarification":
+            return " (Ask them to clarify or give specific examples)"
+        elif follow_up_type == "expansion":
+            return " (Dig deeper - ask 'what specifically' or 'why that appeals')"
+        elif follow_up_type == "exploration":
+            return " (Explore their passion - ask about experiences, what drew them in, favorite aspects)"
+        else:
+            return ""
+
     def generate_follow_up_question(self, context: ConversationContext, analysis: ResponseAnalysis) -> GeneratedQuestion:
         """
         Generate a targeted follow-up question based on the analysis.
+        Enhanced to use dynamic follow-up fields (key_phrases, follow_up_focus, follow_up_type).
         """
+        # NEW: Check for dynamic follow-up fields
+        follow_up_type = getattr(analysis, 'follow_up_type', None)
+        follow_up_focus = getattr(analysis, 'follow_up_focus', None)
+        key_phrases = getattr(analysis, 'key_phrases', [])
+
         # Identify the most critical area needing follow-up
-        follow_up_area = None
-        if analysis.follow_up_needed:
+        # Prioritize follow_up_focus if available
+        follow_up_area = follow_up_focus if follow_up_focus else None
+        if not follow_up_area and analysis.follow_up_needed:
             follow_up_area = analysis.follow_up_needed[0]
-        else:
+        if not follow_up_area:
             follow_up_area = "general"
 
         # Extract key insights from their response
+        # NEW: Use key_phrases if available
         insights_context = ""
-        if hasattr(analysis, 'key_insights') and analysis.key_insights:
+        if key_phrases:
+            # Fix: Cannot use backslashes in f-string expressions, so extract quote wrapping first
+            quoted_phrases = [f'"{p}"' for p in key_phrases[:3]]
+            insights_context = f"\nKey phrases they used: {', '.join(quoted_phrases)}"
+        elif hasattr(analysis, 'key_insights') and analysis.key_insights:
             insights_context = f"\nKey insights from their response: {', '.join(analysis.key_insights[:3])}"
 
         # Get student's tone for adaptive response
@@ -1699,9 +1926,10 @@ YOUR APPROACH - Respond naturally using this structure:
    • Use their actual words or examples
 
 3. DIG DEEPER (1-2 sentences)
-   • Ask a natural follow-up about {follow_up_area}
+   • Ask a natural follow-up about {follow_up_area}{self._get_follow_up_type_guidance(follow_up_type)}
    • Show authentic curiosity
    • Make it conversational, not interrogative
+   • NEW: Reference their exact phrases{f': {", ".join(key_phrases[:2])}' if key_phrases else ''}
 
 IMPORTANT:
 - Do NOT include section labels

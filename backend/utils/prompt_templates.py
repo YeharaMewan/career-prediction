@@ -25,44 +25,38 @@ SYSTEM_ROLES = {
     "academic_pathway": {
         "role": "Academic pathway specialist for Sri Lankan students",
         "expertise": "Educational roadmaps, universities, degrees, scholarships",
-        "focus": "Sri Lankan + international options, entry requirements, timelines"
+        "focus": "Sri Lankan + international options, entry requirements, timelines",
     },
-
     "skill_development": {
         "role": "Skill development specialist for career preparation",
         "expertise": "Technical/soft skills, online courses, certifications, learning paths",
-        "focus": "Progressive roadmaps (Foundation → Intermediate → Advanced)"
+        "focus": "Progressive roadmaps (Foundation → Intermediate → Advanced)",
     },
-
     "career_counselor": {
         "role": "Career counselor for high school students",
         "expertise": "Career assessment, RIASEC framework, student guidance",
-        "focus": "Simple language, encouragement, personalized questions"
+        "focus": "Simple language, encouragement, personalized questions",
     },
-
     "response_analyst": {
         "role": "Career response analyst",
         "expertise": "RIASEC scoring, intent classification, pattern recognition",
-        "focus": "Accurate scoring, structured JSON output"
+        "focus": "Accurate scoring, structured JSON output",
     },
-
     "career_predictor": {
         "role": "Career prediction specialist",
         "expertise": "Career matching, profile analysis, multi-career recommendations",
-        "focus": "RIASEC-based predictions, match scoring, reasoning"
+        "focus": "RIASEC-based predictions, match scoring, reasoning",
     },
-
     "main_supervisor": {
         "role": "Career planning system orchestrator",
         "expertise": "Agent coordination, workflow management, session control",
-        "focus": "Efficient delegation, quality assurance, user experience"
+        "focus": "Efficient delegation, quality assurance, user experience",
     },
-
     "career_planning_supervisor": {
         "role": "Academic + skill planning coordinator",
         "expertise": "Parallel agent orchestration, comprehensive career plans",
-        "focus": "Coordinated academic and skill development pathways"
-    }
+        "focus": "Coordinated academic and skill development pathways",
+    },
 }
 
 
@@ -79,17 +73,22 @@ OUTPUT_SCHEMAS = {
             "alternative_pathways",
             "institutions",
             "timeline",
-            "estimated_cost"
+            "estimated_cost",
         ],
         "example": {
             "education_level_required": "Bachelor's Degree",
-            "primary_pathway": {"degree": "...", "institution": "...", "duration": "..."},
-            "institutions": [{"name": "...", "type": "...", "location": "...", "url": "..."}],
+            "primary_pathway": {
+                "degree": "...",
+                "institution": "...",
+                "duration": "...",
+            },
+            "institutions": [
+                {"name": "...", "type": "...", "location": "...", "url": "..."}
+            ],
             "timeline": "4 years",
-            "estimated_cost": {"local": "...", "international": "..."}
-        }
+            "estimated_cost": {"local": "...", "international": "..."},
+        },
     },
-
     "skill_plan": {
         "type": "object",
         "required_fields": [
@@ -97,7 +96,7 @@ OUTPUT_SCHEMAS = {
             "soft_skills",
             "learning_roadmap",
             "certifications",
-            "resources"
+            "resources",
         ],
         "example": {
             "technical_skills": {"core": ["..."], "advanced": ["..."]},
@@ -105,32 +104,32 @@ OUTPUT_SCHEMAS = {
                 {"phase": "Foundation", "duration": "...", "skills": ["..."]}
             ],
             "certifications": [{"name": "...", "provider": "...", "priority": "..."}],
-            "resources": [{"platform": "...", "course": "...", "url": "..."}]
-        }
+            "resources": [{"platform": "...", "course": "...", "url": "..."}],
+        },
     },
-
     "riasec_scores": {
         "type": "object",
         "required_fields": ["R", "I", "A", "S", "E", "C"],
         "format": {"R": 0.8, "I": 0.6, "A": 0.3, "S": 0.5, "E": 0.4, "C": 0.7},
-        "note": "Scores between 0.0-1.0"
+        "note": "Scores between 0.0-1.0",
     },
-
     "career_prediction": {
         "type": "array",
         "items": {
             "career_title": "string",
             "match_score": "float (0-100)",
             "match_reasoning": "string",
-            "riasec_alignment": "object"
+            "riasec_alignment": "object",
         },
-        "example": [{
-            "career_title": "Software Engineer",
-            "match_score": 88.5,
-            "match_reasoning": "Strong technical skills, analytical thinking",
-            "riasec_alignment": {"R": 0.5, "I": 0.9, "A": 0.3}
-        }]
-    }
+        "example": [
+            {
+                "career_title": "Software Engineer",
+                "match_score": 88.5,
+                "match_reasoning": "Strong technical skills, analytical thinking",
+                "riasec_alignment": {"R": 0.5, "I": 0.9, "A": 0.3},
+            }
+        ],
+    },
 }
 
 
@@ -154,13 +153,14 @@ FORMATTING_RULES = {
     "json_output": "Return valid JSON only. No markdown, no code blocks.",
     "url_inclusion": "Include URLs for all institutions, courses, resources.",
     "sri_lankan_focus": "Prioritize Sri Lankan options, provide international alternatives.",
-    "web_search_usage": "Use real-time web search results provided in context."
+    "web_search_usage": "Use real-time web search results provided in context.",
 }
 
 
 # =============================================================================
 # LANGUAGE SUPPORT - Multi-language prompt generation
 # =============================================================================
+
 
 def get_language_instruction(language: str, agent_role: str = "general") -> str:
     """
@@ -192,7 +192,6 @@ MANDATORY RULES:
 
 THIS IS NON-NEGOTIABLE. YOUR ENTIRE RESPONSE MUST BE IN SINHALA.
 ===========================================""",
-
             "career_counselor": """=== CRITICAL LANGUAGE REQUIREMENT ===
 🚨 YOU MUST ASK QUESTIONS IN SINHALA (සිංහල) ONLY 🚨
 
@@ -207,7 +206,6 @@ MANDATORY RULES FOR QUESTIONS:
 
 YOUR QUESTIONS = 100% SINHALA. NO EXCEPTIONS.
 ===========================================""",
-
             "academic_pathway": """=== CRITICAL LANGUAGE REQUIREMENT ===
 🚨 ACADEMIC PLAN MUST BE IN SINHALA (සිංහල) 🚨
 
@@ -222,7 +220,6 @@ MANDATORY RULES:
 
 YOUR DESCRIPTIONS = 100% SINHALA. NO EXCEPTIONS.
 ===========================================""",
-
             "skill_development": """=== CRITICAL LANGUAGE REQUIREMENT ===
 🚨 SKILL PLAN MUST BE IN SINHALA (සිංහල) 🚨
 
@@ -237,7 +234,6 @@ MANDATORY RULES:
 
 YOUR DESCRIPTIONS = 100% SINHALA. NO EXCEPTIONS.
 ===========================================""",
-
             "response_analyst": """=== CRITICAL LANGUAGE REQUIREMENT ===
 🚨 ANALYSIS MUST BE IN SINHALA (සිංහල) 🚨
 
@@ -250,7 +246,6 @@ MANDATORY RULES:
 
 YOUR INTENT = 100% SINHALA. NO EXCEPTIONS.
 ===========================================""",
-
             "career_predictor": """=== CRITICAL LANGUAGE REQUIREMENT ===
 🚨 CAREER PREDICTIONS MUST BE IN SINHALA (සිංහල) 🚨
 
@@ -263,7 +258,7 @@ MANDATORY RULES:
 4. Do NOT use English descriptions even if user typed in English
 
 YOUR DESCRIPTIONS = 100% SINHALA. NO EXCEPTIONS.
-=========================================="""
+==========================================""",
         }
         return instructions.get(agent_role, instructions["general"])
 
@@ -275,6 +270,7 @@ Generate all content in clear, natural English."""
 # =============================================================================
 # TEMPLATE BUILDER FUNCTIONS
 # =============================================================================
+
 
 def build_system_prompt(role_key: str, additional_context: Optional[str] = None) -> str:
     """
@@ -295,7 +291,7 @@ def build_system_prompt(role_key: str, additional_context: Optional[str] = None)
     prompt_parts = [
         f"Role: {role_def['role']}",
         f"Expertise: {role_def['expertise']}",
-        f"Focus: {role_def['focus']}"
+        f"Focus: {role_def['focus']}",
     ]
 
     if additional_context:
@@ -311,7 +307,7 @@ def build_task_prompt(
     include_quality_standards: bool = True,
     web_search_results: Optional[str] = None,
     language: str = "en",
-    agent_role: str = "general"
+    agent_role: str = "general",
 ) -> str:
     """
     Build optimized task prompt with context and output requirements.
@@ -337,7 +333,9 @@ def build_task_prompt(
 
     # Additional reminder for Sinhala (redundancy helps overcome language mirroring)
     if language == "si":
-        prompt_parts.append("⚠️ REMINDER: User may type in English, but YOU respond in SINHALA. ⚠️")
+        prompt_parts.append(
+            "⚠️ REMINDER: User may type in English, but YOU respond in SINHALA. ⚠️"
+        )
         prompt_parts.append("")
 
     # NOW add task description (language instruction has highest priority)
@@ -361,7 +359,9 @@ def build_task_prompt(
     # Add output schema if specified
     if output_schema_key and output_schema_key in OUTPUT_SCHEMAS:
         schema = OUTPUT_SCHEMAS[output_schema_key]
-        prompt_parts.append(f"Output: JSON with fields: {', '.join(schema['required_fields'])}")
+        prompt_parts.append(
+            f"Output: JSON with fields: {', '.join(schema['required_fields'])}"
+        )
         prompt_parts.append("")
 
     # Add quality standards if requested
@@ -376,7 +376,7 @@ def build_structured_messages(
     task_description: str,
     context_data: Dict[str, Any],
     output_schema_key: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> List[Dict[str, str]]:
     """
     Build structured message list (system + user) for LLM invocation.
@@ -394,17 +394,20 @@ def build_structured_messages(
         List of message dicts: [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
     """
     system_message = build_system_prompt(role_key)
-    user_message = build_task_prompt(task_description, context_data, output_schema_key, **kwargs)
+    user_message = build_task_prompt(
+        task_description, context_data, output_schema_key, **kwargs
+    )
 
     return [
         {"role": "system", "content": system_message},
-        {"role": "user", "content": user_message}
+        {"role": "user", "content": user_message},
     ]
 
 
 # =============================================================================
 # SPECIALIZED PROMPTS - Pre-built templates for common operations
 # =============================================================================
+
 
 class PromptTemplates:
     """Collection of specialized prompt templates for common operations"""
@@ -450,7 +453,7 @@ Output: JSON array of 5 careers with: title, match_score (0-100), reasoning, ria
         """Template for dynamic question generation"""
         return {
             "system": "Career counselor. Generate ONE simple question for high school student. Clear, encouraging language.",
-            "user_template": "Goal: {objective}\nContext: {student_context}\nRIASEC focus: {category}\n\nQuestion:"
+            "user_template": "Goal: {objective}\nContext: {student_context}\nRIASEC focus: {category}\n\nQuestion:",
         }
 
     @staticmethod
@@ -458,7 +461,7 @@ Output: JSON array of 5 careers with: title, match_score (0-100), reasoning, ria
         """Template for response analysis"""
         return {
             "system": "Analyze student response. Score RIASEC categories (0.0-1.0). Return JSON.",
-            "user_template": "Question: {question}\nCategory: {category}\nResponse: {response}\n\nOutput: {\"scores\": {\"R\": 0.0-1.0, \"I\": 0.0-1.0, ...}, \"intent\": \"...\"}"
+            "user_template": 'Question: {question}\nCategory: {category}\nResponse: {response}\n\nOutput: {"scores": {"R": 0.0-1.0, "I": 0.0-1.0, ...}, "intent": "..."}',
         }
 
     @staticmethod
@@ -466,13 +469,14 @@ Output: JSON array of 5 careers with: title, match_score (0-100), reasoning, ria
         """Template for follow-up question generation"""
         return {
             "system": "Generate contextual follow-up question based on previous response. Natural, conversational.",
-            "user_template": "Previous: {previous_response}\nTopic: {topic}\n\nFollow-up question:"
+            "user_template": "Previous: {previous_response}\nTopic: {topic}\n\nFollow-up question:",
         }
 
 
 # =============================================================================
 # TOKEN COUNTING UTILITIES
 # =============================================================================
+
 
 def estimate_tokens(text: str) -> int:
     """
@@ -510,13 +514,16 @@ def compare_prompts(old_prompt: str, new_prompt: str) -> Dict[str, Any]:
         "new_tokens": new_tokens,
         "savings": savings,
         "savings_pct": f"{savings_pct:.1f}%",
-        "reduction_factor": f"{old_tokens/new_tokens:.2f}x" if new_tokens > 0 else "N/A"
+        "reduction_factor": (
+            f"{old_tokens/new_tokens:.2f}x" if new_tokens > 0 else "N/A"
+        ),
     }
 
 
 # =============================================================================
 # CONTEXT HELPERS - Smart context injection
 # =============================================================================
+
 
 def format_student_context(student_profile: Any, max_length: int = 200) -> str:
     """
@@ -534,17 +541,23 @@ def format_student_context(student_profile: Any, max_length: int = 200) -> str:
 
     parts = []
 
-    if hasattr(student_profile, 'current_education_level'):
+    if hasattr(student_profile, "current_education_level"):
         parts.append(f"Level: {student_profile.current_education_level}")
 
-    if hasattr(student_profile, 'major_field') and student_profile.major_field:
+    if hasattr(student_profile, "major_field") and student_profile.major_field:
         parts.append(f"Field: {student_profile.major_field}")
 
-    if hasattr(student_profile, 'career_interests') and student_profile.career_interests:
+    if (
+        hasattr(student_profile, "career_interests")
+        and student_profile.career_interests
+    ):
         interests = student_profile.career_interests[:3]  # Top 3
         parts.append(f"Interests: {', '.join(interests)}")
 
-    if hasattr(student_profile, 'technical_skills') and student_profile.technical_skills:
+    if (
+        hasattr(student_profile, "technical_skills")
+        and student_profile.technical_skills
+    ):
         skills = student_profile.technical_skills[:3]  # Top 3
         parts.append(f"Skills: {', '.join(skills)}")
 
@@ -552,7 +565,7 @@ def format_student_context(student_profile: Any, max_length: int = 200) -> str:
 
     # Truncate if too long
     if len(context) > max_length:
-        context = context[:max_length-3] + "..."
+        context = context[: max_length - 3] + "..."
 
     return context
 
@@ -585,6 +598,7 @@ def format_riasec_scores(scores: Dict[str, float], top_n: int = 3) -> str:
 # VALIDATION
 # =============================================================================
 
+
 def validate_schema(data: Dict[str, Any], schema_key: str) -> bool:
     """
     Validate data against output schema.
@@ -616,28 +630,24 @@ def validate_schema(data: Dict[str, Any], schema_key: str) -> bool:
 
 __all__ = [
     # Constants
-    'SYSTEM_ROLES',
-    'OUTPUT_SCHEMAS',
-    'QUALITY_STANDARDS',
-    'FORMATTING_RULES',
-
+    "SYSTEM_ROLES",
+    "OUTPUT_SCHEMAS",
+    "QUALITY_STANDARDS",
+    "FORMATTING_RULES",
     # Builder functions
-    'build_system_prompt',
-    'build_task_prompt',
-    'build_structured_messages',
-
+    "build_system_prompt",
+    "build_task_prompt",
+    "build_structured_messages",
     # Language support
-    'get_language_instruction',
-
+    "get_language_instruction",
     # Template class
-    'PromptTemplates',
-
+    "PromptTemplates",
     # Utilities
-    'estimate_tokens',
-    'compare_prompts',
-    'format_student_context',
-    'format_riasec_scores',
-    'validate_schema'
+    "estimate_tokens",
+    "compare_prompts",
+    "format_student_context",
+    "format_riasec_scores",
+    "validate_schema",
 ]
 
 
@@ -661,9 +671,9 @@ if __name__ == "__main__":
         context_data={
             "student_level": "A/L Student",
             "interests": "Technology, Programming",
-            "budget": "Moderate"
+            "budget": "Moderate",
         },
-        output_schema_key="academic_plan"
+        output_schema_key="academic_plan",
     )
     print(task_prompt[:200] + "...")
     print(f"Tokens: ~{estimate_tokens(task_prompt)}\n")
@@ -673,21 +683,24 @@ if __name__ == "__main__":
     messages = build_structured_messages(
         "career_counselor",
         "Generate a question about career interests",
-        {"riasec_focus": "Investigative", "previous_answers": "Likes science"}
+        {"riasec_focus": "Investigative", "previous_answers": "Likes science"},
     )
     print(f"System: {messages[0]['content']}")
     print(f"User: {messages[1]['content'][:100]}...")
-    total_tokens = sum(estimate_tokens(m['content']) for m in messages)
+    total_tokens = sum(estimate_tokens(m["content"]) for m in messages)
     print(f"Total tokens: ~{total_tokens}\n")
 
     # Example 4: Token comparison
     print("4. Token Comparison Example:")
-    old_prompt = """You are an expert Academic Pathway Agent specializing in educational roadmap design for Sri Lankan students pursuing various careers.
+    old_prompt = (
+        """You are an expert Academic Pathway Agent specializing in educational roadmap design for Sri Lankan students pursuing various careers.
 
 YOUR ROLE:
 You are a specialist in the Career Planning team, working under the Career Planning Supervisor.
 Your specific responsibility is to create detailed, actionable educational pathways for identified careers, with expertise in both Sri Lankan and international education systems.
-""" + "..." * 100  # Simulating long prompt
+"""
+        + "..." * 100
+    )  # Simulating long prompt
 
     new_prompt = PromptTemplates.academic_pathway_system()
     comparison = compare_prompts(old_prompt, new_prompt)

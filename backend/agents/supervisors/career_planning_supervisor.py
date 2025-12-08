@@ -30,6 +30,8 @@ from utils.langsmith_config import get_traced_run_config, log_agent_execution
 class CareerPlanningSupervisor(SupervisorAgent):
     """
     Career Planning Supervisor - Coordinates academic and skill development planning.
+    
+    Uses GPT-4o for critical orchestration of complex planning workflows.
 
     This supervisor orchestrates the career planning workflow:
     1. Receives user's career choice after career predictions
@@ -352,27 +354,41 @@ You coordinate these agents to deliver a complete career preparation package."""
     ) -> AgentState:
         """Update the state with results from both agents."""
 
-        updated_state = state.copy(deep=True)
+        # CRITICAL FIX: Use the updated_state from workers instead of creating new copy
+        # Workers set blueprint.academic_plan_structured and blueprint.skill_plan_structured
+        # We need to preserve these fields by using the workers' updated states
 
-        # Find and update the corresponding career blueprint
-        if updated_state.career_blueprints:
-            for blueprint in updated_state.career_blueprints:
-                if blueprint.career_title == career_title:
-                    # Update with academic plan if successful
-                    if academic_result.success and academic_result.result_data:
-                        academic_plan = academic_result.result_data.get("academic_plan")
-                        if academic_plan:
-                            blueprint.academic_plan = academic_plan
-                            self.logger.info(f"✅ Updated blueprint with academic plan for {career_title}")
+        # Start with academic result's state (has academic_plan_structured)
+        if academic_result.updated_state:
+            updated_state = academic_result.updated_state
+            self.logger.debug(f"Using updated state from academic agent for {career_title}")
+        else:
+            updated_state = state.copy(deep=True)
+            self.logger.warning(f"Academic agent didn't return updated_state, using state copy")
 
-                    # Update with skill plan if successful
-                    if skill_result.success and skill_result.result_data:
-                        skill_plan = skill_result.result_data.get("skill_plan")
-                        if skill_plan:
-                            blueprint.skill_development_plan = skill_plan
-                            self.logger.info(f"✅ Updated blueprint with skill plan for {career_title}")
+        # Merge skill result's state into updated_state
+        if skill_result.updated_state and skill_result.success:
+            # Find the blueprint in skill result's state and copy structured fields
+            if skill_result.updated_state.career_blueprints:
+                for skill_blueprint in skill_result.updated_state.career_blueprints:
+                    if skill_blueprint.career_title == career_title:
+                        # Find corresponding blueprint in our updated_state
+                        for blueprint in updated_state.career_blueprints:
+                            if blueprint.career_title == career_title:
+                                # Copy skill-related fields from skill agent's state
+                                blueprint.skill_development_plan = skill_blueprint.skill_development_plan
+                                blueprint.skill_plan_structured = skill_blueprint.skill_plan_structured
+                                self.logger.info(f"✅ Merged skill_plan_structured for {career_title}")
+                                break
+                        break
 
-                    break
+        # Log what structured data we have
+        for blueprint in updated_state.career_blueprints:
+            if blueprint.career_title == career_title:
+                has_academic_structured = blueprint.academic_plan_structured is not None
+                has_skill_structured = blueprint.skill_plan_structured is not None
+                self.logger.info(f"📊 Blueprint {career_title}: academic_structured={has_academic_structured}, skill_structured={has_skill_structured}")
+                break
 
         # Add completion messages
         completion_message = AIMessage(

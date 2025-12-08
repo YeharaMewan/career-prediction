@@ -54,6 +54,9 @@ class UserProfilerAgent(WorkerAgent):
 
     def __init__(self, **kwargs):
         system_prompt = self._create_system_prompt()
+        
+        # Use GPT-4o-mini for cost-effective conversation (simple Q&A, data collection)
+        kwargs.setdefault('model', 'gpt-4o-mini')
 
         super().__init__(
             name="user_profiler",
@@ -63,9 +66,9 @@ class UserProfilerAgent(WorkerAgent):
             **kwargs
         )
 
-        # Initialize conversation components
+        # Initialize conversation components - also use gpt-4o-mini
         self.conversation_manager = ConversationManager(
-            model=kwargs.get('model', 'gpt-4o'),
+            model=kwargs.get('model', 'gpt-4o-mini'),
             temperature=kwargs.get('temperature', 0.3)
         )
         self.state_machine = ConversationStateMachine()
@@ -355,12 +358,32 @@ Remember: You're an adaptive counselor who helps students understand themselves 
         # Analyze the response
         analysis = self.conversation_manager.analyze_response(user_response, context, last_question)
 
+        # NEW: Check for ambiguity BEFORE updating context (Priority Logic: Clarify First)
+        is_ambiguous, ambiguity_score, ambiguous_phrases = self.conversation_manager.detect_ambiguity(
+            user_response, last_question.question_text
+        )
+
+        # If ambiguous and budget allows, generate clarification question (doesn't count toward 12)
+        bonus_clarifications = context.session_metadata.get("bonus_clarifications_count", 0)
+        if is_ambiguous and bonus_clarifications < 2:
+            logging.info(f"Ambiguity detected (score: {ambiguity_score:.2f}). Asking clarification question.")
+            return self._generate_clarification_question(context, analysis, ambiguous_phrases, user_response)
+
         # Update conversation context
         context = self.conversation_manager.update_conversation_context(
             context, last_question, user_response, analysis
         )
 
-        # Check if follow-up is needed (only if under question limit)
+        # NEW: Check if dynamic follow-up is needed (depth/specificity-based)
+        if self.conversation_manager.should_ask_dynamic_follow_up(context, analysis):
+            # Increment dynamic follow-up counter
+            context.session_metadata["dynamic_followups_count"] = (
+                context.session_metadata.get("dynamic_followups_count", 0) + 1
+            )
+            logging.info(f"Dynamic follow-up triggered (type: {getattr(analysis, 'follow_up_type', 'unknown')})")
+            return self._generate_follow_up_question(context, analysis)
+
+        # Check if basic follow-up is needed (completeness-based, only if under question limit)
         if self.conversation_manager.should_ask_follow_up(context, analysis):
             return self._generate_follow_up_question(context, analysis)
 
@@ -452,6 +475,102 @@ Remember: You're an adaptive counselor who helps students understand themselves 
                 "progress": progress_summary
             }
         )
+
+    def _generate_clarification_question(
+        self,
+        context: ConversationContext,
+        analysis: ResponseAnalysis,
+        ambiguous_phrases: List[str],
+        user_response: str
+    ) -> TaskResult:
+        """
+        Generate a clarifying question to resolve ambiguity.
+        This is a bonus clarification that doesn't count toward the 12-question limit.
+        """
+        session_id = context.session_metadata.get("session_id", "unknown")
+        # Get ambiguity score from analysis
+        ambiguity_score = analysis.ambiguity_score if hasattr(analysis, 'ambiguity_score') else 0.5
+
+        # Construct LLM prompt for clarification
+        clarification_prompt = f"""The student gave a vague response. Generate a clarifying question to help them be more specific.
+
+STUDENT'S RESPONSE: "{user_response}"
+
+AMBIGUOUS PHRASES DETECTED: {', '.join(ambiguous_phrases[:3])}
+
+TASK:
+Ask them to be more specific. Use concrete examples to guide them.
+
+EXAMPLES:
+- If they said "I want a good job" → "By 'good job', what matters most to you? High salary, work-life balance, meaningful impact, job security, or something else?"
+- If they said "I like technology" → "Technology is a broad field! What aspect draws you in? Building software, analyzing data, designing interfaces, or working with hardware?"
+- If they said "I want to help people" → "Helping people can take many forms. Are you drawn to healthcare, education, counseling, community service, or another area?"
+- If they said "something with computers" → "What kind of work with computers? Programming, IT support, data analysis, graphic design, or something else?"
+
+Generate ONE natural, conversational clarifying question that helps them think more concretely.
+Keep it under 30 words. Do not include any preamble or explanation, just the question."""
+
+        try:
+            # Invoke LLM (preserves fallback mechanism via llm_wrapper)
+            response = self.conversation_manager.llm_wrapper.invoke(
+                [HumanMessage(content=clarification_prompt)]
+            )
+            question_text = response.content.strip()
+
+            # Clean and format
+            question_text = self.conversation_manager._ensure_single_question(question_text)
+
+            # Increment bonus clarification count
+            context.session_metadata["bonus_clarifications_count"] = (
+                context.session_metadata.get("bonus_clarifications_count", 0) + 1
+            )
+
+            # Store the context
+            self.active_sessions[session_id] = context
+
+            logging.info(f"Session {session_id}: Generated clarification question "
+                        f"(bonus {context.session_metadata['bonus_clarifications_count']}/2)")
+
+            return self._create_task_result(
+                task_type="clarification_question",
+                success=True,
+                result_data={
+                    "question": question_text,
+                    "question_type": "clarification",
+                    "ambiguity_score": ambiguity_score if 'ambiguity_score' in locals() else 0.0,
+                    "is_bonus_question": True,
+                    "bonus_clarifications_used": context.session_metadata["bonus_clarifications_count"],
+                    "awaiting_response": True,
+                    "session_id": session_id,
+                    "progress": {
+                        "core_questions_asked": len(context.question_history),
+                        "bonus_clarifications_used": context.session_metadata["bonus_clarifications_count"],
+                        "total_questions": len(context.question_history) + context.session_metadata["bonus_clarifications_count"]
+                    }
+                }
+            )
+
+        except Exception as e:
+            logging.error(f"Failed to generate clarification question: {e}")
+            # Fallback: Use a generic clarification
+            generic_clarification = "Could you be more specific about what you mean? Can you give me an example?"
+
+            context.session_metadata["bonus_clarifications_count"] = (
+                context.session_metadata.get("bonus_clarifications_count", 0) + 1
+            )
+            self.active_sessions[session_id] = context
+
+            return self._create_task_result(
+                task_type="clarification_question",
+                success=True,
+                result_data={
+                    "question": generic_clarification,
+                    "question_type": "clarification",
+                    "is_bonus_question": True,
+                    "awaiting_response": True,
+                    "session_id": session_id
+                }
+            )
 
     def _create_waiting_for_response_result(self, context: ConversationContext) -> TaskResult:
         """Create result when waiting for user response."""
@@ -553,7 +672,16 @@ Remember: You're an adaptive counselor who helps students understand themselves 
             long_term_goals=collected_data.get("long_term_goals", []),
 
             # Personality and work style
-            personality_traits=collected_data.get("personality_traits", []),
+            personality_traits=(
+                context.personality_analyzer.get_dominant_traits(threshold=0.25)
+                if hasattr(context, 'personality_analyzer')
+                else collected_data.get("personality_traits", [])
+            ),
+            personality_confidence=(
+                context.personality_analyzer.get_confidence_score()
+                if hasattr(context, 'personality_analyzer')
+                else 0.0
+            ),
             learning_style=collected_data.get("learning_style"),
             work_style=collected_data.get("work_style"),
 
