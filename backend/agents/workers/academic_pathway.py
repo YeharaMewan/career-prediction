@@ -7,7 +7,6 @@ requirements and designs step-by-step academic pathways including degrees,
 diplomas, certifications, and vocational training.
 
 Key Features:
-- Career level assessment (O/L, A/L, entry-level, mid-level, expert)
 - Sri Lankan education system integration
 - International pathway options
 - Entry requirements analysis
@@ -84,7 +83,7 @@ class AcademicPathwayAgent(WorkerAgent):
         self._original_llm = ChatOpenAI(
             model="gpt-4o",
             temperature=0.1,
-            timeout=60,
+            timeout=180,  # Increased from 60s to allow comprehensive pathway generation
             max_retries=2,
             max_tokens=16384,  # Increase from default 4096 to support full output
         )
@@ -116,8 +115,6 @@ class AcademicPathwayAgent(WorkerAgent):
 
         # Load institutions data from JSON file (instead of including in prompts)
         self.sri_lankan_institutions = self._load_institutions_data()
-        self.international_options = self._initialize_international_options()
-        self.career_level_matrix = self._initialize_career_level_matrix()
 
         # Initialize web search tool for real-time information
         self.web_search = WebSearchTool(cache_duration_minutes=120)
@@ -128,10 +125,10 @@ class AcademicPathwayAgent(WorkerAgent):
                 collection_type="academic",
                 provider="fallback",  # Automatically switches with LLM fallback
                 similarity_threshold=0.35,
-                top_k=10,
+                top_k=3,  # Retrieve exactly 3 universities per country from RAG
             )
             self.rag_enabled = True
-            self.logger.info("✅ RAG retriever initialized for academic knowledge base")
+            self.logger.info("✅ RAG retriever initialized for academic knowledge base (top_k=3)")
         except Exception as e:
             self.logger.warning(
                 f"RAG retriever initialization failed: {e}. Continuing without RAG."
@@ -181,396 +178,15 @@ class AcademicPathwayAgent(WorkerAgent):
             # Return minimal fallback data
             return self._get_fallback_institutions()
 
-    def _initialize_sri_lankan_institutions(self) -> Dict[str, Dict[str, Any]]:
-        """Initialize comprehensive Sri Lankan education institution database."""
-        return {
-            "state_universities": {
-                "university_of_colombo": {
-                    "name": "University of Colombo",
-                    "location": "Colombo",
-                    "strengths": ["Medicine", "Law", "Science", "Arts", "Management"],
-                    "website": "https://www.cmb.ac.lk/",
-                    "entry_method": "University admission via Z-score",
-                    "language": "English/Sinhala",
-                },
-                "university_of_peradeniya": {
-                    "name": "University of Peradeniya",
-                    "location": "Kandy",
-                    "strengths": [
-                        "Engineering",
-                        "Medicine",
-                        "Science",
-                        "Arts",
-                        "Agriculture",
-                    ],
-                    "website": "https://www.pdn.ac.lk/",
-                    "entry_method": "University admission via Z-score",
-                    "language": "English/Sinhala",
-                },
-                "university_of_moratuwa": {
-                    "name": "University of Moratuwa",
-                    "location": "Moratuwa",
-                    "strengths": ["Engineering", "IT", "Architecture", "Business"],
-                    "website": "https://www.mrt.ac.lk/",
-                    "entry_method": "University admission via Z-score",
-                    "language": "English",
-                },
-                "university_of_ruhuna": {
-                    "name": "University of Ruhuna",
-                    "location": "Matara",
-                    "strengths": [
-                        "Medicine",
-                        "Engineering",
-                        "Science",
-                        "Humanities",
-                        "Management",
-                        "Fisheries",
-                    ],
-                    "website": "https://www.ruh.ac.lk/",
-                    "entry_method": "University admission via Z-score",
-                    "language": "English/Sinhala",
-                },
-                "university_of_sri_jayewardenepura": {
-                    "name": "University of Sri Jayewardenepura",
-                    "location": "Nugegoda",
-                    "strengths": [
-                        "Management",
-                        "Applied Sciences",
-                        "Humanities",
-                        "Medical Sciences",
-                    ],
-                    "website": "https://www.sjp.ac.lk/",
-                    "entry_method": "University admission via Z-score",
-                    "language": "English/Sinhala",
-                },
-                "open_university": {
-                    "name": "Open University of Sri Lanka",
-                    "location": "Multiple locations",
-                    "strengths": [
-                        "Distance Learning",
-                        "Technology",
-                        "Education",
-                        "Social Sciences",
-                    ],
-                    "website": "https://www.ou.ac.lk/",
-                    "entry_method": "Open admission for most programs",
-                    "language": "English/Sinhala",
-                },
-            },
-            "private_universities": {
-                "sliit": {
-                    "name": "Sri Lanka Institute of Information Technology",
-                    "location": "Malabe, Colombo",
-                    "strengths": ["IT", "Engineering", "Business", "Humanities"],
-                    "international_partnerships": [
-                        "Liverpool John Moores",
-                        "Curtin University",
-                    ],
-                    "entry_method": "Private admission, A/L results",
-                    "language": "English",
-                },
-                "nsbm": {
-                    "name": "NSBM Green University",
-                    "location": "Pitipana, Homagama",
-                    "strengths": ["Business", "Computing", "Engineering", "Sciences"],
-                    "international_partnerships": [
-                        "Plymouth University",
-                        "Victoria University",
-                    ],
-                    "entry_method": "Private admission",
-                    "language": "English",
-                },
-                "iit": {
-                    "name": "Informatics Institute of Technology",
-                    "location": "Colombo",
-                    "strengths": ["IT", "Business", "Law"],
-                    "international_partnerships": [
-                        "University of Westminster",
-                        "Robert Gordon University",
-                    ],
-                    "entry_method": "Private admission",
-                    "language": "English",
-                },
-            },
-            "professional_institutes": {
-                "ca_sri_lanka": {
-                    "name": "Institute of Chartered Accountants of Sri Lanka",
-                    "specialization": "Accounting and Finance",
-                    "entry_requirements": ["A/L qualification", "Foundation course"],
-                    "duration": "3-4 years",
-                    "recognition": "International (Commonwealth countries)",
-                },
-                "cima": {
-                    "name": "Chartered Institute of Management Accountants",
-                    "specialization": "Management Accounting",
-                    "entry_requirements": [
-                        "A/L qualification",
-                        "Degree exemptions available",
-                    ],
-                    "duration": "2-3 years",
-                    "recognition": "Global",
-                },
-                "iesl": {
-                    "name": "Institution of Engineers Sri Lanka",
-                    "specialization": "Engineering",
-                    "entry_requirements": [
-                        "Engineering degree",
-                        "Professional experience",
-                    ],
-                    "duration": "Ongoing professional development",
-                    "recognition": "National and regional",
-                },
-            },
-        }
-
-    def _initialize_international_options(self) -> Dict[str, Dict[str, Any]]:
-        """Initialize international education options database."""
-        return {
-            "popular_destinations": {
-                "uk": {
-                    "advantages": [
-                        "Quality education",
-                        "Shorter duration",
-                        "Post-study work visa",
-                    ],
-                    "entry_requirements": [
-                        "A/L qualifications",
-                        "IELTS 6.0-7.0",
-                        "Personal statement",
-                    ],
-                    "approximate_cost_usd": "25000-40000 per year",
-                    "popular_universities": [
-                        "University of London",
-                        "Manchester University",
-                        "Edinburgh University",
-                    ],
-                    "scholarship_opportunities": [
-                        "Chevening",
-                        "Commonwealth",
-                        "University scholarships",
-                    ],
-                },
-                "australia": {
-                    "advantages": [
-                        "High quality education",
-                        "Work opportunities",
-                        "Immigration pathways",
-                    ],
-                    "entry_requirements": [
-                        "A/L qualifications",
-                        "IELTS 6.5-7.0",
-                        "Foundation year may be required",
-                    ],
-                    "approximate_cost_usd": "20000-35000 per year",
-                    "popular_universities": [
-                        "University of Melbourne",
-                        "UNSW",
-                        "Monash University",
-                    ],
-                    "scholarship_opportunities": [
-                        "Australia Awards",
-                        "University scholarships",
-                    ],
-                },
-                "canada": {
-                    "advantages": [
-                        "Quality education",
-                        "Immigration opportunities",
-                        "Work permits",
-                    ],
-                    "entry_requirements": [
-                        "A/L qualifications",
-                        "IELTS 6.5",
-                        "Foundation programs available",
-                    ],
-                    "approximate_cost_usd": "15000-30000 per year",
-                    "popular_universities": [
-                        "University of Toronto",
-                        "UBC",
-                        "McGill University",
-                    ],
-                    "scholarship_opportunities": [
-                        "Canadian government scholarships",
-                        "University funding",
-                    ],
-                },
-                "usa": {
-                    "advantages": [
-                        "World-class education",
-                        "Research opportunities",
-                        "Diverse programs",
-                    ],
-                    "entry_requirements": [
-                        "A/L qualifications",
-                        "SAT/ACT",
-                        "TOEFL/IELTS",
-                        "Essays",
-                    ],
-                    "approximate_cost_usd": "25000-60000 per year",
-                    "popular_universities": [
-                        "State universities",
-                        "Community colleges",
-                        "Private universities",
-                    ],
-                    "scholarship_opportunities": [
-                        "Merit scholarships",
-                        "Need-based aid",
-                        "Athletic scholarships",
-                    ],
-                },
-                "germany": {
-                    "advantages": [
-                        "Low tuition fees",
-                        "Quality education",
-                        "Strong economy",
-                    ],
-                    "entry_requirements": [
-                        "A/L qualifications",
-                        "German language or English programs",
-                        "Foundation year",
-                    ],
-                    "approximate_cost_usd": "500-3000 per year (public universities)",
-                    "popular_universities": [
-                        "TU Munich",
-                        "University of Heidelberg",
-                        "RWTH Aachen",
-                    ],
-                    "scholarship_opportunities": ["DAAD scholarships", "Erasmus+"],
-                },
-                "singapore": {
-                    "advantages": [
-                        "Regional hub",
-                        "High quality",
-                        "Multicultural environment",
-                    ],
-                    "entry_requirements": [
-                        "Strong A/L results",
-                        "IELTS/TOEFL",
-                        "Competitive admission",
-                    ],
-                    "approximate_cost_usd": "20000-40000 per year",
-                    "popular_universities": ["NUS", "NTU", "SMU"],
-                    "scholarship_opportunities": [
-                        "Government scholarships",
-                        "University scholarships",
-                    ],
-                },
-            },
-            "online_options": {
-                "advantages": ["Flexibility", "Lower cost", "Study while working"],
-                "popular_providers": [
-                    "University of London Online",
-                    "Arizona State University Online",
-                    "Penn State World Campus",
-                ],
-                "considerations": [
-                    "Accreditation",
-                    "Recognition in Sri Lanka",
-                    "Technology requirements",
-                ],
-                "cost_range_usd": "5000-20000 per year",
-            },
-        }
-
-    def _initialize_career_level_matrix(self) -> Dict[str, Dict[str, Any]]:
-        """Initialize career level assessment matrix."""
-        return {
-            "ol_student": {
-                "description": "GCE O/L student (Age 15-16)",
-                "immediate_focus": "A/L subject selection",
-                "timeline_to_career": "6-10 years",
-                "key_decisions": [
-                    "A/L stream selection",
-                    "Career exploration",
-                    "Subject combinations",
-                ],
-                "recommendations": [
-                    "Career guidance",
-                    "Subject selection counseling",
-                    "Skill development",
-                ],
-            },
-            "al_student": {
-                "description": "GCE A/L student (Age 17-18)",
-                "immediate_focus": "University admission preparation",
-                "timeline_to_career": "4-8 years",
-                "key_decisions": [
-                    "University selection",
-                    "Degree program choice",
-                    "Local vs international",
-                ],
-                "recommendations": [
-                    "University applications",
-                    "Scholarship applications",
-                    "Gap year consideration",
-                ],
-            },
-            "fresh_al_graduate": {
-                "description": "Recently completed A/L",
-                "immediate_focus": "Higher education pathway",
-                "timeline_to_career": "3-6 years",
-                "key_decisions": [
-                    "Immediate university entry",
-                    "Gap year",
-                    "Foundation programs",
-                ],
-                "recommendations": [
-                    "Multiple application strategies",
-                    "Foundation courses",
-                    "Work experience",
-                ],
-            },
-            "entry_level_professional": {
-                "description": "0-2 years work experience",
-                "immediate_focus": "Skill enhancement and career direction",
-                "timeline_to_career": "2-5 years",
-                "key_decisions": [
-                    "Part-time study",
-                    "Professional certifications",
-                    "Career change",
-                ],
-                "recommendations": [
-                    "Evening/weekend programs",
-                    "Professional development",
-                    "Industry certifications",
-                ],
-            },
-            "mid_level_professional": {
-                "description": "3-7 years work experience",
-                "immediate_focus": "Career advancement and specialization",
-                "timeline_to_career": "1-3 years",
-                "key_decisions": [
-                    "MBA/Master's degree",
-                    "Leadership roles",
-                    "Industry specialization",
-                ],
-                "recommendations": [
-                    "Executive education",
-                    "Leadership programs",
-                    "Advanced certifications",
-                ],
-            },
-            "senior_professional": {
-                "description": "8+ years work experience",
-                "immediate_focus": "Strategic career positioning",
-                "timeline_to_career": "Ongoing development",
-                "key_decisions": [
-                    "Executive education",
-                    "Thought leadership",
-                    "Entrepreneurship",
-                ],
-                "recommendations": [
-                    "Executive MBA",
-                    "Board positions",
-                    "Consulting",
-                    "Teaching",
-                ],
-            },
-        }
-
     def _search_local_universities(self, career_title: str) -> str:
         """
         Search for Sri Lankan universities offering programs for the career.
+        Uses both RAG (with country filter) and web search.
+        
+        Retrieves:
+        - 10 government universities from RAG
+        - 8 private universities from RAG
+        - 3 additional from web search
 
         Returns:
             Formatted string with search results
@@ -580,15 +196,99 @@ class AcademicPathwayAgent(WorkerAgent):
                 f"Searching for Sri Lankan universities for {career_title}"
             )
 
-            # Search for universities
+            results_text = []
+
+            # 1. RAG retrieval for GOVERNMENT universities (top_k=10)
+            if self.rag_enabled:
+                try:
+                    gov_rag_query = f"{career_title} Sri Lanka government state university programs admission requirements"
+                    self.logger.info(f"   RAG search (SL Government): {gov_rag_query}")
+
+                    # Create a temporary RAG retriever with top_k=10 for government universities
+                    gov_rag_retriever = AgenticRAGRetriever(
+                        collection_type="academic",
+                        provider="fallback",
+                        similarity_threshold=0.35,
+                        top_k=10,  # Retrieve 10 for government universities
+                    )
+                    
+                    gov_rag_state = gov_rag_retriever.retrieve(
+                        query=gov_rag_query,
+                        force_retrieval=True,
+                        filter_metadata={
+                            "$and": [
+                                {"country": "Sri Lanka"},
+                                {"institution_type": "government"}
+                            ]
+                        },
+                        include_citations=True,
+                    )
+
+                    if gov_rag_state.context:
+                        gov_rag_text = "\n=== KNOWLEDGE BASE (Sri Lanka Government Universities) ===\n"
+                        gov_rag_text += gov_rag_state.context
+                        results_text.append(gov_rag_text)
+                        self.logger.info(
+                            f"   ✅ RAG found {len(gov_rag_state.retrieved_documents)} government university documents: {len(gov_rag_state.context)} chars"
+                        )
+
+                except Exception as e:
+                    self.logger.error(f"   ❌ RAG search failed (SL Government): {e}")
+
+            # 2. RAG retrieval for PRIVATE universities (top_k=8)
+            if self.rag_enabled:
+                try:
+                    private_rag_query = f"{career_title} Sri Lanka private university programs admission requirements costs"
+                    self.logger.info(f"   RAG search (SL Private): {private_rag_query}")
+
+                    # Create a temporary RAG retriever with top_k=8 for private universities
+                    private_rag_retriever = AgenticRAGRetriever(
+                        collection_type="academic",
+                        provider="fallback",
+                        similarity_threshold=0.35,
+                        top_k=8,  # Retrieve 8 for private universities
+                    )
+                    
+                    private_rag_state = private_rag_retriever.retrieve(
+                        query=private_rag_query,
+                        force_retrieval=True,
+                        filter_metadata={
+                            "$and": [
+                                {"country": "Sri Lanka"},
+                                {"institution_type": "private"}
+                            ]
+                        },
+                        include_citations=True,
+                    )
+
+                    if private_rag_state.context:
+                        private_rag_text = "\n=== KNOWLEDGE BASE (Sri Lanka Private Universities) ===\n"
+                        private_rag_text += private_rag_state.context
+                        results_text.append(private_rag_text)
+                        self.logger.info(
+                            f"   ✅ RAG found {len(private_rag_state.retrieved_documents)} private university documents: {len(private_rag_state.context)} chars"
+                        )
+
+                except Exception as e:
+                    self.logger.error(f"   ❌ RAG search failed (SL Private): {e}")
+
+            # 3. Also use web search for additional current information
             results = self.web_search.search_universities(
-                career_title, country="Sri Lanka", max_results=8
+                career_title, country="Sri Lanka", max_results=3
             )
 
-            if not results:
-                return "No current information found. Using database knowledge."
+            if results:
+                web_text = "\n=== WEB SEARCH (Sri Lanka Universities - Additional Info) ===\n"
+                web_text += self.web_search.format_results_for_llm(
+                    results, max_snippets=3
+                )
+                results_text.append(web_text)
 
-            return self.web_search.format_results_for_llm(results, max_snippets=5)
+            # Combine RAG + Web results
+            if results_text:
+                return "\n".join(results_text)
+            else:
+                return "No current information found. Using database knowledge."
 
         except Exception as e:
             self.logger.error(f"University search failed: {e}")
@@ -632,7 +332,7 @@ class AcademicPathwayAgent(WorkerAgent):
             country: Country to search in (UK, USA, Australia, Canada, etc.)
 
         Returns:
-            Formatted string with search results (5-10 universities)
+            Formatted string with search results (3 from RAG + 3 from web = 6 universities per country)
         """
         try:
             self.logger.info(
@@ -644,14 +344,16 @@ class AcademicPathwayAgent(WorkerAgent):
             # 1. First try RAG retriever (vector database) for international university data
             if self.rag_enabled:
                 try:
-                    rag_query = f"{career_title} {country} university programs admission requirements costs scholarships"
-                    self.logger.info(f"   RAG search: {rag_query}")
+                    rag_query = f"{career_title} university programs admission requirements costs scholarships"
+                    self.logger.info(f"   RAG search ({country}): {rag_query}")
 
-                    # Retrieve using correct method signature
+                    # Retrieve using correct method signature with country filter
                     rag_state = self.rag_retriever.retrieve(
                         query=rag_query,
                         force_retrieval=True,  # Force retrieval for international universities
-                        filter_metadata=None,
+                        filter_metadata={
+                            "country": country
+                        },  # ✅ Filter by specific country
                         include_citations=True,
                     )
 
@@ -687,7 +389,7 @@ class AcademicPathwayAgent(WorkerAgent):
                 web_results = self.web_search.search_universities(
                     career_title,
                     country=country,
-                    max_results=10,  # Increased from 6 to 10
+                    max_results=3,  # Limited to 3 universities per country for efficiency
                 )
 
                 if web_results:
@@ -696,7 +398,7 @@ class AcademicPathwayAgent(WorkerAgent):
                     )
                     web_text = f"\n=== WEB SEARCH RESULTS FOR {country.upper()} ===\n"
                     web_text += self.web_search.format_results_for_llm(
-                        web_results, max_snippets=6
+                        web_results, max_snippets=3
                     )
                     results_text.append(web_text)
                 else:
@@ -713,11 +415,11 @@ class AcademicPathwayAgent(WorkerAgent):
                 )
                 return combined
             else:
-                return f"No information found for {country}. Please provide at least 5 universities with details."
+                return f"No information found for {country}. Please provide at least 3 universities with details."
 
         except Exception as e:
             self.logger.error(f"International university search failed: {e}")
-            return f"Search unavailable for {country}. Please provide at least 5 universities with details."
+            return f"Search unavailable for {country}. Please provide at least 3 universities with details."
 
     def _search_international_scholarships(self, career_title: str) -> str:
         """
@@ -897,6 +599,13 @@ class AcademicPathwayAgent(WorkerAgent):
 
         except Exception as e:
             processing_time = (datetime.now() - start_time).total_seconds()
+
+            # Log full traceback for debugging
+            import traceback
+
+            full_traceback = traceback.format_exc()
+            self.logger.error(f"❌ Academic pathway error traceback:\n{full_traceback}")
+
             self._log_task_completion(
                 "academic_pathway_planning", False, f"Error: {str(e)}"
             )
@@ -999,9 +708,53 @@ class AcademicPathwayAgent(WorkerAgent):
             else:
                 level_key = "al_student"  # Default assumption
 
-        level_info = self.career_level_matrix.get(
-            level_key, self.career_level_matrix["al_student"]
-        )
+        # Inline career level data (minimal fallback)
+        career_levels = {
+            "ol_student": {
+                "description": "GCE O/L student",
+                "immediate_focus": "A/L subject selection",
+                "timeline_to_career": "6-10 years",
+                "key_decisions": ["A/L stream selection", "Career exploration"],
+                "recommendations": ["Career guidance", "Subject selection counseling"],
+            },
+            "al_student": {
+                "description": "GCE A/L student",
+                "immediate_focus": "University admission preparation",
+                "timeline_to_career": "4-8 years",
+                "key_decisions": ["University selection", "Degree program choice"],
+                "recommendations": ["University applications", "Scholarship applications"],
+            },
+            "fresh_al_graduate": {
+                "description": "Recently completed A/L",
+                "immediate_focus": "Higher education pathway",
+                "timeline_to_career": "3-6 years",
+                "key_decisions": ["University entry", "Gap year", "Foundation programs"],
+                "recommendations": ["Multiple application strategies", "Work experience"],
+            },
+            "entry_level_professional": {
+                "description": "0-2 years work experience",
+                "immediate_focus": "Skill enhancement",
+                "timeline_to_career": "2-5 years",
+                "key_decisions": ["Part-time study", "Professional certifications"],
+                "recommendations": ["Professional development", "Industry certifications"],
+            },
+            "mid_level_professional": {
+                "description": "3-7 years work experience",
+                "immediate_focus": "Career advancement",
+                "timeline_to_career": "1-3 years",
+                "key_decisions": ["MBA/Master's degree", "Leadership roles"],
+                "recommendations": ["Executive education", "Leadership programs"],
+            },
+            "senior_professional": {
+                "description": "8+ years work experience",
+                "immediate_focus": "Strategic positioning",
+                "timeline_to_career": "Ongoing",
+                "key_decisions": ["Executive education", "Thought leadership"],
+                "recommendations": ["Executive MBA", "Consulting"],
+            },
+        }
+
+        level_info = career_levels.get(level_key, career_levels["al_student"])
 
         return {
             "current_level": level_key,
@@ -1257,11 +1010,13 @@ class AcademicPathwayAgent(WorkerAgent):
                 "- **PRIORITIZE SRI LANKAN UNIVERSITIES** - Local options should be the most detailed and extensive",
                 "- USE THE REAL-TIME WEB SEARCH RESULTS PROVIDED ABOVE",
                 "- USE THE KNOWLEDGE BASE (RAG) DATA - Extract Sri Lankan university information from the PDF documents provided",
+                "- For LOCAL PATHWAYS: RAG provides up to 10 government universities and up to 8 private universities",
                 "- Include actual university names, programs, URLs, and current costs from search results",
                 "- Reference specific scholarships and opportunities found in searches",
                 "- Follow the STRUCTURE: Local Pathways (MOST DETAILED) → International Pathways → Other Relevant Information",
-                "- Provide AT LEAST 5-10 specific Sri Lankan government universities (aim for 10 if possible, minimum 5) AND 5-8 private universities",
-                "- Provide AT LEAST 3 international universities PER COUNTRY (minimum 3 per country shown)",
+                "- Display ALL government universities (5-10) from RAG KNOWLEDGE BASE for Government Universities section",
+                "- Display ALL private universities (5-8) from RAG KNOWLEDGE BASE for Private Universities section",
+                "- For INTERNATIONAL: You receive 6 universities per country (3 from RAG + 3 from web), but SELECT and DISPLAY ONLY THE TOP 3 BEST per country",
                 "- Include SPECIFIC degree program names (e.g., 'BSc (Hons) in Computer Science' not 'related degree')",
                 "- For Sri Lankan universities, include admission requirements, application deadlines, and specific program details",
                 "- ALWAYS include official website URLs for ALL universities and programs",
@@ -1272,230 +1027,94 @@ class AcademicPathwayAgent(WorkerAgent):
                 "",
                 "### A. GOVERNMENT UNIVERSITIES (FREE EDUCATION)",
                 "List 5-10 government/state universities with specific programs (aim for 10 if possible):",
-                "**NOTE: Government universities in Sri Lanka offer FREE education. Students only pay minimal registration/exam fees (LKR 30,000-100,000 per year).**",
+                "**NOTE: Government universities in Sri Lanka offer FREE education.**",
                 "",
+                "For EACH government university, provide:",
                 "- **[University Name]** - [Specific Program Name]",
                 "  - Program: [Full degree/diploma name]",
                 "  - Duration: [X years]",
-                "  - Entry Requirements: [A/L subjects and specific requirements]",
-                "  - Website: [Official university URL - REQUIRED]",
+                "  - Entry Requirements: [A/L subjects and Z-score requirements from WEB SEARCH]",
+                "  - Website: [Official university URL from WEB SEARCH - REQUIRED]",
                 "",
                 "### B. PRIVATE UNIVERSITIES (PAID EDUCATION)",
                 "List 5-8 private institutions with specific programs:",
                 "",
+                "For EACH private university, provide:",
                 "- **[Institution Name]** - [Specific Program Name]",
                 "  - Program: [Full degree/diploma name]",
                 "  - Duration: [X years]",
-                "  - Entry Requirements: [Specific requirements]",
-                "  - Cost per Year: LKR [amount] per year",
-                "  - Total Program Cost: LKR [amount] for [X] years",
-                "  - International Partnerships: [Partner universities if any]",
-                "  - Website: [Official institution URL - REQUIRED]",
-                "",
-                "**FINANCIAL PLANNING FOR PRIVATE UNIVERSITIES:**",
-                "- Payment Options: Most private universities offer semester or annual installment plans",
-                "- Institution Scholarships: Merit-based and need-based scholarships available at most institutions",
-                "- Loan Options: Bank loans and student financing options available through major banks",
-                "- Part-time Work: Many institutions offer on-campus or nearby part-time work opportunities",
-                "",
-                "### C. PROFESSIONAL INSTITUTES",
-                "List relevant professional certifications:",
-                "- **[Institute Name]** - [Qualification Name]",
-                "  - Program: [Full certification name]",
-                "  - Duration: [X years/months]",
-                "  - Entry Requirements: [Requirements]",
-                "  - Approximate Cost: [LKR amount]",
+                "  - Entry Requirements: [Specific requirements from WEB SEARCH]",
+                "  - Total Program Cost: LKR [amount from RAG KNOWLEDGE BASE 'cost' field] for [X] years",
+                "  - International Partnerships: [Partner universities from WEB SEARCH if available]",
+                "  - Website: [Official institution URL from WEB SEARCH - REQUIRED]",
                 "",
                 "## 2. INTERNATIONAL PATHWAY OPTIONS",
                 "",
-                "**CRITICAL: USE THE KNOWLEDGE BASE (RAG) AND WEB SEARCH RESULTS PROVIDED ABOVE**",
-                "**REQUIREMENT: Provide 3 universities PER COUNTRY (exactly 3 for each country)**",
-                "**DO NOT use generic or placeholder university names. Extract actual universities from the search results.**",
-                "**Each university MUST have: Name, Program, Duration, Cost, Website URL**",
+                "**CRITICAL INSTRUCTIONS:**",
+                "- USE THE KNOWLEDGE BASE (RAG) AND WEB SEARCH RESULTS PROVIDED ABOVE",
+                "- For EACH country, you will receive 3 universities from RAG and 3 from web search (total 6 per country)",
+                "- From the 6 universities available, SELECT ONLY THE TOP 3 BEST universities based on:",
+                "  * Reputation and ranking",
+                "  * Program quality and relevance to career",
+                "  * Scholarship opportunities",
+                "  * Affordability and value",
+                "- Display ONLY 3 universities per country (best quality options)",
+                "- DO NOT use generic or placeholder names - extract ACTUAL universities from the search results",
+                "- Each university MUST include: Name, Program, Duration, Entry Requirements, Cost, Website URL",
                 "",
-                "### United Kingdom",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
+                "**STANDARD FORMAT FOR ALL COUNTRIES:**",
+                "For each country below, list ONLY THE TOP 3 BEST universities (selected from 6 available):",
                 "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name - e.g., 'BSc Computer Science', 'MSc Data Science']",
-                "  - Duration: [X years - e.g., '3 years undergraduate', '1 year postgraduate']",
-                "  - Entry Requirements: [A/L grades, IELTS 6.0-6.5, specific subjects]",
-                "  - Approximate Cost: [£X,XXX-£X,XXX per year - tuition only or including living]",
-                "  - Scholarships: [Specific scholarship names if available from search]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "### UK",
+                "1. **[Best University Name]** - [Program Name]",
+                "   - Program: [Specific degree name]",
+                "   - Duration: [X years]",
+                "   - Entry Requirements: [Requirements including IELTS/TOEFL]",
+                "   - Approximate Cost: GBP [Amount] per year",
+                "   - Scholarships: [Specific scholarships if available]",
+                "   - Website: [Official URL - REQUIRED]",
                 "",
-                "### United States",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
+                "2. **[Second Best University]** - [Program Name]",
+                "   [Same format as above]",
                 "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [SAT/ACT scores, TOEFL 80+/IELTS 6.5+, GPA requirements]",
-                "  - Approximate Cost: [$X,XXX-$X,XXX per year]",
-                "  - Scholarships: [Available scholarships from search]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "3. **[Third Best University]** - [Program Name]",
+                "   [Same format as above]",
+                "",
+                "### USA",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Australia",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [A/L or IB, IELTS 6.5-7.0]",
-                "  - Approximate Cost: [AUD $X,XXX-$X,XXX per year]",
-                "  - Scholarships: [Available scholarships]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Canada",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [High school grades, IELTS/TOEFL scores]",
-                "  - Approximate Cost: [CAD $X,XXX-$X,XXX per year]",
-                "  - Scholarships: [Available scholarships]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Germany",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [High school grades, German language (if required), IELTS/TOEFL]",
-                "  - Approximate Cost: [€X,XXX-€X,XXX per year or FREE for public universities]",
-                "  - Scholarships: [Available scholarships - DAAD, etc.]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### New Zealand",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [A/L or IB, IELTS 6.0-6.5]",
-                "  - Approximate Cost: [NZD $X,XXX-$X,XXX per year]",
-                "  - Scholarships: [Available scholarships]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Singapore",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [A/L grades, IELTS 6.5-7.0]",
-                "  - Approximate Cost: [SGD $X,XXX-$X,XXX per year]",
-                "  - Scholarships: [Available scholarships - Ministry scholarships, etc.]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Netherlands",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [High school diploma, IELTS 6.0-6.5]",
-                "  - Approximate Cost: [€X,XXX-€X,XXX per year]",
-                "  - Scholarships: [Available scholarships - Holland Scholarship, etc.]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Ireland",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
-                "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [Leaving Certificate or A/L, IELTS 6.0-6.5]",
-                "  - Approximate Cost: [€X,XXX-€X,XXX per year]",
-                "  - Scholarships: [Available scholarships]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "[List TOP 3 BEST universities with same format]",
                 "",
                 "### Sweden",
-                "**REQUIRED: List exactly 3 universities FROM THE SEARCH RESULTS:**",
+                "[List TOP 3 BEST universities with same format]",
                 "",
-                "For EACH university, provide:",
-                "- **[Actual University Name]** - [Actual Program Name]",
-                "  - Program: [Specific degree name]",
-                "  - Duration: [X years]",
-                "  - Entry Requirements: [High school diploma, IELTS 6.5-7.0]",
-                "  - Approximate Cost: [SEK XXX,XXX per year or FREE for EU/EEA students]",
-                "  - Scholarships: [Available scholarships - Swedish Institute, etc.]",
-                "  - Website: [Official university URL from search - REQUIRED]",
+                "## 3. ALTERNATIVE PATHWAYS",
+                "List 3-5 alternative educational options:",
+                "- **Online Programs**: [2-3 specific online degree programs with providers, durations, URLs]",
+                "- **Bootcamps**: [Relevant bootcamps with durations, URLs]",
+                "- **Bridge Programs**: [Foundation/bridge courses with details, URLs]",
                 "",
-                "## 3. STEP-BY-STEP IMPLEMENTATION PLAN",
+                "**NOTE: DO NOT include cost information for alternative pathways. DO NOT include 'Professional Institutes' section. Only show Online Programs, Bootcamps, and Bridge Programs.**",
                 "",
-                "### PHASE 1 - IMMEDIATE PREPARATION (Months 1-6)",
-                "- [Specific action 1]",
-                "- [Specific action 2]",
-                "- [Specific action 3]",
-                "",
-                "### PHASE 2 - APPLICATION PERIOD (Months 6-12)",
-                "- [Specific action 1]",
-                "- [Specific action 2]",
-                "- [Specific action 3]",
-                "",
-                "### PHASE 3 - STUDY PERIOD (Years 1-4)",
-                "- [Milestone 1]",
-                "- [Milestone 2]",
-                "- [Milestone 3]",
-                "",
-                "## 4. ALTERNATIVE PATHWAYS",
-                "- Online Programs: [List 2-3 specific online degree programs with names, providers, and URLs]",
-                "- Bootcamps: [List relevant bootcamps/intensive programs with URLs]",
-                "- Bridge Programs: [List foundation/bridge courses with URLs]",
-                "",
-                f"## 5. IMMEDIATE NEXT STEPS (For {student_level.get('description', 'Current Student') if student_level else 'Current Student'})",
-                "",
-                "### A. REQUIRED EXAMS AND TESTS",
-                "List specific exams needed with registration timelines:",
-                "- **IELTS/TOEFL** (if applying internationally):",
-                "  - Registration: [Month/timeline]",
-                "  - Test dates: [Available dates]",
-                "  - Preparation time needed: 3-6 months",
-                "  - Cost: [LKR amount]",
-                "- **SAT/ACT** (for US universities):",
-                "  - Registration deadlines: [Dates]",
-                "  - Test dates: [Dates]",
-                "- **Local Entrance Exams** (Sri Lankan universities):",
-                "  - University-specific exams: [Names and dates]",
-                "  - Registration periods: [Timelines]",
-                "",
-                "### B. DOCUMENT PREPARATION CHECKLIST",
-                "Essential documents to prepare now:",
-                "1. **Academic Transcripts**",
-                "   - Request certified copies from current institution",
-                "   - Timeline: 2-4 weeks processing",
-                "2. **Recommendation Letters**",
-                "   - Identify 2-3 teachers/supervisors",
-                "   - Request at least 1 month before deadline",
-                "3. **Personal Statement/Essay**",
-                "   - Draft and review (allow 3-4 weeks)",
-                "   - Specific to each university application",
-                "4. **Portfolio** (if applicable to {career_title})",
-                "   - Compile relevant projects and work samples",
-                "5. **Identification Documents**",
-                "   - Passport (if applying internationally)",
-                "   - National ID",
-                "   - Recent photographs",
-                "",
-                "### C. ACTION TIMELINE (Next 6 Months)",
-                "Month-by-month breakdown:",
-                "1. **Month 1-2:** [Specific actions based on student level]",
-                "2. **Month 3-4:** [Application preparation actions]",
-                "3. **Month 5-6:** [Final steps and submissions]",
-                "",
-                "Write the complete plan following this exact structure. Give maximum detail to Sri Lankan universities.",
             ]
         )
 
@@ -1550,8 +1169,55 @@ class AcademicPathwayAgent(WorkerAgent):
             line_lower = line.lower().strip()
             line_clean = line.strip()
 
+            # Detect subsections FIRST (### headers) before main sections (##)
+            if line_clean.startswith("###") and "professional institute" not in line_lower:
+                self.logger.debug(f"🔍 DETECTED ### HEADER: {line_clean[:80]}")
+                if any(
+                    keyword in line_lower
+                    for keyword in [
+                        "government universit",
+                        "state universit",
+                        "free education",
+                        "public universit",
+                        "### a",
+                    ]
+                ):
+                    current_section = "government_universities"
+                    self.logger.info(
+                        f"✅ SET SECTION: government_universities from: {line_clean[:80]}"
+                    )
+                elif any(
+                    keyword in line_lower
+                    for keyword in [
+                        "private universit",
+                        "private institute",
+                        "paid education",
+                        "### b",
+                    ]
+                ) or (
+                    ("private" in line_lower or "paid" in line_lower)
+                    and ("universit" in line_lower or "institute" in line_lower)
+                ):
+                    current_section = "private_universities"
+                    self.logger.info(
+                        f"✅ SET SECTION: private_universities from: {line_clean[:80]}"
+                    )
+                # Skip professional institutes section entirely
+                elif any(
+                    keyword in line_lower
+                    for keyword in [
+                        "professional institute",
+                        "professional qualifications",
+                        "### c",
+                    ]
+                ):
+                    current_section = "skip_professional_institutes"
+                    self.logger.info(
+                        f"⏭️ SKIPPING SECTION: professional_institutes from: {line_clean[:80]}"
+                    )
+
             # Detect major section headers (markdown style)
-            if line_clean.startswith("##"):
+            elif line_clean.startswith("##"):
                 # Main sections
                 if "student assessment" in line_lower:
                     current_section = "assessment"
@@ -1566,7 +1232,6 @@ class AcademicPathwayAgent(WorkerAgent):
                             "education_level": "Undergraduate/Postgraduate",
                             "government_universities": [],
                             "private_universities": [],
-                            "professional_institutes": [],
                             "international_options": [],
                         }
                 elif any(
@@ -1586,17 +1251,15 @@ class AcademicPathwayAgent(WorkerAgent):
                     if current_pathway and (
                         current_pathway["government_universities"]
                         or current_pathway["private_universities"]
-                        or current_pathway["professional_institutes"]
                     ):
                         academic_plan["pathway_options"].append(current_pathway)
-                    
+
                     # CRITICAL FIX: Always create new pathway for international section
                     current_pathway = {
                         "pathway_type": "International",
                         "education_level": "Undergraduate/Postgraduate",
                         "government_universities": [],
                         "private_universities": [],
-                        "professional_institutes": [],
                         "international_options": [],
                     }
                     self.logger.info(f"✅ Created new International pathway container")
@@ -1608,11 +1271,10 @@ class AcademicPathwayAgent(WorkerAgent):
                     if current_pathway and (
                         current_pathway["government_universities"]
                         or current_pathway["private_universities"]
-                        or current_pathway["professional_institutes"]
                         or current_pathway["international_options"]
                     ):
                         self.logger.debug(
-                            f"💾 Saving pathway before implementation section: {len(current_pathway['government_universities'])} gov unis, {len(current_pathway['private_universities'])} private unis, {len(current_pathway['professional_institutes'])} prof institutes, {len(current_pathway['international_options'])} intl options"
+                            f"💾 Saving pathway before implementation section: {len(current_pathway['government_universities'])} gov unis, {len(current_pathway['private_universities'])} private unis, {len(current_pathway['international_options'])} intl options"
                         )
                         academic_plan["pathway_options"].append(current_pathway)
                     current_pathway = None
@@ -1625,42 +1287,12 @@ class AcademicPathwayAgent(WorkerAgent):
                 elif "next step" in line_lower:
                     current_section = "immediate_steps"
 
-            # Detect subsections (### headers)
-            elif line_clean.startswith("###"):
-                if any(
-                    keyword in line_lower
-                    for keyword in [
-                        "government universit",
-                        "state universit",
-                        "free education",
-                        "public universit",
-                        "### a",
-                    ]
-                ):
-                    current_section = "government_universities"
-                elif any(
-                    keyword in line_lower
-                    for keyword in [
-                        "private universit",
-                        "private institute",
-                        "paid education",
-                        "### b",
-                    ]
-                ) or (
-                    ("private" in line_lower or "paid" in line_lower)
-                    and ("universit" in line_lower or "institute" in line_lower)
-                ):
-                    current_section = "private_universities"
-                elif any(
-                    keyword in line_lower
-                    for keyword in [
-                        "professional institute",
-                        "professional qualifications",
-                        "### c",
-                    ]
-                ):
-                    current_section = "professional_institutes"
-                elif "united kingdom" in line_lower or "uk" == line_lower:
+            # Check for country-specific subsections within international pathways
+            elif (
+                line_clean.startswith("###")
+                and current_section == "international_pathways"
+            ):
+                if "united kingdom" in line_lower or "uk" == line_lower:
                     self.logger.info(f"🔍 DETECTED UK SUBSECTION: {line_clean}")
                     current_section = "international_uk"
                 elif "united states" in line_lower or "usa" in line_lower:
@@ -1727,13 +1359,16 @@ class AcademicPathwayAgent(WorkerAgent):
             if current_section in [
                 "government_universities",
                 "private_universities",
-                "professional_institutes",
             ]:
-                # Look for institution entries - more flexible matching to handle extra spaces and different bullets
+                # Look for institution entries - support numbered lists, bullets, and plain bold text
                 line_stripped = line_clean.lstrip()
+                # Check for numbered list format (1., 2., 3., etc.)
+                has_numbered_format = bool(re.match(r"^\d+\.\s+\*\*", line_stripped))
+
                 if (
                     line_stripped.startswith(("**", "- **", "* **", "• **", "  - **"))
                     or (line_clean.startswith("-") and "**" in line_clean)
+                    or has_numbered_format  # NEW: Support numbered lists
                     or (
                         "**" in line_clean
                         and any(
@@ -1774,8 +1409,7 @@ class AcademicPathwayAgent(WorkerAgent):
                             )
                         elif current_section == "private_universities":
                             current_pathway["private_universities"].append(inst_info)
-                        elif current_section == "professional_institutes":
-                            current_pathway["professional_institutes"].append(inst_info)
+                        # Skip professional_institutes section
                     elif current_pathway and "**" in line_clean:
                         # Fallback: Create basic institution from bold text
                         name_match = re.search(r"\*\*(.+?)\*\*", line_clean)
@@ -1797,10 +1431,7 @@ class AcademicPathwayAgent(WorkerAgent):
                                 current_pathway["private_universities"].append(
                                     basic_institution
                                 )
-                            elif current_section == "professional_institutes":
-                                current_pathway["professional_institutes"].append(
-                                    basic_institution
-                                )
+                            # Skip professional_institutes section
                             self.logger.warning(
                                 f"⚠️ Used fallback extraction for: {inst_name}"
                             )
@@ -1827,7 +1458,10 @@ class AcademicPathwayAgent(WorkerAgent):
 
                 # CRITICAL: More flexible detection
                 is_university_entry = has_bold and (
-                    starts_bullet or starts_number or starts_bold or 
+                    starts_bullet
+                    or starts_number
+                    or starts_bold
+                    or
                     # Also accept if bold text appears near start of line
                     line_clean.find("**") < 5
                 )
@@ -1836,10 +1470,12 @@ class AcademicPathwayAgent(WorkerAgent):
                     self.logger.info(
                         f"🔍 [{current_section}] Found university entry: {line_clean[:80]}"
                     )
-                    
+
                     # CRITICAL FIX: Ensure current_pathway exists
                     if not current_pathway:
-                        self.logger.warning(f"⚠️ current_pathway was None, creating new one")
+                        self.logger.warning(
+                            f"⚠️ current_pathway was None, creating new one"
+                        )
                         current_pathway = {
                             "pathway_type": "International",
                             "education_level": "Undergraduate/Postgraduate",
@@ -1848,7 +1484,7 @@ class AcademicPathwayAgent(WorkerAgent):
                             "professional_institutes": [],
                             "international_options": [],
                         }
-                    
+
                     intl_info = self._extract_international_details(
                         line_clean, lines[i : min(i + 15, len(lines))], current_section
                     )
@@ -2015,10 +1651,12 @@ class AcademicPathwayAgent(WorkerAgent):
         if current_phase:
             academic_plan["step_by_step_plan"].append(current_phase)
 
-        # Ensure minimum viable data
+        # DO NOT use hard coded fallback data - if parsing fails, pathway_options will be empty
+        # Frontend will hide empty sections
         if not academic_plan["pathway_options"]:
-            academic_plan["pathway_options"] = self._create_default_pathways(
-                career_title
+            self.logger.warning(
+                f"⚠️ No pathway options parsed from LLM response for {career_title}. "
+                "This may indicate parsing issues or insufficient LLM output."
             )
 
         if not academic_plan["next_immediate_steps"]:
@@ -2233,10 +1871,10 @@ class AcademicPathwayAgent(WorkerAgent):
         # Format 1: **University Name** - Program Name
         # Format 2: 1. **University Name** - Program Name
         # Format 3: - **University Name**
-        
+
         # Remove leading bullets/numbers
         line_clean = re.sub(r"^[\s\-\*•\d\.]+", "", line).strip()
-        
+
         # Extract institution name from bold text
         inst_match = re.search(r"\*\*(.+?)\*\*", line_clean)
         if not inst_match:
@@ -2244,10 +1882,10 @@ class AcademicPathwayAgent(WorkerAgent):
             return None
 
         institution_name = inst_match.group(1).strip()
-        
+
         # Extract program name (text after the bold text and optional dash)
         program_name = "Relevant program"
-        remaining_text = line_clean[inst_match.end():].strip()
+        remaining_text = line_clean[inst_match.end() :].strip()
         if remaining_text.startswith("-"):
             remaining_text = remaining_text[1:].strip()
         if remaining_text and len(remaining_text) > 3:
@@ -2295,7 +1933,7 @@ class AcademicPathwayAgent(WorkerAgent):
             # Skip empty lines or section headers
             if not follow_clean or follow_clean.startswith("##"):
                 continue
-            
+
             # Break if we hit another institution (starts with bold)
             if "**" in follow_clean and follow_clean.count("**") >= 2:
                 break
@@ -2304,7 +1942,7 @@ class AcademicPathwayAgent(WorkerAgent):
             if follow_clean.startswith(("- ", "  - ", "    - ", "* ", "• ")):
                 # Remove leading bullets
                 field_text = re.sub(r"^[\s\-\*•]+", "", follow_clean).strip()
-                
+
                 if "program:" in follow_lower or "program type:" in follow_lower:
                     details["program_type"] = self._extract_field_value(
                         field_text, "program", "program type"
@@ -2313,7 +1951,10 @@ class AcademicPathwayAgent(WorkerAgent):
                     details["duration"] = self._extract_field_value(
                         field_text, "duration"
                     )
-                elif "entry requirements:" in follow_lower or "requirements:" in follow_lower:
+                elif (
+                    "entry requirements:" in follow_lower
+                    or "requirements:" in follow_lower
+                ):
                     req_value = self._extract_field_value(
                         field_text, "entry requirements", "requirements"
                     )
@@ -2321,7 +1962,11 @@ class AcademicPathwayAgent(WorkerAgent):
                         details["entry_requirements"] = [
                             r.strip() for r in req_value.split(",") if r.strip()
                         ]
-                elif "cost:" in follow_lower or "approximate cost:" in follow_lower or "tuition:" in follow_lower:
+                elif (
+                    "cost:" in follow_lower
+                    or "approximate cost:" in follow_lower
+                    or "tuition:" in follow_lower
+                ):
                     details["approximate_cost"] = self._extract_field_value(
                         field_text, "cost", "approximate cost", "tuition"
                     )
@@ -2332,7 +1977,9 @@ class AcademicPathwayAgent(WorkerAgent):
                             s.strip() for s in sch_value.split(",") if s.strip()
                         ]
                 elif "note:" in follow_lower or "notes:" in follow_lower:
-                    details["notes"] = self._extract_field_value(field_text, "note", "notes")
+                    details["notes"] = self._extract_field_value(
+                        field_text, "note", "notes"
+                    )
 
         self.logger.info(f"✅ Extracted {country} university: {institution_name}")
         return details
@@ -2351,385 +1998,6 @@ class AcademicPathwayAgent(WorkerAgent):
                 after_field = re.sub(r"^[:\s\*\-]+", "", after_field).strip()
                 return after_field
         return ""
-
-    def _parse_institution_info(self, text: str) -> Optional[Dict[str, Any]]:
-        """Parse institution information from text."""
-        # Simple extraction - in production, use more sophisticated parsing
-        return {
-            "institution_name": text[:50],  # Truncate for summary
-            "program_name": "Related degree program",
-            "duration": "3-4 years",
-            "entry_requirements": ["A/L qualification", "Z-score requirement"],
-            "approximate_cost": "LKR 50,000 - 500,000 per year",
-            "application_timeline": "Apply during A/L results release",
-            "additional_notes": "Check current admission requirements",
-        }
-
-    def _parse_international_info(self, text: str) -> Optional[Dict[str, Any]]:
-        """Parse international education information from text."""
-        return {
-            "country": "Various countries",
-            "institution_examples": ["Top universities in destination country"],
-            "program_type": "Bachelor's/Master's degree",
-            "duration": "3-4 years",
-            "entry_requirements": [
-                "A/L qualification",
-                "English proficiency",
-                "Application essays",
-            ],
-            "approximate_cost": "$15,000-$40,000 per year",
-            "scholarship_opportunities": [
-                "Government scholarships",
-                "University funding",
-            ],
-            "notes": "Research specific country requirements",
-        }
-
-    def _create_default_pathways(self, career_title: str) -> List[Dict[str, Any]]:
-        """Create default academic pathways with specific Sri Lankan examples as fallback."""
-
-        # Map career titles to relevant programs - provide realistic examples
-        career_lower = career_title.lower()
-
-        # Determine relevant programs based on career type
-        if any(
-            term in career_lower
-            for term in [
-                "software",
-                "computer",
-                "it",
-                "technology",
-                "data",
-                "developer",
-                "programming",
-            ]
-        ):
-            state_programs = [
-                (
-                    "University of Colombo",
-                    "BSc (Hons) in Computer Science",
-                    "4 years",
-                    "Z-score 1.8+, Maths stream",
-                    "https://science.cmb.ac.lk",
-                ),
-                (
-                    "University of Moratuwa",
-                    "BSc Engineering (Computer Science & Engineering)",
-                    "4 years",
-                    "Z-score 2.0+, Maths stream",
-                    "https://www.mrt.ac.lk",
-                ),
-                (
-                    "University of Kelaniya",
-                    "BSc (Hons) in Software Engineering",
-                    "4 years",
-                    "Z-score 1.7+, Maths stream",
-                    "https://www.kln.ac.lk",
-                ),
-                (
-                    "University of Sri Jayewardenepura",
-                    "BSc (Hons) in Information Technology",
-                    "4 years",
-                    "Z-score 1.6+, Maths/Bio stream",
-                    "https://www.sjp.ac.lk",
-                ),
-                (
-                    "University of Ruhuna",
-                    "BSc (Hons) in Computer Science",
-                    "4 years",
-                    "Z-score 1.6+, Maths stream",
-                    "https://www.ruh.ac.lk",
-                ),
-                (
-                    "University of Peradeniya",
-                    "BSc (Hons) in Computer Engineering",
-                    "4 years",
-                    "Z-score 1.9+, Maths stream",
-                    "https://www.pdn.ac.lk",
-                ),
-                (
-                    "Sabaragamuwa University",
-                    "BSc (Hons) in Computing and Information Systems",
-                    "4 years",
-                    "Z-score 1.5+, Maths/Bio stream",
-                    "https://www.sab.ac.lk",
-                ),
-                (
-                    "Rajarata University",
-                    "BSc (Hons) in Information Technology",
-                    "4 years",
-                    "Z-score 1.5+, Maths stream",
-                    "https://www.rjt.ac.lk",
-                ),
-                (
-                    "Eastern University",
-                    "BSc (Hons) in Information Technology",
-                    "4 years",
-                    "Z-score 1.4+, Maths stream",
-                    "https://www.esn.ac.lk",
-                ),
-                (
-                    "Wayamba University",
-                    "BSc (Hons) in Software Engineering",
-                    "4 years",
-                    "Z-score 1.5+, Maths stream",
-                    "https://www.wyb.ac.lk",
-                ),
-            ]
-            private_programs = [
-                (
-                    "SLIIT",
-                    "BSc (Hons) in Information Technology",
-                    "4 years",
-                    "LKR 800,000-1,200,000 per year",
-                    "https://www.sliit.lk",
-                ),
-                (
-                    "NSBM Green University",
-                    "BSc (Hons) in Computer Science",
-                    "3-4 years",
-                    "LKR 750,000-1,000,000 per year",
-                    "https://www.nsbm.ac.lk",
-                ),
-                (
-                    "IIT (Informatics Institute)",
-                    "BSc (Hons) in Computing (Westminster)",
-                    "3 years",
-                    "LKR 900,000-1,400,000 per year",
-                    "https://www.iit.ac.lk",
-                ),
-                (
-                    "APIIT",
-                    "BSc (Hons) in Computer Science (Staffordshire)",
-                    "3-4 years",
-                    "LKR 850,000-1,300,000 per year",
-                    "https://www.apiit.lk",
-                ),
-            ]
-        elif any(
-            term in career_lower
-            for term in ["engineer", "mechanical", "electrical", "civil"]
-        ):
-            state_programs = [
-                (
-                    "University of Moratuwa",
-                    "BSc Engineering (Relevant specialization)",
-                    "4 years",
-                    "Z-score 1.9+, Maths stream",
-                ),
-                (
-                    "University of Peradeniya",
-                    "BSc Engineering (Relevant specialization)",
-                    "4 years",
-                    "Z-score 1.8+, Maths stream",
-                ),
-                (
-                    "University of Ruhuna",
-                    "BSc Engineering (Relevant specialization)",
-                    "4 years",
-                    "Z-score 1.7+, Maths stream",
-                ),
-            ]
-            private_programs = [
-                (
-                    "SLIIT",
-                    "BSc (Hons) in Engineering (Relevant specialization)",
-                    "4 years",
-                    "LKR 900,000-1,400,000 per year",
-                ),
-                (
-                    "NSBM Green University",
-                    "BSc (Hons) in Engineering",
-                    "4 years",
-                    "LKR 850,000-1,250,000 per year",
-                ),
-            ]
-        elif any(
-            term in career_lower
-            for term in ["business", "management", "marketing", "finance", "accounting"]
-        ):
-            state_programs = [
-                (
-                    "University of Sri Jayewardenepura",
-                    "BSc in Business Administration",
-                    "3-4 years",
-                    "Z-score 1.5+, Commerce/Arts",
-                ),
-                (
-                    "University of Kelaniya",
-                    "BSc in Management Studies & Commerce",
-                    "3-4 years",
-                    "Z-score 1.4+, Commerce/Arts",
-                ),
-                (
-                    "University of Colombo",
-                    "BBA/BSc in Management",
-                    "3-4 years",
-                    "Z-score 1.6+, Commerce/Arts",
-                ),
-            ]
-            private_programs = [
-                (
-                    "NSBM Green University",
-                    "BSc (Hons) in Business Management",
-                    "3-4 years",
-                    "LKR 600,000-900,000 per year",
-                ),
-                (
-                    "SLIIT",
-                    "BSc (Hons) in Business Administration",
-                    "3-4 years",
-                    "LKR 650,000-950,000 per year",
-                ),
-                (
-                    "IIT",
-                    "BSc (Hons) in Business Management (Westminster)",
-                    "3 years",
-                    "LKR 700,000-1,000,000 per year",
-                ),
-            ]
-        elif any(
-            term in career_lower
-            for term in ["design", "art", "creative", "graphic", "animation"]
-        ):
-            state_programs = [
-                (
-                    "University of the Visual & Performing Arts",
-                    "BA in Design",
-                    "4 years",
-                    "Portfolio + A/L qualification",
-                ),
-                (
-                    "University of Moratuwa",
-                    "BSc in Architecture",
-                    "5 years",
-                    "Aptitude test + Z-score 1.5+",
-                ),
-            ]
-            private_programs = [
-                (
-                    "SLIIT",
-                    "BSc (Hons) in Multimedia & Web Design",
-                    "3-4 years",
-                    "LKR 700,000-1,000,000 per year",
-                ),
-                (
-                    "NSBM Green University",
-                    "BSc (Hons) in Graphic Design",
-                    "3-4 years",
-                    "LKR 650,000-900,000 per year",
-                ),
-                (
-                    "AOD (Academy of Design)",
-                    "Higher Diploma in Graphic Design",
-                    "2-3 years",
-                    "LKR 500,000-800,000 per year",
-                ),
-            ]
-        else:
-            # Generic fallback for other careers
-            state_programs = [
-                (
-                    "University of Colombo",
-                    f"Relevant degree program for {career_title}",
-                    "3-4 years",
-                    "Z-score varies by program",
-                ),
-                (
-                    "University of Peradeniya",
-                    f"Relevant degree program",
-                    "3-4 years",
-                    "Z-score varies by program",
-                ),
-                (
-                    "University of Kelaniya",
-                    f"Relevant degree program",
-                    "3-4 years",
-                    "Z-score varies by program",
-                ),
-            ]
-            private_programs = [
-                (
-                    "SLIIT",
-                    f"Relevant degree program for {career_title}",
-                    "3-4 years",
-                    "LKR 700,000-1,200,000 per year",
-                ),
-                (
-                    "NSBM Green University",
-                    f"Relevant degree program",
-                    "3-4 years",
-                    "LKR 650,000-1,000,000 per year",
-                ),
-            ]
-
-        # Build separate lists for government, private, and professional institutions
-        government_universities = []
-        for univ, program, duration, req_or_cost, url in state_programs:
-            government_universities.append(
-                {
-                    "institution_name": univ,
-                    "program_name": program,
-                    "duration": duration,
-                    "entry_requirements": [req_or_cost, "A/L with relevant subjects"],
-                    "approximate_cost": "LKR 30,000-100,000 per year (state university)",
-                    "application_timeline": "Apply during university admission period (August-September)",
-                    "website_url": url,
-                    "additional_notes": "Highly competitive admission via UGC",
-                }
-            )
-
-        private_universities = []
-        for univ, program, duration, cost, url in private_programs:
-            private_universities.append(
-                {
-                    "institution_name": univ,
-                    "program_name": program,
-                    "duration": duration,
-                    "entry_requirements": [
-                        "A/L qualification (3 passes minimum)",
-                        "Interview or entrance test",
-                    ],
-                    "approximate_cost": cost,
-                    "application_timeline": "Multiple intake periods throughout the year",
-                    "website_url": url,
-                    "additional_notes": "Flexible admission, international degree partnerships available",
-                }
-            )
-
-        # Add professional institutes (common alternatives)
-        professional_institutes = [
-            {
-                "institution_name": "BCS (British Computer Society)",
-                "program_name": "Higher Education Qualifications in IT",
-                "duration": "1-2 years",
-                "entry_requirements": [
-                    "O/L passes (minimum)",
-                    "Can progress without A/Ls",
-                ],
-                "approximate_cost": "LKR 200,000-400,000 per year",
-                "additional_notes": "Internationally recognized IT qualifications, pathway to degree programs",
-            },
-            {
-                "institution_name": "CIMA (Chartered Institute of Management Accountants)",
-                "program_name": "Professional Accounting Qualification",
-                "duration": "2-3 years",
-                "entry_requirements": ["A/L or equivalent", "Can start after O/L"],
-                "approximate_cost": "LKR 300,000-500,000 total",
-                "additional_notes": "Globally recognized accounting qualification",
-            },
-        ]
-
-        return [
-            {
-                "pathway_type": "Local (Sri Lankan)",
-                "education_level": "Undergraduate",
-                "government_universities": government_universities,
-                "private_universities": private_universities,
-                "professional_institutes": professional_institutes,
-                "international_options": [],  # Empty - AI will populate from web search results
-            }
-        ]
 
     def _update_state_with_academic_plan(
         self, state: AgentState, career_title: str, academic_plan: Dict[str, Any]
@@ -2865,30 +2133,7 @@ class AcademicPathwayAgent(WorkerAgent):
                         )
                     )
 
-                # Professional Institutes Subsection
-                prof_institutes = pathway.get("professional_institutes", [])
-                if prof_institutes:
-                    prof_cards = []
-                    for inst in prof_institutes:
-                        prof_cards.append(
-                            AcademicCourseCard(
-                                id=card_id,
-                                name=inst.get("institution_name", ""),
-                                program_name=inst.get("program_name", ""),
-                                duration=inst.get("duration", "1 year"),
-                                entry_requirements=inst.get("entry_requirements", []),
-                                cost_per_year=inst.get("approximate_cost", ""),
-                                website_url=inst.get("website_url", ""),
-                                additional_notes=inst.get("additional_notes", ""),
-                            )
-                        )
-                        card_id += 1
-
-                    local_subsections.append(
-                        AcademicPathwaySubsection(
-                            subsectionTitle="Professional Institutes", cards=prof_cards
-                        )
-                    )
+                # Skip Professional Institutes - removed from output
 
                 if local_subsections:
                     sections.append(
@@ -2956,9 +2201,12 @@ class AcademicPathwayAgent(WorkerAgent):
 
                 international_subsections = []
                 for country, data in countries.items():
+                    # LIMIT: Show only top 3 universities per country
+                    top_3_cards = data["cards"][:3]
+                    
                     international_subsections.append(
                         AcademicPathwaySubsection(
-                            subsectionTitle=country, cards=data["cards"]
+                            subsectionTitle=country, cards=top_3_cards
                         )
                     )
 

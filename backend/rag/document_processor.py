@@ -188,11 +188,15 @@ class DocumentProcessor:
         loader = PyMuPDFLoader(str(pdf_path))
         documents = loader.load()
 
-        # Add collection type to metadata
+        # Add collection type and extract structured metadata
         for doc in documents:
             doc.metadata["collection_type"] = collection_type
             doc.metadata["source_file"] = pdf_path.name
             doc.metadata["file_path"] = str(pdf_path)
+            
+            # Extract structured fields (Country, University, Category, etc.)
+            structured_metadata = self._extract_structured_metadata(doc.page_content)
+            doc.metadata.update(structured_metadata)
 
         add_span_attributes({
             "pages_loaded": len(documents),
@@ -276,6 +280,104 @@ class DocumentProcessor:
             for byte_block in iter(lambda: f.read(4096), b""):
                 sha256_hash.update(byte_block)
         return sha256_hash.hexdigest()
+
+    def _extract_structured_metadata(self, text_content: str) -> Dict[str, Any]:
+        """
+        Extract structured metadata from formatted university data.
+        
+        Parses fields like:
+        - Country: United Kingdom
+        - Category: Computer Science
+        - University: University of London
+        - Program: BSc Computer Science
+        - Cost: $25,000 USD per year
+        - Duration: 3 years
+        - Institution Type: Government/Private (auto-detected from keywords)
+        
+        Args:
+            text_content: Document text content
+            
+        Returns:
+            Dictionary with extracted metadata fields
+        """
+        metadata = {}
+        
+        lines = text_content.strip().split('\n')
+        for line in lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Extract and normalize field names
+                if key == "Country":
+                    metadata["country"] = value
+                elif key == "Category":
+                    metadata["category"] = value
+                elif key == "University":
+                    metadata["university"] = value
+                elif key == "Program":
+                    metadata["program"] = value
+                elif key == "Cost":
+                    metadata["cost"] = value
+                elif key == "Duration":
+                    metadata["duration"] = value
+        
+        # Auto-detect institution type from content keywords
+        text_lower = text_content.lower()
+        
+        # Check for explicit keywords in content
+        if any(keyword in text_lower for keyword in [
+            'government university',
+            'state university', 
+            'national university',
+            'public university',
+            'government-funded',
+            'free education'
+        ]):
+            metadata["institution_type"] = "government"
+        elif any(keyword in text_lower for keyword in [
+            'private university',
+            'private institution',
+            'private college',
+            'tuition fee',
+            'annual fee'
+        ]):
+            metadata["institution_type"] = "private"
+        # Also check university name patterns for Sri Lanka
+        elif 'university' in metadata.get('university', '').lower():
+            university_name = metadata.get('university', '').lower()
+            # Sri Lankan government universities typically have "University of" pattern
+            if any(pattern in university_name for pattern in [
+                'university of colombo',
+                'university of peradeniya',
+                'university of moratuwa',
+                'university of kelaniya',
+                'university of sri jayewardenepura',
+                'university of jaffna',
+                'university of ruhuna',
+                'eastern university',
+                'rajarata university',
+                'sabaragamuwa university',
+                'wayamba university',
+                'uva wellassa university',
+                'open university'
+            ]):
+                metadata["institution_type"] = "government"
+            # Private universities in Sri Lanka
+            elif any(pattern in university_name for pattern in [
+                'nsbm',
+                'sliit',
+                'nibm',
+                'apiit',
+                'cinec',
+                'esoft',
+                'asian institute',
+                'international institute'
+            ]):
+                metadata["institution_type"] = "private"
+        
+        return metadata
 
     def _validate_file(self, file_path: Path, file_type: str):
         """

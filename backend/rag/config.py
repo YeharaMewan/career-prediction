@@ -56,7 +56,7 @@ SEPARATORS = ["\n\n", "\n", " ", ""]  # Hierarchical text splitting
 
 # Retrieval Configuration
 SIMILARITY_THRESHOLD = 0.35  # Minimum similarity score (0-1) - Lowered to capture semantically related content for niche careers
-TOP_K_RESULTS = 5  # Number of chunks to retrieve - Increased for better coverage
+TOP_K_RESULTS = 3  # Number of chunks to retrieve - Optimized for international university searches (3 per country)
 MAX_CONTEXT_LENGTH = 4000  # Maximum characters in retrieved context
 
 # Agentic RAG Configuration

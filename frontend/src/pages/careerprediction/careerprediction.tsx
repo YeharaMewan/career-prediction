@@ -353,33 +353,45 @@ function AcademicPathwayComponent({ sections, courses }: AcademicPathwayComponen
   if (sections && sections.length > 0) {
     return (
       <div className="space-y-8">
-        {sections.map((section, sectionIdx) => (
-          <div key={sectionIdx} className="space-y-6">
-            {/* Section Title (e.g., "Local Pathways", "International Pathway") */}
-            <h3 className="text-2xl font-bold text-gray-900 border-b-2 border-teal-200 pb-2">
-              {section.sectionTitle}
-            </h3>
-            {/* Subsections (e.g., "Government Universities", "United Kingdom") */}
-            {section.subsections?.map((subsection, subIdx) => (
-              <div key={subIdx} className="space-y-4">
-                <h4 className="text-xl font-semibold text-teal-700">
-                  {subsection.subsectionTitle}
-                </h4>
-                {/* Cards */}
-                <div className="space-y-3">
-                  {subsection.cards?.map((card, cardIdx) => (
-                    <CourseCard
-                      key={card.id}
-                      course={card}
-                      index={cardIdx}
-                      total={subsection.cards.length}
-                    />
-                  ))}
+        {sections.map((section, sectionIdx) => {
+          // Filter out empty subsections (subsections with no cards)
+          const nonEmptySubsections = section.subsections?.filter(
+            subsection => subsection.cards && subsection.cards.length > 0
+          ) || [];
+
+          // Skip entire section if all subsections are empty
+          if (nonEmptySubsections.length === 0) {
+            return null;
+          }
+
+          return (
+            <div key={sectionIdx} className="space-y-6">
+              {/* Section Title (e.g., "Local Pathways", "International Pathway") */}
+              <h3 className="text-2xl font-bold text-gray-900 border-b-2 border-teal-200 pb-2">
+                {section.sectionTitle}
+              </h3>
+              {/* Subsections (e.g., "Government Universities", "United Kingdom") */}
+              {nonEmptySubsections.map((subsection, subIdx) => (
+                <div key={subIdx} className="space-y-4">
+                  <h4 className="text-xl font-semibold text-teal-700">
+                    {subsection.subsectionTitle}
+                  </h4>
+                  {/* Cards */}
+                  <div className="space-y-3">
+                    {subsection.cards?.map((card, cardIdx) => (
+                      <CourseCard
+                        key={card.id}
+                        course={card}
+                        index={cardIdx}
+                        total={subsection.cards.length}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ))}
+              ))}
+            </div>
+          );
+        })}
       </div>
     );
   }

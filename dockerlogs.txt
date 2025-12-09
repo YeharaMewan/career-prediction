@@ -1,0 +1,520 @@
+pwsh> docker logs career-planning-backend
+========================================
+Career Planning System - Backend
+========================================
+
+🔍 OpenTelemetry Auto-Instrumentation ENABLED
+   Service: career-planning-system
+   Endpoint: http://jaeger:4317
+   Jaeger UI: http://localhost:16686
+
+✅ Environment validation passed - All API keys loaded
+OpenTelemetry tracing configured for service: career-planning-system
+Sending traces to Jaeger at: http://jaeger:4317
+✅ Manual OpenTelemetry tracing initialized for career-planning-system
+RAG Configuration loaded successfully
+  - Embedding provider: fallback
+  - Available providers: OpenAI, Gemini
+  - Fallback enabled: True
+  - OpenAI ChromaDB: /app/knowledge_base/chroma_openai
+  - Gemini ChromaDB: /app/knowledge_base/chroma_gemini
+  - Academic data directory: /app/data/academic
+  - Skill data directory: /app/data/skills
+  - OpenAI model: text-embedding-3-small (1536 dims)
+  - Gemini model: models/text-embedding-004 (768 dims)
+INFO:utils.langsmith_config:LangSmith tracing enabled for project: career-planning-system
+INFO:utils.langsmith_config:LangSmith endpoint: https://api.smith.langchain.com
+✅ FastAPI app instrumented with OpenTelemetry
+WARNING:opentelemetry.instrumentation.fastapi:Attempting to instrument FastAPI app while already instrumented
+INFO:__main__:Starting server on 0.0.0.0:8000
+INFO:     Will watch for changes in these directories: ['/app']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [1] using WatchFiles
+✅ Environment validation passed - All API keys loaded
+OpenTelemetry tracing configured for service: career-planning-system
+Sending traces to Jaeger at: http://jaeger:4317
+✅ Manual OpenTelemetry tracing initialized for career-planning-system
+RAG Configuration loaded successfully
+  - Embedding provider: fallback
+  - Available providers: OpenAI, Gemini
+  - Fallback enabled: True
+  - OpenAI ChromaDB: /app/knowledge_base/chroma_openai
+  - Gemini ChromaDB: /app/knowledge_base/chroma_gemini
+  - Academic data directory: /app/data/academic
+  - Skill data directory: /app/data/skills
+  - OpenAI model: text-embedding-3-small (1536 dims)
+  - Gemini model: models/text-embedding-004 (768 dims)
+INFO:utils.langsmith_config:LangSmith tracing enabled for project: career-planning-system
+INFO:utils.langsmith_config:LangSmith endpoint: https://api.smith.langchain.com
+✅ FastAPI app instrumented with OpenTelemetry
+✅ Environment validation passed - All API keys loaded
+INFO:utils.langsmith_config:LangSmith tracing enabled for project: career-planning-system
+INFO:utils.langsmith_config:LangSmith endpoint: https://api.smith.langchain.com
+OpenTelemetry tracing configured for service: career-planning-system
+Sending traces to Jaeger at: http://jaeger:4317
+✅ Manual OpenTelemetry tracing initialized for career-planning-system
+WARNING:opentelemetry.trace:Overriding of current TracerProvider is not allowed
+✅ FastAPI app instrumented with OpenTelemetry
+INFO:     Started server process [34]
+INFO:     Waiting for application startup.
+INFO:api_server:🔍 Manual tracing ACTIVE: career-planning-system → http://jaeger:4317
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o, Temperature: 0.1, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o
+INFO:agent.main_supervisor:✅ LLM initialized with OpenTelemetry tracing for agent 'main_supervisor'
+INFO:agent.main_supervisor:   Provider: fallback
+INFO:api_server:Main Supervisor initialized
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o-mini, Temperature: 0.1, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o-mini
+INFO:agent.user_profiler:✅ LLM initialized with OpenTelemetry tracing for agent 'user_profiler'
+INFO:agent.user_profiler:   Provider: fallback
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o-mini, Temperature: 0.3, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o-mini
+INFO:root:✅ ConversationManager LLM initialized using fallback with model: gpt-4o-mini
+INFO:agents.message_pools:Initialized greeting pools: 7 EN, 7 SI
+INFO:agents.message_pools:Initialized acknowledgment pools: 20 EN, 20 SI
+INFO:agents.message_pools:✅ MessagePool initialized with pre-generated content
+INFO:root:✅ MessagePool initialized for dynamic greetings
+INFO:root:✅ Rephrased question cache initialized for adaptive tone matching
+INFO:api_server:User Profiler initialized
+INFO:api_server:Career Planning API server started successfully
+INFO:     Application startup complete.
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:56142 - "GET /health HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:37510 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.1:39574 - "OPTIONS /session/initialize HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting interactive career planning session: agent_init_20251209_100905
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o-mini, Temperature: 0.1, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o-mini
+INFO:agent.user_profiler:✅ LLM initialized with OpenTelemetry tracing for agent 'user_profiler'
+INFO:agent.user_profiler:   Provider: fallback
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o-mini, Temperature: 0.3, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o-mini
+INFO:root:✅ ConversationManager LLM initialized using fallback with model: gpt-4o-mini
+INFO:agents.message_pools:Initialized greeting pools: 7 EN, 7 SI
+INFO:agents.message_pools:Initialized acknowledgment pools: 20 EN, 20 SI
+INFO:agents.message_pools:✅ MessagePool initialized with pre-generated content
+INFO:root:✅ MessagePool initialized for dynamic greetings
+INFO:root:✅ Rephrased question cache initialized for adaptive tone matching
+INFO:root:Session agent_init_20251209_100905: Conversation context created with language=en
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:✅ Generated fresh LLM greeting (123 chars)
+INFO:agents.message_pools:Added new greeting to greetings_en pool (total: 8)
+INFO:agent.main_supervisor:✅ Completed session_initialization Session agent_init_20251209_100905 started
+INFO:     172.18.0.1:39574 - "POST /session/initialize HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:38846 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.1:36908 - "OPTIONS /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 953, Output: 218, Total: 1171, Cost: $0.000274
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.70 (Duration: 4.60s)
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 574, Output: 82, Total: 656, Cost: $0.000135
+WARNING:root:Multiple questions detected (2 question marks). Taking first question only.
+INFO:root:Extracted first question: Interesting perspective! It’s awesome to hear how your experiences with soccer and track have sparke...
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1001, Output: 206, Total: 1207, Cost: $0.000274
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.60 (Duration: 4.28s)
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 565, Output: 89, Total: 654, Cost: $0.000138
+WARNING:root:Multiple questions detected (2 question marks). Taking first question only.
+INFO:root:Extracted first question: I can see why that resonates with you. Helping people return to activities they love, especially spo...
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1017, Output: 204, Total: 1221, Cost: $0.000275
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.70 (Duration: 5.82s)
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 565, Output: 75, Total: 640, Cost: $0.000130
+WARNING:root:Multiple questions detected (2 question marks). Taking first question only.
+INFO:root:Extracted first question: That's a keen observation. It’s fascinating how the body’s systems interact, especially when you con...
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:52962 - "GET /health HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1011, Output: 209, Total: 1220, Cost: $0.000277
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.70 (Duration: 4.56s)
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 574, Output: 67, Total: 641, Cost: $0.000126
+WARNING:root:Multiple questions detected (2 question marks). Taking first question only.
+INFO:root:Extracted first question: I appreciate you sharing that. It’s clear that you find the process of training athletes and helping...
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1018, Output: 226, Total: 1244, Cost: $0.000288
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.70 (Duration: 5.29s)
+INFO:root:Session agent_init_20251209_100905: Processing response #9, state: INTEREST_DISCOVERY
+INFO:root:Session agent_init_20251209_100905: Generating next question - 3 questions remaining
+INFO:root:Session agent_init_20251209_100905: 7 questions available, RIASEC: {'R': 0, 'I': 0, 'A': 0, 'S': 0, 'E': 0, 'C': 0}
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:✅ Rephrased question for tone: balanced_casual_moderate (87 chars)
+INFO:utils.langsmith_config:Agent conversation_manager - generate_question_2: Generated open_ended question (Duration: 0.92s)
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1012, Output: 206, Total: 1218, Cost: $0.000275
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.50 (Duration: 3.55s)
+INFO:root:Session agent_init_20251209_100905: Processing response #10, state: ACADEMIC_GATHERING
+INFO:root:Session agent_init_20251209_100905: Generating next question - 2 questions remaining
+INFO:root:Session agent_init_20251209_100905: 5 questions available, RIASEC: {'R': 0, 'I': 0, 'A': 0, 'S': 0, 'E': 0, 'C': 0}
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:✅ Rephrased question for tone: balanced_neutral_confident (151 chars)
+INFO:utils.langsmith_config:Agent conversation_manager - generate_question_3: Generated open_ended question (Duration: 1.20s)
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1011, Output: 204, Total: 1215, Cost: $0.000274
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.60 (Duration: 5.89s)
+INFO:root:Session agent_init_20251209_100905: Processing response #11, state: SKILLS_ASSESSMENT
+INFO:root:Session agent_init_20251209_100905: Generating next question - 1 questions remaining
+INFO:root:Session agent_init_20251209_100905: 5 questions available, RIASEC: {'R': 0, 'I': 0, 'A': 0, 'S': 0, 'E': 0, 'C': 0}
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:root:✅ Rephrased question for tone: balanced_neutral_confident (134 chars)
+INFO:utils.langsmith_config:Agent conversation_manager - generate_question_4: Generated open_ended question (Duration: 0.91s)
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:44540 - "GET /health HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o-mini
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1012, Output: 208, Total: 1220, Cost: $0.000277
+INFO:utils.langsmith_config:Agent conversation_manager - analyze_response_general: Analysis completed - Intent: description, Completeness: 0.50 (Duration: 5.84s)
+INFO:root:Session agent_init_20251209_100905: Processing response #12, state: PERSONALITY_PROBE
+INFO:root:Session agent_init_20251209_100905: Reached 12 questions - generating career predictions
+INFO:agent.user_profiler:✅ Completed interactive_profiling Profile completed for session agent_init_20251209_100905
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:llm_strategy.base:✅ Success - Provider: fallback, Model: gpt-4o
+INFO:llm_wrapper.fallback:📊 Token Usage - Input: 1286, Output: 1064, Total: 2350, Cost: $0.013855
+INFO:root:AI generated 5 personalized career predictions
+INFO:agent.main_supervisor:✅ Completed career_predictions_generated Session agent_init_20251209_100905: Generated 5 career predictions
+INFO:agent.main_supervisor:✅ Completed profiling_stage Session agent_init_20251209_100905 profiling completed with career predictions
+INFO:     172.18.0.1:36908 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:55150 - "GET /health HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:50356 - "GET /health HTTP/1.1" 200 OK
+INFO:agent.main_supervisor:🚀 Starting enhanced_workflow session: agent_init_20251209_100905, mode: interactive
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o, Temperature: 0.1, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o
+INFO:agent.career_planning_supervisor:✅ LLM initialized with OpenTelemetry tracing for agent 'career_planning_supervisor'
+INFO:agent.career_planning_supervisor:   Provider: fallback
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o, Temperature: 0.1, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o
+INFO:agent.academic_pathway_agent:✅ LLM initialized with OpenTelemetry tracing for agent 'academic_pathway_agent'
+INFO:agent.academic_pathway_agent:   Provider: fallback
+INFO:agent.academic_pathway_agent:✅ Academic Pathway Agent initialized with max_tokens=16384 for comprehensive output
+INFO:agent.academic_pathway_agent:✅ Loaded institutions data from /app/prompts/sri_lankan_institutions.json
+/app/utils/web_search_tool.py:50: RuntimeWarning: This package (`duckduckgo_search`) has been renamed to `ddgs`! Use `pip install ddgs` instead.
+  self.ddgs = DDGS()
+INFO:rag.embedding_strategy:Creating embedding strategy: fallback
+INFO:embedding_strategy.base:Using PRIMARY embedding provider: OpenAI
+INFO:embedding_strategy.base:Initializing OpenAI embeddings: text-embedding-3-small (1536 dimensions)
+INFO:rag.embedding_manager:EmbeddingManager initialized: provider=fallback, model=text-embedding-3-small, dimensions=1536
+ERROR:chromadb.telemetry.product.posthog:Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+INFO:rag.vector_store:VectorStoreManager initialized: provider=fallback, persist_dir=/app/knowledge_base/chroma_openai
+ERROR:rag.vector_store:Error creating collection academic_knowledge: '_type'
+WARNING:agent.academic_pathway_agent:RAG retriever initialization failed: '_type'. Continuing without RAG.
+INFO:agent.academic_pathway_agent:✅ Academic Pathway Agent initialized with optimized prompts
+INFO:agent.academic_pathway_agent:   System prompt: ~142 tokens (was ~1200)
+INFO:utils.llm_factory:🔄 Fallback enabled: openai → gemini
+INFO:utils.llm_factory:Creating LLM - Provider: fallback, Model: gpt-4o, Temperature: 0.1, Timeout: 60s
+INFO:llm_strategy.base:Using primary strategy: openai
+INFO:llm_strategy.base:Initializing OpenAI model: gpt-4o
+INFO:agent.skill_development_agent:✅ LLM initialized with OpenTelemetry tracing for agent 'skill_development_agent'
+INFO:agent.skill_development_agent:   Provider: fallback
+/app/utils/web_search_tool.py:50: RuntimeWarning: This package (`duckduckgo_search`) has been renamed to `ddgs`! Use `pip install ddgs` instead.
+  self.ddgs = DDGS()
+INFO:rag.embedding_strategy:Creating embedding strategy: fallback
+INFO:embedding_strategy.base:Using PRIMARY embedding provider: OpenAI
+INFO:embedding_strategy.base:Initializing OpenAI embeddings: text-embedding-3-small (1536 dimensions)
+INFO:rag.embedding_manager:EmbeddingManager initialized: provider=fallback, model=text-embedding-3-small, dimensions=1536
+ERROR:chromadb.telemetry.product.posthog:Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+INFO:rag.vector_store:VectorStoreManager initialized: provider=fallback, persist_dir=/app/knowledge_base/chroma_openai
+ERROR:chromadb.telemetry.product.posthog:Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+INFO:rag.vector_store:Collection 'skill_knowledge' ready (59 documents) [provider: fallback]
+INFO:rag.retriever:AgenticRAGRetriever initialized: collection=skill, provider=openai, threshold=0.35, top_k=10
+INFO:agent.skill_development_agent:✅ RAG retriever initialized for skill knowledge base
+INFO:agent.career_planning_supervisor:➕ Added academic_pathway_agent (worker) to managed agents
+INFO:agent.career_planning_supervisor:➕ Added skill_development_agent (worker) to managed agents
+INFO:agent.main_supervisor:🔄 Routing to career planning supervisor for: Sports Physiotherapist
+INFO:agent.career_planning_supervisor:🚀 Starting career_planning_orchestration session: agent_init_20251209_100905
+INFO:agent.career_planning_supervisor:Orchestrating career planning for: Sports Physiotherapist
+INFO:agent.career_planning_supervisor:🔄 Executing agents in TRUE PARALLEL (async/await)...
+INFO:agent.academic_pathway_agent:🚀 Starting academic_pathway_planning session: agent_init_20251209_100905
+INFO:agent.academic_pathway_agent:Creating academic pathway for: Sports Physiotherapist
+INFO:agent.academic_pathway_agent:Gathering real-time information for Sports Physiotherapist
+INFO:agent.academic_pathway_agent:Searching for Sri Lankan universities for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Sri Lanka
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Sri+Lanka 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Sri Lanka
+INFO:agent.academic_pathway_agent:Searching for Sri Lankan scholarships for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist scholarships Sri Lanka 2024 2025
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+scholarships+Sri+Lanka+2024+2025 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist scholarships Sri Lanka 2024 2025
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in UK
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in UK
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+UK 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in UK
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for UK
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in USA
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in USA
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+USA 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in USA
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for USA
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Australia
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Australia
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Australia 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Australia
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Australia
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Canada
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Canada
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Canada 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Canada
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Canada
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Germany
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Germany
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Germany 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Germany
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Germany
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in New Zealand
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in New Zealand
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+New+Zealand 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in New Zealand
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for New Zealand
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Singapore
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Singapore
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Singapore 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Singapore
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Singapore
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Netherlands
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Netherlands
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Netherlands 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Netherlands
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Netherlands
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Ireland
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Ireland
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Ireland 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Ireland
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Ireland
+INFO:agent.academic_pathway_agent:Searching for international universities for Sports Physiotherapist in Sweden
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist degree programs universities in Sweden
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+degree+programs+universities+in+Sweden 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist degree programs universities in Sweden
+WARNING:agent.academic_pathway_agent:   ⚠️ No web results for Sweden
+INFO:agent.academic_pathway_agent:Searching for international scholarships for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Chevening scholarship Sports Physiotherapist Sri Lankan students
+INFO:primp:response: https://www.bing.com/search?q=Chevening+scholarship+Sports+Physiotherapist+Sri+Lankan+students 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Chevening scholarship Sports Physiotherapist Sri Lankan students
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Commonwealth scholarship Sports Physiotherapist Sri Lanka
+INFO:primp:response: https://www.bing.com/search?q=Commonwealth+scholarship+Sports+Physiotherapist+Sri+Lanka 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Commonwealth scholarship Sports Physiotherapist Sri Lanka
+INFO:agent.academic_pathway_agent:Searching for alternative pathways for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist online degree programs bootcamps certifications
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+online+degree+programs+bootcamps+certifications 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist online degree programs bootcamps certifications
+INFO:agent.academic_pathway_agent:Searching for admission requirements for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist university admission requirements Sri Lanka A/L Z-score
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+university+admission+requirements+Sri+Lanka+A%2FL+Z-score 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist university admission requirements Sri Lanka A/L Z-score
+INFO:agent.academic_pathway_agent:🚀 Starting agent_invocation with message: Create a comprehensive academic pathway plan for: Sports Physiotherapist
+
+Career Description: Sports...
+INFO:agent.skill_development_agent:🚀 Starting skill_development_planning session: agent_init_20251209_100905
+INFO:agent.skill_development_agent:Creating skill development plan for: Sports Physiotherapist
+INFO:agent.skill_development_agent:Retrieving skill knowledge base information for Sports Physiotherapist
+INFO:rag.retriever:Retrieval NEEDED: Query contains knowledge keywords: course, skill, certification
+INFO:rag.retriever:Retrieving documents for query: 'Sports Physiotherapist skills courses certifications training learning resources...'
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+ERROR:chromadb.telemetry.product.posthog:Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+/usr/local/lib/python3.11/site-packages/chromadb/types.py:144: PydanticDeprecatedSince211: Accessing the 'model_fields' attribute on the instance is deprecated. Instead, you should access this attribute from the model class. Deprecated in Pydantic V2.11 to be removed in V3.0.
+  return self.model_fields  # pydantic 2.x
+/usr/local/lib/python3.11/site-packages/chromadb/types.py:144: PydanticDeprecatedSince211: Accessing the 'model_fields' attribute on the instance is deprecated. Instead, you should access this attribute from the model class. Deprecated in Pydantic V2.11 to be removed in V3.0.
+  return self.model_fields  # pydantic 2.x
+INFO:rag.vector_store:Query returned 10 results from 'skill' collection
+INFO:rag.retriever:Retrieved 8 documents (threshold: 0.35)
+INFO:rag.retriever:Reached max context length (4000 chars), using 4 documents
+INFO:rag.retriever:Formatted context: 3673 characters from 4 documents
+INFO:agent.skill_development_agent:RAG retrieved 8 relevant documents
+INFO:agent.skill_development_agent:Gathering real-time skill information for Sports Physiotherapist
+INFO:agent.skill_development_agent:Searching for online courses for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist courses Coursera Udemy LinkedIn Learning 2024
+INFO:watchfiles.main:4 changes detected
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+courses+Coursera+Udemy+LinkedIn+Learning+2024 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist courses Coursera Udemy LinkedIn Learning 2024
+INFO:agent.skill_development_agent:Searching for certifications for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist professional certifications 2024
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+professional+certifications+2024 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist professional certifications 2024
+INFO:agent.skill_development_agent:Searching for skill trends for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist required skills 2024 2025 industry trends
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+required+skills+2024+2025+industry+trends 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist required skills 2024 2025 industry trends
+INFO:agent.skill_development_agent:Searching for job requirements for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist job requirements skills worldwide
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+job+requirements+skills+worldwide 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist job requirements skills worldwide
+INFO:agent.skill_development_agent:Searching for learning platforms for Sports Physiotherapist
+INFO:utils.web_search_tool.WebSearchTool:Searching DuckDuckGo: Sports Physiotherapist practice platforms learning communities coding challenges
+INFO:primp:response: https://www.bing.com/search?q=Sports+Physiotherapist+practice+platforms+learning+communities+coding+challenges 200
+INFO:utils.web_search_tool.WebSearchTool:Found 0 results for: Sports Physiotherapist practice platforms learning communities coding challenges
+INFO:agent.skill_development_agent:🚀 Starting agent_invocation with message: Create a comprehensive skill development roadmap for: Sports Physiotherapist
+
+Career Description: Sp...
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:59994 - "GET /health HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:60966 - "GET /health HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:agent.academic_pathway_agent:✅ Completed agent_invocation response length: 14236
+INFO:agent.academic_pathway_agent:📄 LLM Response Length: 14236 chars
+INFO:agent.academic_pathway_agent:📄 LLM Response Preview (first 500 chars):
+## 1. LOCAL PATHWAYS (Sri Lankan Options)
+
+### A. GOVERNMENT UNIVERSITIES (FREE EDUCATION)
+
+1. **University of Colombo** - BSc in Physiotherapy
+   - Program: Bachelor of Science in Physiotherapy
+   - Duration: 4 years
+   - Entry Requirements: A/L Biology stream with a competitive Z-score
+   - Website: [University of Colombo](https://cmb.ac.lk)
+
+2. **University of Peradeniya** - BSc in Physiotherapy
+   - Program: Bachelor of Science in Physiotherapy
+   - Duration: 4 years
+   - Entry Requirements:
+INFO:agent.academic_pathway_agent:🔍 Starting to parse academic plan, response length: 14236
+INFO:agent.academic_pathway_agent:✅ SET SECTION: government_universities from: ### A. GOVERNMENT UNIVERSITIES (FREE EDUCATION)
+INFO:agent.academic_pathway_agent:✅ SET SECTION: private_universities from: ### B. PRIVATE UNIVERSITIES (PAID EDUCATION)
+INFO:agent.academic_pathway_agent:🔍 DETECTED INTERNATIONAL PATHWAY SECTION: ## 2. INTERNATIONAL PATHWAY OPTIONS
+INFO:agent.academic_pathway_agent:✅ Created new International pathway container
+INFO:agent.academic_pathway_agent:✅ SET SECTION: government_universities from: ### Australia
+INFO:agent.academic_pathway_agent:⏭️ SKIPPING SECTION: professional_institutes from: ### Canada
+INFO:agent.academic_pathway_agent:✅ SET SECTION: private_universities from: ### Bootcamps
+INFO:agent.academic_pathway_agent:✅ SET SECTION: private_universities from: ### Bridge Programs
+INFO:agent.academic_pathway_agent:✅ Parsing complete:
+INFO:agent.academic_pathway_agent:   - pathway_options count: 2
+INFO:agent.academic_pathway_agent:   - TOTAL INTERNATIONAL OPTIONS: 0
+INFO:agent.academic_pathway_agent:   - Pathway 0: type=Local (Sri Lankan)
+INFO:agent.academic_pathway_agent:     - gov unis: 5
+INFO:agent.academic_pathway_agent:       Example: University of Colombo
+INFO:agent.academic_pathway_agent:     - private unis: 3
+INFO:agent.academic_pathway_agent:       Example: Sri Lanka Institute of Information Technology (SLIIT)
+INFO:agent.academic_pathway_agent:     - prof institutes: 0
+INFO:agent.academic_pathway_agent:     - intl options: 0
+INFO:agent.academic_pathway_agent:   - Pathway 1: type=International
+INFO:agent.academic_pathway_agent:     - gov unis: 3
+INFO:agent.academic_pathway_agent:       Example: University of Sydney
+INFO:agent.academic_pathway_agent:     - private unis: 2
+INFO:agent.academic_pathway_agent:       Example: Udacity
+INFO:agent.academic_pathway_agent:     - prof institutes: 0
+INFO:agent.academic_pathway_agent:     - intl options: 0
+INFO:agent.academic_pathway_agent:   - alternative_pathways count: 1
+/app/agents/workers/academic_pathway.py:2007: PydanticDeprecatedSince20: The `copy` method is deprecated; use `model_copy` instead. See the docstring of `BaseModel.copy` for details about how to handle `include` and `exclude`. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  updated_state = state.copy(deep=True)
+INFO:agent.academic_pathway_agent:🎨 Converting to frontend format
+INFO:agent.academic_pathway_agent:   - pathway_options to process: 2
+INFO:agent.academic_pathway_agent:✅ Conversion complete: 2 sections created
+INFO:agent.academic_pathway_agent:   - Section: Local Pathways (2 subsections)
+INFO:agent.academic_pathway_agent:   - Section: Alternative Pathways (1 subsections)
+/app/agents/workers/academic_pathway.py:2019: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  blueprint.academic_plan_structured = structured_data.dict()
+INFO:agent.academic_pathway_agent:✅ Generated structured academic pathway for Sports Physiotherapist with 2 sections
+INFO:agent.academic_pathway_agent:Updated blueprint for Sports Physiotherapist with academic plan
+INFO:utils.langsmith_config:Agent academic_pathway_agent - academic_plan_creation_Sports Physiotherapist: Created plan for al_student level student (Duration: 62.89s)
+INFO:agent.academic_pathway_agent:✅ Completed academic_pathway_planning for Sports Physiotherapist in 62.89s
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:38660 - "GET /health HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:agent.skill_development_agent:✅ Completed agent_invocation response length: 9098
+INFO:agent.skill_development_agent:📄 LLM Response Length: 9098 chars
+INFO:agent.skill_development_agent:📄 LLM Response Preview (first 500 chars):
+## 1. TECHNICAL SKILLS BREAKDOWN
+
+### Core Skills
+List 5-7 must-have foundational skills from job requirements:
+- Exercise Physiology
+- Injury Assessment
+- Rehabilitation Techniques
+- Biomechanics
+- Nutrition & Dietetics
+- Emergency Response
+
+### Advanced Skills
+List 4-6 career progression skills from trends:
+- Sports Psychology
+- Training Program Design
+- Fitness Testing
+- Advanced Rehabilitation Protocols
+
+### Tools & Technologies
+List specific tools mentioned in search results:
+- None found i
+/app/agents/workers/skill_development.py:1658: PydanticDeprecatedSince20: The `copy` method is deprecated; use `model_copy` instead. See the docstring of `BaseModel.copy` for details about how to handle `include` and `exclude`. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  updated_state = state.copy(deep=True)
+/app/agents/workers/skill_development.py:1668: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  blueprint.skill_plan_structured = structured_data.dict()
+INFO:agent.skill_development_agent:✅ Generated structured skill development plan for Sports Physiotherapist with 12 skill groups
+INFO:agent.skill_development_agent:Updated blueprint for Sports Physiotherapist with skill plan
+INFO:utils.langsmith_config:Agent skill_development_agent - skill_plan_creation_Sports Physiotherapist: Created plan with 6 core skills (Duration: 63.54s)
+INFO:agent.skill_development_agent:✅ Completed skill_development_planning for Sports Physiotherapist in 63.54s
+INFO:agent.career_planning_supervisor:✅ Both agents completed execution in parallel
+INFO:agent.career_planning_supervisor:   📚 Academic Pathway: ✅ Success
+INFO:agent.career_planning_supervisor:   🎯 Skill Development: ✅ Success
+INFO:agent.career_planning_supervisor:   📚 Academic result keys: ['career_title', 'academic_plan', 'student_level', 'plan_summary']
+INFO:agent.career_planning_supervisor:   🎯 Skill result keys: ['career_title', 'skill_plan', 'plan_summary']
+INFO:agent.career_planning_supervisor:✅ Merged skill_plan_structured for Sports Physiotherapist
+INFO:agent.career_planning_supervisor:📊 Blueprint Sports Physiotherapist: academic_structured=True, skill_structured=True
+INFO:utils.langsmith_config:Agent career_planning_supervisor - career_planning_Sports Physiotherapist: Completed orchestration for Sports Physiotherapist (Duration: 80.44s)
+INFO:agent.career_planning_supervisor:✅ Completed career_planning_orchestration for Sports Physiotherapist in 80.44s
+INFO:agent.main_supervisor:📚 Academic message length: 14287 chars
+INFO:agent.main_supervisor:🔍 Formatting skill plan for Sports Physiotherapist
+INFO:agent.main_supervisor:   Skill plan keys: ['career_title', 'technical_skills', 'soft_skills', 'learning_phases', 'certifications', 'learning_resources', 'estimated_total_time', 'success_metrics', 'raw_plan']
+INFO:agent.main_supervisor:   ✅ raw_plan found: 9098 characters
+INFO:agent.main_supervisor:   📝 Formatted skill message: 9155 characters
+INFO:agent.main_supervisor:🎯 Skill message length: 9155 chars
+INFO:api_server:📚 API Response - Academic message: 14287 chars
+INFO:api_server:🎯 API Response - Skill message: 9155 chars
+INFO:     172.18.0.1:60142 - "POST /sessions/agent_init_20251209_100905/respond HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:34510 - "GET /health HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:38914 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.1:35224 - "OPTIONS /api/career-pathway/agent_init_20251209_100905 HTTP/1.1" 200 OK
+INFO:api_server:✅ Found complete blueprint for Sports Physiotherapist
+INFO:     172.18.0.1:35224 - "GET /api/career-pathway/agent_init_20251209_100905 HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:53798 - "GET /health HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:54176 - "GET /health HTTP/1.1" 200 OK
+✅ Environment validation passed - All API keys loaded
+INFO:     127.0.0.1:45764 - "GET /health HTTP/1.1" 200 OK

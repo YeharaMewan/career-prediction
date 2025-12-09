@@ -54,23 +54,23 @@ class MessagePool:
         # English greetings (7 variations)
         self.pools["greetings_en"] = [
             "Hi! I'm here to chat and get to know you better. Shall we start by talking about what you enjoy doing?",
-            "Hello! I'd love to learn more about you. What do you like to do in your free time?",
+            "Hello! I'd love to learn more about you. What are some things that really excite or interest you?",
             "Welcome! Let's have a conversation and see where it takes us. What kind of things are you into these days?",
             "Hey there! I'm curious to hear about you. What's something you're really passionate about?",
-            "Hi! Let's get to know each other. Tell me, what do you do for fun outside of school?",
+            "Hi! Let's get to know each other. What are some of your favorite hobbies or interests?",
             "Hi! I'm here to help you explore your future. Shall we start by getting to know a bit about you?",
             "Welcome! I'd love to chat and help you discover some exciting career paths. How are you doing today?",
         ]
 
-        # Sinhala greetings (7 variations)
+        # Sinhala greetings (7 variations) - Natural conversational style
         self.pools["greetings_si"] = [
-            "ආයුබෝවන්! ඔබව වඩාත් හොඳින් හඳුනා ගැනීමට මම මෙහි සිටිමි. ඔබ කැමති දේ ගැන කතා කිරීමෙන් පටන් ගමු ද?",
-            "හෙලෝ! ඔබ ගැන තව දැනගන්න මම කැමතියි. ඔබේ විවේක වේලාවේ ඔබ මොනවාද කරන්න කැමති?",
-            "සාදරයෙන් පිළිගනිමු! අපි කතා බහක් කරලා බලමු මොනවද වෙන්නේ කියලා. මේ දවස් වලදී ඔබ කැමති දේවල් මොනවාද?",
-            "හායි! ඔබ ගැන ඇසීමට මට කුතුහලයි. ඔබ ඇත්තටම කැමති මොකක් කරන්නද?",
-            "ආයුබෝවන්! අපි එකිනෙකා දැනගනිමු. කියන්න, පාසලෙන් පිටත විනෝදාංශ සඳහා ඔබ මොනව කරන්නද?",
-            "ආයුබෝවන්! ඔබේ අනාගතය ගවේෂණය කිරීමට උදව් කිරීමට මම මෙතන ඉන්නවා. පළමුව ඔබ ගැන ටිකක් දැන ගෙන පටන් ගමු ද?",
-            "සාදරයෙන් පිළිගනිමු!ආකර්ෂණීය වෘත්ති මාර්ග සොයා ගැනීමට උදව් කිරීමටයි කතා කිරීමටයි මම කැමතියි. අද ඔබට කොහොමද?",
+            "ආයුබෝවන්! ඔයා ගැන හොඳට දැනගන්න කතා කරමු. ඔයා කැමති දේවල් ගැන කතා කරන්න පටන් ගමුද?",
+            "හෙලෝ! ඔයා ගැන තව දැනගන්න කැමතියි. ඔයාට real interested වෙන හෝ exciting ලගන කරන දේවල් මොනවාද?",
+            "සාදරයෙන් පිළිගනිමු! අපි chat එකක් කරලා බලමු. මේ දවස්වල ඔයා වැඩිම enjoy කරන දේවල් මොනවාද?",
+            "හායි! ඔයා ගැන දැනගන්න curious වෙලා ඉන්නවා. ඔයා කැමති මොනවද කරන්න?",
+            "ආයුබෝවන්! අපි එකිනෙක දැනගනිමු. කියන්න, ඔයාගේ favorite hobbies හෝ interests මොනවාද?",
+            "ආයුබෝවන්! ඔයාගේ future explore කරන්න help කරන්න මෙතන ඉන්නවා. පළමුව ඔයා ගැන ටිකක් දැනගන්න පටන් ගමුද?",
+            "සාදරයෙන් පිළිගනිමු! Career pathways සොයාගන්න help කරන්න කතා කරන්න කැමතියි. අද ඔයාට කොහොමද?",
         ]
 
         self.logger.info(
@@ -104,28 +104,28 @@ class MessagePool:
             "That shines through in what you're saying.",
         ]
 
-        # Sinhala acknowledgments (20+ variations)
+        # Sinhala acknowledgments (20+ variations) - Natural conversational style
         self.pools["acknowledgments_si"] = [
-            "ඒක හරිම අගනා අදහසක්!",
-            "ඔබට ඒක ගැලපෙන්නේ ඇයිදයි මට තේරෙනවා.",
-            "ඒක ඔබේ උනන්දුව පැහැදිලිව පෙන්නුම් කරනවා.",
-            "රසවත් දෘෂ්ටිකෝණයක්!",
-            "ඒක හරිම හොඳ නිරීක්ෂණයක්.",
-            "ඔබ එය බෙදා ගැනීම ගැන මම අගය කරනවා.",
-            "ඒක ඔබව මෙහෙයවන දේ ගැන මට බොහෝ දේ කියනවා.",
-            "ඔබ වැදගත් දෙයක් අවබෝධ කර ගන්නවා.",
-            "ඔබ ඒ ගැන සිතන අන්දම මට ඇත්තටම කැමතියි.",
-            "ඒක බලන්න අපූරු ක්‍රමයක්.",
-            "ඔබ මේක හොඳින් සිතා බලා ඇති.",
-            "ඒක හරිම තේරෙනවා.",
-            "ඔබ කිව්වේ මොකක්ද කියලා මට තේරෙනවා.",
-            "ඒක හරිම වැදගත්.",
-            "විශ්මයජනකයි!",
-            "ඒක ඔබේ උනන්දුවන් ගැන බොහෝ දේ හෙළි කරනවා.",
-            "ඔබ ඒ ගැන කතා කරන විට ඔබේ උනන්දුව මට ඇහෙනවා.",
-            "ඒක හරිම පැහැදිලි නිරීක්ෂණයක්.",
-            "ඔබ හොඳ දෙයකට එළඹෙනවා.",
-            "ඔබ කියන දෙය තුළ ඒක දිලිහෙනවා.",
+            "නියමයි!",
+            "ඔයාට ඒක resonate වෙන්නේ ඇයිද මට තේරෙනවා.",
+            "ඒකෙන් ඔයාගේ interests පේනවා.",
+            "Interesting perspective එකක්!",
+            "ඒක හොඳ observation එකක්.",
+            "ඔයා share කරපු එකට thanks!",
+            "ඔයා වැදගත් දෙයක් අවබෝධ කරගන්නවා.",
+            "ඔයා ඒ ගැන think කරන විදිය really nice.",
+            "ඒක බලන විදිය හරිම හොඳයි.",
+            "ඔයා මේක හොඳට plan කරලා ඉන්නවා පේනවා.",
+            "ඔයා කිව්වේ මොකද කියලා මට clear.",
+            "ඒක quite telling එකක්.",
+            "Fascinating!",
+            "ඒකෙන් ඔයාගේ passion එක පේනවා.",
+            "ඔයා ඒ ගැන කතා කරද්දී interest එක පේනවා.",
+            "ඒක keen observation එකක්.",
+            "ඔයා හොඳ දෙයකට පැමිණෙනවා.",
+            "ඔයා කියන එකෙන් ඒක හොඳට shine වෙනවා.",
+            "හරිම sense make වෙනවා.",
+            "ඔයාගේ passion එක hear කරන්න පුළුවන් ඒකෙන්.",
         ]
 
         self.logger.info(

@@ -86,7 +86,7 @@ class ResponseAnalysis:
     specificity_score: float = 0.5  # How specific vs generic? (0-1)
     follow_up_type: Optional[str] = None  # "clarification", "expansion", "exploration", or None
     follow_up_focus: Optional[str] = None  # Specific area to explore (e.g., "IT interest")
-    key_phrases: List[str] = field(default_factory=list)  # Important phrases user mentioned (max 3)
+    key_concepts: List[str] = field(default_factory=list)  # Broader concepts (NOT exact user phrases) - max 3
 
     # NEW: Ambiguity detection
     ambiguity_score: float = 0.0  # How vague/ambiguous is the response? (0-1)
@@ -157,7 +157,40 @@ class ConversationManager:
                     "priority": 1,
                 },
                 {
+                    "question": "What do you find yourself doing when you have free time and no obligations? What pulls you in?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "work_preferences",
+                    "follow_up_triggers": [
+                        "general_response",
+                        "multiple_activities",
+                        "unclear",
+                    ],
+                    "priority": 1,
+                },
+                {
+                    "question": "If you had a completely free weekend, what would you choose to spend your time on?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "work_preferences",
+                    "follow_up_triggers": [
+                        "general_response",
+                        "multiple_activities",
+                        "unclear",
+                    ],
+                    "priority": 1,
+                },
+                {
                     "question": "Think about times when you've felt really engaged and energized. Was it working independently on something, or collaborating with others? What made that experience work for you?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "work_style",
+                    "follow_up_triggers": [
+                        "combination",
+                        "uncertain",
+                        "strong_preference",
+                    ],
+                    "priority": 1,
+                },
+                {
+                    "question": "Do you prefer tackling projects on your own, or do you thrive when working as part of a team? What's your ideal setup?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "work_style",
                     "follow_up_triggers": [
@@ -179,7 +212,7 @@ class ConversationManager:
                     "priority": 1,
                 },
                 {
-                    "question": "Everyone values different things in their work. What matters most to you when you think about your future career - is it making an impact, creative freedom, financial stability, something else?",
+                    "question": "Everyone values different things. What matters most to you in your future work - is it making an impact, creative freedom, financial stability, helping others, or something else?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "career_values",
                     "follow_up_triggers": [
@@ -203,7 +236,40 @@ class ConversationManager:
                     "priority": 1,
                 },
                 {
+                    "question": "What subjects in school have you found most interesting or engaging? What makes them stand out?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "academic_background",
+                    "follow_up_triggers": [
+                        "incomplete_info",
+                        "career_change",
+                        "multiple_fields",
+                    ],
+                    "priority": 1,
+                },
+                {
+                    "question": "Looking at your classes and subjects, which ones have felt the most natural or enjoyable to you?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "academic_background",
+                    "follow_up_triggers": [
+                        "incomplete_info",
+                        "career_change",
+                        "multiple_fields",
+                    ],
+                    "priority": 1,
+                },
+                {
                     "question": "When you're learning something new, what helps it stick? Do you prefer hands-on practice, working through problems, creative projects, or discussing ideas with others?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "learning_style",
+                    "follow_up_triggers": [
+                        "specific_methods",
+                        "challenges",
+                        "preferences",
+                    ],
+                    "priority": 1,
+                },
+                {
+                    "question": "What's your go-to approach when picking up a new skill? Do you dive in and experiment, or do you prefer structured guidance?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "learning_style",
                     "follow_up_triggers": [
@@ -227,7 +293,36 @@ class ConversationManager:
                     "priority": 1,
                 },
                 {
+                    "question": "What skills or abilities do you have that seem to come easily to you, even if others struggle with them?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "technical_skills",
+                    "follow_up_triggers": [
+                        "limited_skills",
+                        "advanced_skills",
+                        "self_taught",
+                    ],
+                    "priority": 1,
+                },
+                {
+                    "question": "Think about what your friends or classmates ask for your help with. What are you known for being good at?",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "technical_skills",
+                    "follow_up_triggers": [
+                        "limited_skills",
+                        "advanced_skills",
+                        "self_taught",
+                    ],
+                    "priority": 1,
+                },
+                {
                     "question": "When you're faced with a challenge or problem, how do you typically approach it? Walk me through your process.",
+                    "type": QuestionType.OPEN_ENDED,
+                    "target_area": "problem_solving",
+                    "follow_up_triggers": ["analytical", "creative", "collaborative"],
+                    "priority": 1,
+                },
+                {
+                    "question": "When something goes wrong or doesn't work out as planned, what's your first instinct? How do you handle it?",
                     "type": QuestionType.OPEN_ENDED,
                     "target_area": "problem_solving",
                     "follow_up_triggers": ["analytical", "creative", "collaborative"],
@@ -592,10 +687,13 @@ CRITICAL REQUIREMENTS:
 - Length: 2-3 sentences total
 - Be warm and approachable
 
+⚠️ AVOID ASKING ABOUT "OUTSIDE OF SCHOOL" OR "FREE TIME" - These topics will be covered later
+Instead ask about: general interests, what they're into, what excites them, recent activities
+
 EXAMPLES OF GOOD GREETINGS (for inspiration, don't copy):
-- "Hey! I'm here to chat and learn about what makes you tick. What kind of stuff do you enjoy doing in your free time?"
-- "Welcome! Let's get to know each other. What's something you're really into these days?"
-- "Hi there! I'd love to hear about you. What do you like to spend your time on when you're not in class?"
+- "Hey! I'm here to chat and learn about what makes you tick. What are some of your favorite hobbies or interests?"
+- "Welcome! Let's get to know each other. What's something you're really passionate about these days?"
+- "Hi there! I'd love to hear about you. What kinds of things do you enjoy doing?"
 
 Generate ONLY the greeting text, no labels or formatting."""
 
@@ -778,6 +876,11 @@ DO NOT MIRROR THEIR LANGUAGE. SINHALA ONLY.
         - Previous Questions: {context.question_history[-3:]}
         - RIASEC Scores: {context.riasec_scores}
 
+        🚨 CRITICAL RESTRICTION:
+        - NEVER ask directly: "What career?", "What job?", "What do you want to be?"
+        - INSTEAD ask about: interests, strengths, how they work, what they enjoy, their values
+        - Focus on understanding their PERSONALITY and INTERESTS - let AI infer career matches
+
         Generate a single, engaging open-ended question."""
         
         try:
@@ -807,9 +910,34 @@ DO NOT MIRROR THEIR LANGUAGE. SINHALA ONLY.
             )
 
     def _select_best_question(self, available_questions: List[Dict[str, Any]], context: ConversationContext) -> Dict[str, Any]:
-        """Select the best question from the available list."""
-        # Simple selection: take the first one (highest priority)
-        return available_questions[0]
+        """
+        Select the best question from the available list.
+        
+        Enhanced with random selection among same-priority questions to add variety
+        and prevent users from seeing the exact same questions every time.
+        """
+        import random
+        
+        if not available_questions:
+            raise ValueError("No available questions to select from")
+        
+        # Group questions by priority
+        priority_groups = {}
+        for question in available_questions:
+            priority = question.get("priority", 1)
+            if priority not in priority_groups:
+                priority_groups[priority] = []
+            priority_groups[priority].append(question)
+        
+        # Get highest priority group
+        highest_priority = min(priority_groups.keys())
+        top_questions = priority_groups[highest_priority]
+        
+        # Randomly select from top priority questions for variety
+        selected = random.choice(top_questions)
+        
+        logging.debug(f"Selected question from {len(top_questions)} priority-{highest_priority} options")
+        return selected
 
     def _convert_to_generated_question(self, question_data: Dict[str, Any], context: ConversationContext) -> GeneratedQuestion:
         """Convert dictionary question data to GeneratedQuestion object."""
@@ -871,7 +999,9 @@ DEPTH & SPECIFICITY:
 FOLLOW-UP OPPORTUNITY:
 - follow_up_type: "clarification" (vague/unclear), "expansion" (interesting but brief), "exploration" (passion detected), or null
 - follow_up_focus: Specific topic to explore (e.g., "AI interest", "helping people motivation")
-- key_phrases: Extract 1-3 important phrases they used (e.g., ["web apps", "React"])
+- key_concepts: Extract 1-3 CONCEPTS they discussed (NOT their exact words) - paraphrase to broader themes
+  Example: If they say "React and Flask", extract ["full-stack development", "web technologies"]
+  Example: If they say "organizing events", extract ["project coordination", "leadership"]
 
 Provide analysis in this JSON format (JSON only, no explanations):
 {{
@@ -886,7 +1016,7 @@ Provide analysis in this JSON format (JSON only, no explanations):
     "specificity_score": 0.0-1.0,
     "follow_up_type": "clarification|expansion|exploration|null",
     "follow_up_focus": "topic area or null",
-    "key_phrases": ["phrase1", "phrase2", "phrase3"]
+    "key_concepts": ["concept1", "concept2", "concept3"]
 }}"""
 
         try:
@@ -925,7 +1055,7 @@ Provide analysis in this JSON format (JSON only, no explanations):
                 specificity_score=analysis_data.get("specificity_score", 0.5),
                 follow_up_type=analysis_data.get("follow_up_type"),
                 follow_up_focus=analysis_data.get("follow_up_focus"),
-                key_phrases=analysis_data.get("key_phrases", []),
+                key_concepts=analysis_data.get("key_concepts", []),
                 # NEW: Ambiguity detection
                 ambiguity_score=analysis_data.get("ambiguity_score", 0.0)
             )
@@ -1066,7 +1196,7 @@ Provide analysis in this JSON format (JSON only, no explanations):
             specificity_score=0.5,  # Neutral default
             follow_up_type="clarification" if is_ambiguous else None,
             follow_up_focus=question.target_area if is_ambiguous else None,
-            key_phrases=[],
+            key_concepts=[],
             # NEW: Ambiguity detection
             ambiguity_score=ambiguity_score
         )
@@ -1856,12 +1986,12 @@ Provide analysis in this JSON format (JSON only, no explanations):
     def generate_follow_up_question(self, context: ConversationContext, analysis: ResponseAnalysis) -> GeneratedQuestion:
         """
         Generate a targeted follow-up question based on the analysis.
-        Enhanced to use dynamic follow-up fields (key_phrases, follow_up_focus, follow_up_type).
+        Enhanced to use dynamic follow-up fields (key_concepts, follow_up_focus, follow_up_type).
         """
         # NEW: Check for dynamic follow-up fields
         follow_up_type = getattr(analysis, 'follow_up_type', None)
         follow_up_focus = getattr(analysis, 'follow_up_focus', None)
-        key_phrases = getattr(analysis, 'key_phrases', [])
+        key_concepts = getattr(analysis, 'key_concepts', [])
 
         # Identify the most critical area needing follow-up
         # Prioritize follow_up_focus if available
@@ -1872,12 +2002,11 @@ Provide analysis in this JSON format (JSON only, no explanations):
             follow_up_area = "general"
 
         # Extract key insights from their response
-        # NEW: Use key_phrases if available
+        # NEW: Use key_concepts if available (broader themes, NOT exact phrases)
         insights_context = ""
-        if key_phrases:
-            # Fix: Cannot use backslashes in f-string expressions, so extract quote wrapping first
-            quoted_phrases = [f'"{p}"' for p in key_phrases[:3]]
-            insights_context = f"\nKey phrases they used: {', '.join(quoted_phrases)}"
+        if key_concepts:
+            # Include broader concepts to provide context for paraphrasing
+            insights_context = f"\n\nKEY THEMES IDENTIFIED: {', '.join(key_concepts[:3])}\n(Note: These are broader concepts - use your own words, don't copy user's exact phrases)"
         elif hasattr(analysis, 'key_insights') and analysis.key_insights:
             insights_context = f"\nKey insights from their response: {', '.join(analysis.key_insights[:3])}"
 
@@ -1913,6 +2042,11 @@ THEIR RESPONSE: "{context.response_history[-1] if context.response_history else 
 
 WHAT NEEDS MORE INFO: {follow_up_area}{insights_context}
 
+🚨 CRITICAL RESTRICTION:
+- NEVER ask directly about "career", "job", "profession", or "what you want to be"
+- INSTEAD ask about: interests, motivations, what they enjoy, how they work, their strengths
+- Let the AI system INFER career matches - your job is to understand their PERSONALITY and INTERESTS
+
 YOUR APPROACH - Respond naturally using this structure:
 
 1. ACKNOWLEDGE (1 sentence)
@@ -1921,15 +2055,16 @@ YOUR APPROACH - Respond naturally using this structure:
    • Match their tone and energy level
 
 2. CONNECT (1 sentence)
-   • Reference specific details they mentioned
-   • Show you're tracking the conversation
-   • Use their actual words or examples
+   • Reference what they shared, but PARAPHRASE naturally
+   • Show you're tracking the conversation by connecting to the MEANING, not copying words
+   • Transform their phrases into your own natural language
+   • Example: "React and Flask" → "full-stack work" or "backend and frontend"
 
 3. DIG DEEPER (1-2 sentences)
    • Ask a natural follow-up about {follow_up_area}{self._get_follow_up_type_guidance(follow_up_type)}
    • Show authentic curiosity
    • Make it conversational, not interrogative
-   • NEW: Reference their exact phrases{f': {", ".join(key_phrases[:2])}' if key_phrases else ''}
+   • PARAPHRASE their key concepts - don't copy their exact technical terms{f'. Themes: {", ".join(key_concepts[:2])}' if key_concepts else ''}
 
 IMPORTANT:
 - Do NOT include section labels
