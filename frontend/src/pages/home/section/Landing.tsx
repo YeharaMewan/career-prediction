@@ -74,7 +74,7 @@ const Landing = () => {
               </p>
 
               {/* Language Toggle */}
-              <div className="flex justify-center">
+              <div className="flex justify-center p-2">
                 <button
                   onClick={() => setLanguage(language === "en" ? "si" : "en")}
                   className="relative inline-flex cursor-pointer rounded-full bg-gray-100/80 p-1 backdrop-blur-sm ring-1 ring-gray-200 transition-all hover:ring-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
@@ -108,7 +108,7 @@ const Landing = () => {
                 </button>
               </div>
 
-              <div className="mx-auto max-w-2xl">
+              <div className="mx-auto max-w-2xl pt-3">
                 <div className="glow-input-wrapper">
                   <ModernSimpleInput
                     value={value}
