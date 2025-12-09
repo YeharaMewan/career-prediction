@@ -60,7 +60,7 @@ const Landing = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             {/* Left Content */}
             <div className="space-y-7 xl:-space-y-0.5 sm:pt-2 ">
-              <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-6xl lg:text-7xl xl:text-8xl">
+              <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-5xl lg:text-6xl xl:text-7xl">
                 Build Imagination
                 <br />
                 <span className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
@@ -68,7 +68,7 @@ const Landing = () => {
                 </span>
               </h1>
 
-              <p className="mx-auto max-w-2xl font-mono text-lg font-light text-gray-700 md:text-xl">
+              <p className="mx-auto max-w-xl font-mono text-base font-light text-gray-700 md:text-lg">
                 Your intelligent companion for creativity, problem-solving, and turning ideas into
                 reality.
               </p>
@@ -108,7 +108,7 @@ const Landing = () => {
                 </button>
               </div>
 
-              <div className="mx-auto max-w-2xl pt-3">
+              <div className="mx-auto max-w-xl pt-3">
                 <div className="glow-input-wrapper">
                   <ModernSimpleInput
                     value={value}
