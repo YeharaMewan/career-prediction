@@ -5,6 +5,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import type { CareerPrediction } from "../../types/career";
 
+declare global {
+  interface Window {
+    lottie: any;
+  }
+}
+
 interface Message {
     sender: "user" | "ai";
     text: string;
@@ -27,6 +33,7 @@ const ChatPage = () => {
     const sessionIdRef = useRef<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lottieRef = useRef<any>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -43,6 +50,23 @@ const ChatPage = () => {
             textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
         }
     }, [input]);
+
+    // background animation
+
+        useEffect(() => {
+            if (!lottieRef.current || lottieRef.current.dataset.loaded) return;
+            
+            lottieRef.current.dataset.loaded = "true";
+
+            window.lottie.loadAnimation({
+                container: lottieRef.current,
+                renderer: "svg",
+                loop: true,
+                autoplay: true,
+                path: "/chatbot.json",
+            });
+        }, []);
+
 
     // Debounce isTyping to prevent flicker
     useEffect(() => {
@@ -291,8 +315,19 @@ const ChatPage = () => {
     };
 
     return (
-        <div className="flex h-[calc(100vh-72px)] w-full flex-col items-center bg-gradient-to-br from-teal-50 via-cyan-50 to-teal-100 px-4 pb-6 pt-6">
-            <div className="flex w-full max-w-4xl flex-1 flex-col overflow-hidden rounded-3xl bg-white/80 shadow-2xl backdrop-blur-xl ring-1 ring-white/50">
+        <div className="relative flex h-[calc(100vh-72px)] w-full flex-col items-center bg-gradient-to-br from-teal-50 via-cyan-50 to-teal-100 px-4 pb-6 pt-6 overflow-hidden">
+            {/* Background Animation */}
+            <div
+                ref={lottieRef}
+                className="absolute -left-2 bottom-0 opacity-20 pointer-events-none repeat-none"
+                style={{
+                    width: "400px",
+                    height: "400px",
+                }}
+            />
+
+            {/* Content */}
+            <div className="flex w-full max-w-4xl flex-1 flex-col overflow-hidden rounded-3xl bg-white/80 shadow-2xl backdrop-blur-xl ring-1 ring-white/50 relative z-10">
 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-gray-100 bg-white/50 px-6 py-4 backdrop-blur-md">
