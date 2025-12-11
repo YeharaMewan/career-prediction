@@ -16,38 +16,77 @@ export default function CareerPlanningLoader() {
 
   const { sessionId, careerTitle, language = 'en' } = (location.state || {}) as LocationState;
 
-  useEffect(() => {
-    if (!sessionId || !careerTitle) {
-      // Redirect to chat if missing required data
-      navigate('/chat');
-      return;
+useEffect(() => {
+  if (!sessionId || !careerTitle) {
+    console.error('[Loader] Missing required data:', { sessionId, careerTitle });
+    navigate('/chat');
+    return;
+  }
+
+  console.log('[Loader] Starting career planning flow:', { sessionId, careerTitle, language });
+
+  const triggerAndPoll = async () => {
+    try {
+      // Trigger career planning
+      console.log('[Loader] Triggering career planning via API...');
+      await apiService.selectCareer(sessionId, careerTitle, language);
+      console.log('[Loader] Career planning triggered successfully');
+
+      // Wait 90 seconds for agents to complete (they run in parallel and take 60-90s)
+      console.log('[Loader] Waiting 90 seconds for agents to process...');
+      await new Promise(resolve => setTimeout(resolve, 90000));
+
+      // Now poll for results
+      console.log('[Loader] Starting to poll for results...');
+      await pollForResults();
+
+    } catch (err: any) {
+      console.error('[Loader] Error in flow:', err);
+      setError(err.message || 'Failed to process career planning');
+      
+      // Still navigate after error
+      setTimeout(() => {
+        navigate('/career-pathway', { state: { sessionId } });
+      }, 3000);
     }
+  };
 
-    // Trigger career planning
-    apiService.selectCareer(sessionId, careerTitle, language)
-      .then(() => {
-        // Career planning initiated successfully
-        // Wait a moment for agents to complete (they run in parallel ~60s)
-        // Poll or wait for completion
+  const pollForResults = async () => {
+    const maxAttempts = 5; // Only 5 attempts since we already waited 90s
+    let attempts = 0;
 
-        // For now, navigate after a delay (you can improve this with polling)
-        setTimeout(() => {
-          navigate('/career-pathway', {
-            state: { sessionId },
-          });
-        }, 65000); // 65 seconds (60s for agents + 5s buffer)
-      })
-      .catch((err) => {
-        console.error('Failed to trigger career planning:', err);
-        setError(err.message);
-        // Navigate anyway after showing error briefly
-        setTimeout(() => {
-          navigate('/career-pathway', {
-            state: { sessionId },
-          });
-        }, 3000);
-      });
-  }, [sessionId, careerTitle, language, navigate]);
+    const poll = async (): Promise<void> => {
+      attempts++;
+      console.log(`[Loader] Poll attempt ${attempts}/${maxAttempts}`);
+
+      try {
+        const data = await apiService.getCareerPathway(sessionId);
+        
+        if (data.academic_pathway?.sections?.length > 0 || data.skill_development?.skillGroups?.length > 0) {
+          console.log('[Loader] ✅ Data ready! Navigating...');
+          navigate('/career-pathway', { state: { sessionId } });
+          return;
+        }
+        
+        console.log('[Loader] Data not ready yet, retrying...');
+      } catch (err: any) {
+        console.log(`[Loader] Poll attempt ${attempts} failed:`, err.message);
+      }
+
+      if (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3s between polls
+        return poll();
+      } else {
+        console.log('[Loader] Max attempts reached, navigating anyway...');
+        navigate('/career-pathway', { state: { sessionId } });
+      }
+    };
+
+    return poll();
+  };
+
+  triggerAndPoll();
+}, [sessionId, careerTitle, language, navigate]);
 
   if (error) {
     return (
