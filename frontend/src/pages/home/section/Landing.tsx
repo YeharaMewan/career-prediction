@@ -60,17 +60,31 @@ const Landing = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             {/* Left Content */}
             <div className="space-y-7 xl:-space-y-0.5 sm:pt-2 ">
-              <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-5xl lg:text-6xl xl:text-7xl">
+              {/* <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-5xl lg:text-6xl xl:text-7xl">
                 Build Imagination
                 <br />
                 <span className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
                   With Logic AI
                 </span>
+              </h1> */}
+              <h1 className="text-3xl leading-tight font-bold text-gray-900 md:text-5xl lg:text-6xl xl:text-7xl">
+                {language === "si" ? "ඔබේ අනාගතය ගොඩනගන්න" : "Build Imagination"}
+                <br />
+                <span className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+                  {language === "si" ? "Logic AI සමඟ" : "With Logic AI"}
+                </span>
               </h1>
 
-              <p className="mx-auto max-w-xl font-mono text-base font-light text-gray-700 md:text-lg">
+
+              {/* <p className="mx-auto max-w-xl font-mono text-base font-light text-gray-700 md:text-lg">
                 Your intelligent companion for creativity, problem-solving, and turning ideas into
                 reality.
+              </p> */}
+
+              <p className="mx-auto max-w-xl font-mono text-base font-light text-gray-700 md:text-lg">
+                {language === "si"
+                  ? "අදහස් ගොඩනගා ගනිමින් ප්‍රශ්න විසඳන්න — ඔබේ AI සහයකයා 🤖"
+                  : "Your intelligent companion for creativity, problem-solving, and turning ideas into reality."}
               </p>
 
               {/* Language Toggle */}
